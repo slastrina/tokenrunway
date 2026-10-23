@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Notifications</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.tr{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;font-size:13px;line-height:1.35;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;color:var(--fg1)}
+.tr-dark{--desk:#1b2438;--wall-a:#24324f;--wall-b:#4a3416;--mac:rgba(40,46,60,.72);--mac-btn:rgba(255,255,255,.10);--win:#2b2d33;--win-btn:rgba(255,255,255,.08);--line:rgba(255,255,255,.10);--fg1:#f2f4f8;--fg2:#b9c0cc;--fg3:#9aa1ae;--crit-text:#ff8f97;--warn-text:#f7b84a}
+.tr-light{--desk:#d9dee7;--wall-a:#c3cddd;--wall-b:#f0d6a8;--mac:rgba(246,246,248,.80);--mac-btn:rgba(0,0,0,.06);--win:#f9f9f9;--win-btn:#ffffff;--line:rgba(0,0,0,.08);--fg1:#111318;--fg2:#3f4652;--fg3:#5c6370;--crit-text:#bd2536;--warn-text:#94570a}
+.tr button{font:inherit;color:inherit}
+</style>
+</helmet>
+<div class="tr tr-light" style="width:1240px;height:640px;box-sizing:border-box;padding:32px 36px;background:#e2e6ec;display:grid;grid-template-columns:repeat(2, minmax(0, 1fr));gap:24px">
+
+<div style="display:flex;flex-direction:column;gap:12px">
+<span style="font-size:13px;font-weight:600">macOS · banner and alert with actions</span>
+<sc-for list="{{themes}}" as="t" hint-placeholder-count="2">
+<div class="tr tr-{{t.id}}" style="position:relative;height:262px;border-radius:12px;overflow:hidden;background:var(--desk)">
+<div style="position:absolute;left:-60px;top:120px;width:300px;height:300px;border-radius:50%;background:var(--wall-a)"></div>
+<div style="position:absolute;right:-40px;top:-60px;width:220px;height:220px;border-radius:50%;background:var(--wall-b)"></div>
+<div style="position:absolute;right:16px;top:16px;width:360px;display:flex;flex-direction:column;gap:10px">
+
+<div role="status" style="display:flex;gap:10px;padding:12px 14px 12px 12px;border-radius:18px;background:var(--mac);backdrop-filter:blur(30px) saturate(1.8);-webkit-backdrop-filter:blur(30px) saturate(1.8);box-shadow:0 0 0 .5px var(--line),0 8px 24px rgba(0,0,0,.18)">
+<svg width="34" height="34" viewBox="0 0 64 64" aria-hidden="true" style="flex-shrink:0"><rect width="64" height="64" rx="14" fill="#0d1321"></rect><path d="M14 30a18 18 0 0 1 36 0" fill="none" stroke="#f5a524" stroke-width="4" stroke-linecap="round"></path><path d="M29 32 20 54M35 32l9 22" fill="none" stroke="#eef1f7" stroke-width="3" stroke-linecap="round"></path><path d="M32 36v3M32 43v4M32 50v4" stroke="#f5a524" stroke-width="2.4" stroke-linecap="round"></path></svg>
+<div style="display:flex;flex-direction:column;gap:1px;flex:1;min-width:0">
+<div style="display:flex;justify-content:space-between;gap:8px"><span style="font-size:13px;font-weight:600">Claude — work</span><span style="font-size:12px;color:var(--fg3)">now</span></div>
+<span style="font-size:13px;color:var(--fg1)">90% of weekly used, resets Mon 09:00</span>
+<span style="font-size:12px;color:var(--fg2)">On track to finish the week at ~96%.</span>
+</div>
+</div>
+
+<div role="alert" style="display:flex;border-radius:18px;background:var(--mac);backdrop-filter:blur(30px) saturate(1.8);-webkit-backdrop-filter:blur(30px) saturate(1.8);box-shadow:0 0 0 .5px var(--line),0 8px 24px rgba(0,0,0,.18);overflow:hidden">
+<div style="display:flex;gap:10px;padding:12px 12px 12px 12px;flex:1;min-width:0">
+<svg width="34" height="34" viewBox="0 0 64 64" aria-hidden="true" style="flex-shrink:0"><rect width="64" height="64" rx="14" fill="#0d1321"></rect><path d="M14 30a18 18 0 0 1 36 0" fill="none" stroke="#f5a524" stroke-width="4" stroke-linecap="round"></path><path d="M29 32 20 54M35 32l9 22" fill="none" stroke="#eef1f7" stroke-width="3" stroke-linecap="round"></path><path d="M32 36v3M32 43v4M32 50v4" stroke="#f5a524" stroke-width="2.4" stroke-linecap="round"></path></svg>
+<div style="display:flex;flex-direction:column;gap:1px;min-width:0">
+<span style="font-size:13px;font-weight:600">Claude — work · 5-hour at 78%</span>
+<span style="font-size:13px;color:var(--fg1)">At this pace you'll run out at 13:05, 1h 15m before reset.</span>
+</div>
+</div>
+<div style="display:flex;flex-direction:column;width:104px;border-left:.5px solid var(--line)">
+<button style="flex:1;border:0;background:transparent;font-size:12.5px;font-weight:600;border-bottom:.5px solid var(--line)">Request more</button>
+<button style="flex:1;border:0;background:transparent;font-size:12.5px;font-weight:510">Snooze 1h</button>
+</div>
+</div>
+
+</div>
+</div>
+</sc-for>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:12px">
+<span style="font-size:13px;font-weight:600">Windows 11 · toast with actions</span>
+<sc-for list="{{themes}}" as="t" hint-placeholder-count="2">
+<div class="tr tr-{{t.id}}" style="position:relative;height:262px;border-radius:12px;overflow:hidden;background:var(--desk);font-family:'Segoe UI Variable Text','Segoe UI',system-ui,sans-serif">
+<div style="position:absolute;left:-60px;top:120px;width:300px;height:300px;border-radius:50%;background:var(--wall-a)"></div>
+<div style="position:absolute;right:-40px;top:-60px;width:220px;height:220px;border-radius:50%;background:var(--wall-b)"></div>
+<div role="alert" style="position:absolute;right:16px;bottom:16px;width:364px;border-radius:8px;background:var(--win);box-shadow:0 0 0 1px var(--line),0 16px 32px rgba(0,0,0,.24);padding:12px 14px 14px;display:flex;flex-direction:column;gap:10px;box-sizing:border-box">
+<div style="display:flex;align-items:center;gap:8px">
+<svg width="16" height="16" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="12" fill="#0d1321"></rect><path d="M14 30a18 18 0 0 1 36 0" fill="none" stroke="#f5a524" stroke-width="6" stroke-linecap="round"></path><path d="M29 32 20 54M35 32l9 22" fill="none" stroke="#eef1f7" stroke-width="5" stroke-linecap="round"></path></svg>
+<span style="font-size:12px;color:var(--fg2);flex:1">Tokenrunway</span>
+<button aria-label="More options" style="width:24px;height:24px;border:0;border-radius:4px;background:transparent;color:var(--fg2);display:inline-flex;align-items:center;justify-content:center"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="3.5" cy="8" r="1.1"></circle><circle cx="8" cy="8" r="1.1"></circle><circle cx="12.5" cy="8" r="1.1"></circle></svg></button>
+<button aria-label="Dismiss" style="width:24px;height:24px;border:0;border-radius:4px;background:transparent;color:var(--fg2);display:inline-flex;align-items:center;justify-content:center"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="m3.5 3.5 9 9M12.5 3.5l-9 9"></path></svg></button>
+</div>
+<div style="display:flex;gap:12px;align-items:flex-start">
+<span style="width:36px;height:36px;flex-shrink:0;border-radius:6px;background:rgba(224,56,74,.14);color:var(--crit-text);display:inline-flex;align-items:center;justify-content:center"><svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 1.8h5l3.7 3.7v5l-3.7 3.7h-5l-3.7-3.7v-5Z"></path><path d="M8 5v3.6"></path><path d="M8 11v.01"></path></svg></span>
+<div style="display:flex;flex-direction:column;gap:2px">
+<span style="font-size:14px;font-weight:600">Claude — work: out at 13:05</span>
+<span style="font-size:13px;color:var(--fg2)">At this pace you'll run out at 13:05, 1h 15m before the 5-hour window resets at 14:20.</span>
+</div>
+</div>
+<div style="display:grid;grid-template-columns:repeat(2, minmax(0, 1fr));gap:8px">
+<button style="height:32px;border:0;border-radius:4px;background:#f5a524;color:#1d1405;font-size:13px;font-weight:600">Request more</button>
+<button style="height:32px;border:0;border-radius:4px;background:var(--win-btn);box-shadow:inset 0 0 0 1px var(--line);font-size:13px">Snooze 1 hour</button>
+</div>
+</div>
+<div role="status" style="position:absolute;left:16px;top:16px;width:300px;border-radius:8px;background:var(--win);box-shadow:0 0 0 1px var(--line),0 8px 20px rgba(0,0,0,.16);padding:10px 12px;display:flex;gap:10px;align-items:flex-start;box-sizing:border-box">
+<span style="width:28px;height:28px;flex-shrink:0;border-radius:6px;background:rgba(245,165,36,.18);color:var(--warn-text);display:inline-flex;align-items:center;justify-content:center"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.2 14.2 13.2H1.8Z"></path><path d="M8 6.6v3"></path><path d="M8 11.4v.01"></path></svg></span>
+<div style="display:flex;flex-direction:column;gap:1px"><span style="font-size:13px;font-weight:600">Claude — work</span><span style="font-size:12.5px;color:var(--fg2)">90% of weekly used, resets Mon 09:00</span></div>
+</div>
+</div>
+</sc-for>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1240,"height":640}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { themes: [{ id: 'light' }, { id: 'dark' }] };
+  }
+}
+</script>
+</body>
+</html>

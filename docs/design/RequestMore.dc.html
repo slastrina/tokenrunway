@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Request more sheet</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.tr{--font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI Variable Text","Segoe UI",system-ui,Ubuntu,Cantarell,sans-serif;--mono:ui-monospace,"SF Mono","Cascadia Mono",Menlo,Consolas,monospace;--r-pop:12px;--r-card:10px;--r-ctl:6px;--blur:blur(32px) saturate(1.7);font-family:var(--font);font-size:13px;line-height:1.35;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;color:var(--fg1)}
+.tr-dark{--desk:#1b2438;--wall-a:#24324f;--wall-b:#4a3416;--pop:rgba(18,25,40,.80);--card:rgba(255,255,255,.045);--field:rgba(0,0,0,.22);--track:rgba(255,255,255,.10);--line:rgba(255,255,255,.08);--line-strong:rgba(255,255,255,.16);--fg1:#eef1f7;--fg2:#aab3c4;--fg3:#8a94a8;--seg-on:rgba(255,255,255,.16);--seg-shadow:none;--btn:rgba(255,255,255,.08);--tile-ink:#0d1321;--menubar:rgba(28,33,46,.78);--pressed:rgba(255,255,255,.16);--accent:#f5a524;--accent-ink:#1d1405;--accent-text:#f7b84a;--focus:rgba(245,165,36,.55);--crit:#ff6b75;--crit-text:#ff8f97;--crit-bg:rgba(255,107,117,.15);--p-claude:#e5865f;--shadow-pop:0 0 0 .5px rgba(0,0,0,.6),inset 0 0 0 .5px rgba(255,255,255,.14),0 18px 48px rgba(0,0,0,.5)}
+.tr-light{--desk:#d9dee7;--wall-a:#c3cddd;--wall-b:#f0d6a8;--pop:rgba(248,249,251,.86);--card:#ffffff;--field:#ffffff;--track:rgba(13,19,33,.08);--line:rgba(13,19,33,.09);--line-strong:rgba(13,19,33,.16);--fg1:#0d1321;--fg2:#465064;--fg3:#5d6779;--seg-on:#ffffff;--seg-shadow:0 1px 2px rgba(13,19,33,.14),0 0 0 .5px rgba(13,19,33,.08);--btn:rgba(13,19,33,.06);--tile-ink:#ffffff;--menubar:rgba(246,247,250,.78);--pressed:rgba(13,19,33,.12);--accent:#f5a524;--accent-ink:#1d1405;--accent-text:#94570a;--focus:rgba(245,165,36,.6);--crit:#e0384a;--crit-text:#bd2536;--crit-bg:rgba(224,56,74,.10);--p-claude:#b8572f;--shadow-pop:0 0 0 .5px rgba(0,0,0,.18),0 18px 48px rgba(13,19,33,.22)}
+.tr button{font:inherit;color:inherit}
+a{color:inherit}a:hover{color:inherit;text-decoration:underline}
+</style>
+</helmet>
+<div style="width:960px;height:660px;display:flex">
+<sc-for list="{{themes}}" as="t" hint-placeholder-count="2">
+<div class="tr tr-{{t.id}}" style="width:480px;height:660px;position:relative;overflow:hidden;background:var(--desk)">
+<div style="position:absolute;left:-120px;top:260px;width:460px;height:460px;border-radius:50%;background:var(--wall-a)"></div>
+<div style="position:absolute;right:-90px;top:80px;width:280px;height:280px;border-radius:50%;background:var(--wall-b)"></div>
+<div style="position:absolute;left:0;right:0;top:0;height:24px;background:var(--menubar);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);display:flex;align-items:center;justify-content:flex-end;gap:14px;padding:0 12px">
+<span style="display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 6px;border-radius:5px;background:var(--pressed);color:var(--crit)"><svg width="18" height="16" viewBox="0 0 18 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M3.5 2.75h7"></path><path d="M6.6 2.75 2.6 14.25"></path><path d="M9.4 2.75l4 11.5"></path><path d="M8 6v1.3M8 9.4v1.5M8 13v1.25" stroke-width="1.2"></path><circle cx="14.2" cy="3.6" r="3.1" fill="currentColor" stroke="none"></circle></svg><span style="font-size:12.5px;font-weight:600">1h 26m</span></span>
+<span style="width:16px;height:12px;border-radius:3px;background:var(--line-strong)"></span>
+<span style="width:14px;height:14px;border-radius:50%;border:1.5px solid var(--fg2);box-sizing:border-box"></span>
+<span style="width:20px;height:10px;border-radius:3px;border:1.5px solid var(--fg2);box-sizing:border-box"></span>
+<span style="font-size:13px;font-weight:510">Fri 23 Oct  11:39</span>
+</div>
+
+<div role="dialog" aria-label="Request more usage" style="position:absolute;top:30px;left:50px;width:380px;height:560px;border-radius:var(--r-pop);background:var(--pop);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);box-shadow:var(--shadow-pop);display:flex;flex-direction:column;overflow:hidden">
+<div style="display:flex;align-items:center;gap:6px;padding:10px 12px 10px 6px;border-bottom:1px solid var(--line)">
+<button aria-label="Back to Now" style="height:28px;padding:0 6px;border:0;border-radius:6px;background:transparent;color:var(--fg2);display:inline-flex;align-items:center;gap:2px;font-size:12.5px"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3.5 5.5 8l4.5 4.5"></path></svg>Now</button>
+<h2 style="margin:0;font-size:13px;font-weight:600;flex:1;text-align:center;padding-right:40px">Request more</h2>
+</div>
+
+<div style="flex:1;min-height:0;padding:12px 14px;display:flex;flex-direction:column;gap:12px">
+<div style="display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:8px;background:var(--crit-bg)">
+<span style="width:22px;height:22px;border-radius:6px;background:var(--p-claude);color:var(--tile-ink);display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700">C</span>
+<div style="display:flex;flex-direction:column;flex:1;line-height:1.25">
+<span style="font-size:12.5px;font-weight:600">Claude — work · 5-hour at 78%</span>
+<span style="font-size:11.5px;color:var(--crit-text);font-weight:510">Out at 13:05, 1h 15m before reset</span>
+</div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:6px">
+<span style="font-size:11.5px;font-weight:600;color:var(--fg2)">Send via</span>
+<div role="radiogroup" aria-label="Send via" style="display:grid;grid-template-columns:repeat(4, minmax(0, 1fr));gap:2px;padding:2px;border-radius:7px;background:var(--btn)">
+<button role="radio" aria-checked="false" style="height:24px;border:0;border-radius:5px;background:transparent;font-size:12px;color:var(--fg2)">Claude</button>
+<button role="radio" aria-checked="false" style="height:24px;border:0;border-radius:5px;background:transparent;font-size:12px;color:var(--fg2)">Email</button>
+<button role="radio" aria-checked="true" style="height:24px;border:0;border-radius:5px;background:var(--seg-on);box-shadow:var(--seg-shadow);font-size:12px;font-weight:600">Slack</button>
+<button role="radio" aria-checked="false" style="height:24px;border:0;border-radius:5px;background:transparent;font-size:12px;color:var(--fg2)">Teams</button>
+</div>
+</div>
+
+<div style="display:grid;grid-template-columns:44px 1fr;align-items:center;gap:8px">
+<label for="to-{{t.id}}" style="font-size:12px;color:var(--fg2)">To</label>
+<input id="to-{{t.id}}" value="@Jordan Lee  (Claude workspace admin)" style="height:28px;box-sizing:border-box;padding:0 9px;border:0;border-radius:6px;background:var(--field);box-shadow:inset 0 0 0 1px var(--line-strong);font:inherit;font-size:12.5px;color:var(--fg1)">
+</div>
+
+<div style="display:flex;flex-direction:column;gap:6px;flex:1;min-height:0">
+<label for="msg-{{t.id}}" style="font-size:11.5px;font-weight:600;color:var(--fg2)">Message</label>
+<textarea id="msg-{{t.id}}" style="flex:1;min-height:0;resize:none;box-sizing:border-box;padding:9px 10px;border:0;border-radius:7px;background:var(--field);box-shadow:inset 0 0 0 1px var(--line-strong),0 0 0 3px var(--focus);font:inherit;font-size:12.5px;line-height:1.5;color:var(--fg1)">Hi Jordan, I'm close to my Claude limit on the Enterprise seat.
+
+• 5-hour: 78% used (412k / 530k tokens), resets 14:20
+• At this pace I run out at 13:05, 1h 15m before reset
+• Weekly 64% · Weekly Opus 83%, both reset Mon 09:00
+
+Could you raise my limit or add usage for today? I'm in the middle of [what you're working on].
+
+Thanks, Sam</textarea>
+</div>
+
+<label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--fg2)"><input type="checkbox" checked="checked" style="margin:0;accent-color:#f5a524">Attach usage snapshot (image)</label>
+
+<div style="display:flex;gap:8px">
+<button style="height:30px;padding:0 14px;border:0;border-radius:7px;background:var(--btn);font-size:12.5px;font-weight:510">Copy</button>
+<span style="flex:1"></span>
+<button style="height:30px;padding:0 16px;border:0;border-radius:7px;background:var(--accent);color:var(--accent-ink);font-size:12.5px;font-weight:600;display:inline-flex;align-items:center;gap:6px">Send via Slack<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2 7 9"></path><path d="M14 2 9.5 14 7 9 2 6.5Z"></path></svg></button>
+</div>
+</div>
+
+<footer style="height:34px;flex-shrink:0;display:flex;align-items:center;gap:6px;padding:0 8px 0 14px;border-top:1px solid var(--line);font-size:11.5px;color:var(--fg3)">
+<span>Tokenrunway v0.1.0</span><span aria-hidden="true">·</span><a href="https://iokig.com" style="color:var(--fg2);text-decoration:none">iokig.com</a><span style="flex:1"></span>
+<button aria-label="Settings" style="width:26px;height:26px;border:0;border-radius:6px;background:transparent;color:var(--fg2);display:inline-flex;align-items:center;justify-content:center"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="2.2"></circle><path d="M6.9 1.8h2.2l.4 1.7 1.2.6 1.5-.9 1.6 1.6-.9 1.5.6 1.2 1.7.4v2.2l-1.7.4-.6 1.2.9 1.5-1.6 1.6-1.5-.9-1.2.6-.4 1.7H6.9l-.4-1.7-1.2-.6-1.5.9-1.6-1.6.9-1.5-.6-1.2-1.7-.4V6.9l1.7-.4.6-1.2-.9-1.5 1.6-1.6 1.5.9 1.2-.6Z"></path></svg></button>
+</footer>
+</div>
+</div>
+</sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":960,"height":660}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { themes: [{ id: 'dark' }, { id: 'light' }] };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Tokenrunway dashboard</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.tr{--font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI Variable Text","Segoe UI",system-ui,Ubuntu,Cantarell,sans-serif;--mono:ui-monospace,"SF Mono","Cascadia Mono",Menlo,Consolas,monospace;--r-card:10px;font-family:var(--font);font-size:13px;line-height:1.35;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;color:var(--fg1)}
+.tr-dark{--win:#0d1321;--titlebar:#111829;--card:rgba(255,255,255,.04);--track:rgba(255,255,255,.10);--grid:rgba(255,255,255,.07);--line:rgba(255,255,255,.08);--line-strong:rgba(255,255,255,.16);--fg1:#eef1f7;--fg2:#aab3c4;--fg3:#8a94a8;--seg-on:rgba(255,255,255,.16);--seg-shadow:none;--btn:rgba(255,255,255,.07);--accent:#f5a524;--accent-text:#f7b84a;--ok:#7cc4fa;--ok-text:#8ccdfb;--warn:#f5a524;--warn-text:#f7b84a;--crit:#ff6b75;--crit-text:#ff8f97;--crit-bg:rgba(255,107,117,.15);--cone:rgba(255,107,117,.18);--m-opus:#e5865f;--m-sonnet:#b59cff;--m-codex:#45c9a0;--m-other:#6b7488;--p-claude:#e5865f;--p-openai:#45c9a0;--p-bedrock:#b59cff;--p-gemini:#6aa8ff;--h-opencode:#c9b48a;--heat0:rgba(255,255,255,.06);--heat1:rgba(245,165,36,.22);--heat2:rgba(245,165,36,.45);--heat3:rgba(245,165,36,.72);--heat4:#f5a524;--shadow-win:0 0 0 .5px rgba(0,0,0,.7),inset 0 0 0 .5px rgba(255,255,255,.12)}
+.tr-light{--win:#f4f5f8;--titlebar:#eceef2;--card:#ffffff;--track:rgba(13,19,33,.08);--grid:rgba(13,19,33,.07);--line:rgba(13,19,33,.09);--line-strong:rgba(13,19,33,.16);--fg1:#0d1321;--fg2:#465064;--fg3:#5d6779;--seg-on:#ffffff;--seg-shadow:0 1px 2px rgba(13,19,33,.14),0 0 0 .5px rgba(13,19,33,.08);--btn:rgba(13,19,33,.06);--accent:#f5a524;--accent-text:#94570a;--ok:#3b82d6;--ok-text:#1f62b0;--warn:#f0a020;--warn-text:#94570a;--crit:#e0384a;--crit-text:#bd2536;--crit-bg:rgba(224,56,74,.10);--cone:rgba(224,56,74,.14);--m-opus:#c8653d;--m-sonnet:#7a5ce0;--m-codex:#12936d;--m-other:#9aa2b1;--p-claude:#b8572f;--p-openai:#0b7d5c;--p-bedrock:#6d4fd6;--p-gemini:#2f6fd8;--h-opencode:#7a6740;--heat0:rgba(13,19,33,.06);--heat1:rgba(245,165,36,.28);--heat2:rgba(240,160,32,.52);--heat3:rgba(226,140,16,.78);--heat4:#c97a00;--shadow-win:0 0 0 .5px rgba(0,0,0,.2)}
+.tr button{font:inherit;color:inherit}
+</style>
+</helmet>
+<div class="tr tr-{{theme}}" role="main" style="width:1100px;height:720px;box-sizing:border-box;border-radius:10px;overflow:hidden;background:var(--win);box-shadow:var(--shadow-win);display:flex;flex-direction:column">
+
+<div style="height:44px;flex-shrink:0;display:flex;align-items:center;gap:12px;padding:0 14px;background:var(--titlebar);border-bottom:1px solid var(--line)">
+<div style="display:flex;gap:8px;width:60px" aria-hidden="true"><span style="width:12px;height:12px;border-radius:50%;background:#ff5f57"></span><span style="width:12px;height:12px;border-radius:50%;background:#febc2e"></span><span style="width:12px;height:12px;border-radius:50%;background:#28c840"></span></div>
+<span style="font-size:13px;font-weight:600">Tokenrunway</span>
+<span style="flex:1"></span>
+<div role="radiogroup" aria-label="Range" style="display:flex;gap:2px;padding:2px;border-radius:7px;background:var(--btn)">
+<button role="radio" aria-checked="false" style="height:24px;padding:0 10px;border:0;border-radius:5px;background:transparent;font-size:12px;color:var(--fg2)">7 d</button>
+<button role="radio" aria-checked="true" style="height:24px;padding:0 10px;border:0;border-radius:5px;background:var(--seg-on);box-shadow:var(--seg-shadow);font-size:12px;font-weight:600">30 d</button>
+<button role="radio" aria-checked="false" style="height:24px;padding:0 10px;border:0;border-radius:5px;background:transparent;font-size:12px;color:var(--fg2)">90 d</button>
+<button role="radio" aria-checked="false" style="height:24px;padding:0 10px;border:0;border-radius:5px;background:transparent;font-size:12px;color:var(--fg2)">Lifetime</button>
+</div>
+<div role="radiogroup" aria-label="Group by" style="display:flex;gap:2px;padding:2px;border-radius:7px;background:var(--btn)">
+<button role="radio" aria-checked="true" style="height:24px;padding:0 10px;border:0;border-radius:5px;background:var(--seg-on);box-shadow:var(--seg-shadow);font-size:12px;font-weight:600">Model</button>
+<button role="radio" aria-checked="false" style="height:24px;padding:0 10px;border:0;border-radius:5px;background:transparent;font-size:12px;color:var(--fg2)">Harness</button>
+<button role="radio" aria-checked="false" style="height:24px;padding:0 10px;border:0;border-radius:5px;background:transparent;font-size:12px;color:var(--fg2)">Category</button>
+</div>
+<button style="height:28px;padding:0 10px;border:0;border-radius:6px;background:var(--btn);font-size:12px;display:inline-flex;align-items:center;gap:6px">All accounts<svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 6 4 4 4-4"></path></svg></button>
+</div>
+
+<div style="flex:1;min-height:0;padding:14px 16px 12px;display:flex;flex-direction:column;gap:12px">
+
+<div style="display:grid;grid-template-columns:repeat(6, minmax(0, 1fr));gap:10px">
+<sc-for list="{{kpis}}" as="k" hint-placeholder-count="6">
+<div style="border-radius:var(--r-card);background:var(--card);box-shadow:0 0 0 1px var(--line);padding:9px 12px;display:flex;flex-direction:column;gap:1px">
+<span style="font-size:11px;color:var(--fg3)">{{k.label}}</span>
+<span style="font-size:19px;font-weight:600;letter-spacing:-.005em;color:var({{k.color}})">{{k.value}}</span>
+<span style="font-size:11px;color:var(--fg2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{k.sub}}</span>
+</div>
+</sc-for>
+</div>
+
+<div style="display:grid;grid-template-columns:minmax(0, 2fr) minmax(0, 1fr);gap:12px">
+<section style="border-radius:var(--r-card);background:var(--card);box-shadow:0 0 0 1px var(--line);padding:12px 14px;display:flex;flex-direction:column;gap:10px">
+<div style="display:flex;align-items:center;gap:14px">
+<h2 style="margin:0;font-size:13px;font-weight:600">Daily spend by model</h2>
+<span style="font-size:11.5px;color:var(--fg3)">API-equivalent, 24 Sep to today</span>
+<span style="flex:1"></span>
+<sc-for list="{{legend}}" as="l" hint-placeholder-count="4">
+<span style="display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--fg2)"><span style="width:9px;height:9px;border-radius:2px;background:var({{l.c}})"></span>{{l.n}} <span style="color:var(--fg1);font-weight:600">{{l.v}}</span></span>
+</sc-for>
+</div>
+<div style="position:relative;height:158px;padding-left:34px">
+<sc-for list="{{gridlines}}" as="g" hint-placeholder-count="4">
+<div style="position:absolute;left:34px;right:0;bottom:{{g.y}}px;border-top:1px solid var(--grid)"></div>
+<span style="position:absolute;left:0;bottom:{{g.y}}px;transform:translateY(50%);font-size:10.5px;color:var(--fg3)">{{g.label}}</span>
+</sc-for>
+<div style="position:relative;height:150px;margin-top:8px;display:flex;align-items:flex-end;gap:4px">
+<sc-for list="{{days}}" as="d" hint-placeholder-count="30">
+<div title="{{d.title}}" style="flex:1;display:flex;flex-direction:column-reverse;gap:1px;opacity:{{d.o}}">
+<sc-for list="{{d.segs}}" as="s" hint-placeholder-count="4">
+<div style="height:{{s.h}}px;background:var({{s.c}});border-radius:1px"></div>
+</sc-for>
+</div>
+</sc-for>
+</div>
+</div>
+<div style="display:flex;justify-content:space-between;padding-left:34px;font-size:10.5px;color:var(--fg3)">
+<span>24 Sep</span><span>1 Oct</span><span>8 Oct</span><span>15 Oct</span><span>Today</span>
+</div>
+</section>
+
+<section style="border-radius:var(--r-card);background:var(--card);box-shadow:0 0 0 1px var(--line);padding:12px 14px;display:flex;flex-direction:column;gap:8px">
+<div style="display:flex;align-items:center;gap:8px">
+<h2 style="margin:0;font-size:13px;font-weight:600;flex:1">Burn-down</h2>
+<button style="height:24px;padding:0 8px;border:0;border-radius:6px;background:var(--btn);font-size:11.5px;display:inline-flex;align-items:center;gap:5px">Claude — work · 5-hour<svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 6 4 4 4-4"></path></svg></button>
+</div>
+<svg width="100%" height="170" viewBox="0 0 320 190" role="img" aria-label="Remaining allowance from 100% at 09:20 to 22% now; forecast reaches zero at 13:05, range 12:40 to 13:40, before the 14:20 reset">
+<path d="M36 12H306M36 47H306M36 82H306M36 117H306M36 152H306" stroke="var(--grid)" stroke-width="1"></path>
+<text x="30" y="15" text-anchor="end" font-size="9.5" fill="var(--fg3)">100%</text>
+<text x="30" y="85" text-anchor="end" font-size="9.5" fill="var(--fg3)">50%</text>
+<text x="30" y="155" text-anchor="end" font-size="9.5" fill="var(--fg3)">0</text>
+<path d="{{bd.cone}}" fill="var(--cone)"></path>
+<path d="{{bd.actual}}" fill="none" stroke="var(--fg1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"></path>
+<path d="{{bd.forecast}}" fill="none" stroke="var(--crit)" stroke-width="2" stroke-dasharray="4 3" stroke-linecap="round"></path>
+<circle cx="{{bd.nowX}}" cy="{{bd.nowY}}" r="3.5" fill="var(--fg1)"></circle>
+<path d="M{{bd.nowX}} 12V152" stroke="var(--fg3)" stroke-width="1" stroke-dasharray="2 3"></path>
+<path d="M306 12V152" stroke="var(--ok)" stroke-width="1.5" stroke-dasharray="3 3"></path>
+<circle cx="{{bd.outX}}" cy="152" r="4" fill="var(--crit)"></circle>
+<text x="{{bd.outX}}" y="140" text-anchor="middle" font-size="10" font-weight="600" fill="var(--crit-text)">Out 13:05</text>
+<text x="{{bd.nowX}}" y="170" text-anchor="middle" font-size="9.5" fill="var(--fg2)">now 11:39</text>
+<text x="36" y="170" text-anchor="start" font-size="9.5" fill="var(--fg3)">09:20</text>
+<text x="306" y="170" text-anchor="end" font-size="9.5" fill="var(--ok-text)">reset 14:20</text>
+<text x="171" y="186" text-anchor="middle" font-size="9.5" fill="var(--fg3)">cone = 12:40 to 13:40 at recent pace</text>
+</svg>
+</section>
+</div>
+
+<div style="display:grid;grid-template-columns:minmax(0, 2fr) minmax(0, 1fr);gap:12px;flex:1;min-height:0">
+<section style="border-radius:var(--r-card);background:var(--card);box-shadow:0 0 0 1px var(--line);padding:10px 0 0;display:flex;flex-direction:column;min-height:0;overflow:hidden">
+<div style="display:flex;align-items:center;padding:0 14px 8px">
+<h2 style="margin:0;font-size:13px;font-weight:600;flex:1">Sessions</h2>
+<span style="font-size:11.5px;color:var(--fg3)">312 in range · newest first</span>
+</div>
+<div style="overflow-x:auto">
+<table style="width:100%;border-collapse:collapse;font-size:12px">
+<thead>
+<tr style="color:var(--fg3);font-size:11px;text-align:left">
+<th style="font-weight:510;padding:5px 8px 5px 14px;border-bottom:1px solid var(--line)">Started</th>
+<th style="font-weight:510;padding:5px 8px;border-bottom:1px solid var(--line)">Harness</th>
+<th style="font-weight:510;padding:5px 8px;border-bottom:1px solid var(--line)">Project</th>
+<th style="font-weight:510;padding:5px 8px;border-bottom:1px solid var(--line)">Model</th>
+<th style="font-weight:510;padding:5px 8px;border-bottom:1px solid var(--line)">Kind</th>
+<th style="font-weight:510;padding:5px 8px;border-bottom:1px solid var(--line);text-align:right">Time</th>
+<th style="font-weight:510;padding:5px 8px;border-bottom:1px solid var(--line);text-align:right">Tokens</th>
+<th style="font-weight:510;padding:5px 14px 5px 8px;border-bottom:1px solid var(--line);text-align:right">Cost</th>
+</tr>
+</thead>
+<tbody>
+<sc-for list="{{sessions}}" as="s" hint-placeholder-count="7">
+<tr>
+<td style="padding:6px 8px 6px 14px;border-bottom:1px solid var(--line);color:var(--fg2);white-space:nowrap">{{s.t}}</td>
+<td style="padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap"><span style="display:inline-block;width:7px;height:7px;border-radius:2px;margin-right:6px;background:var({{s.c}})"></span>{{s.h}}</td>
+<td style="padding:6px 8px;border-bottom:1px solid var(--line);font-family:var(--mono);font-size:11.5px">{{s.p}}</td>
+<td style="padding:6px 8px;border-bottom:1px solid var(--line);color:var(--fg2);white-space:nowrap">{{s.m}}</td>
+<td style="padding:6px 8px;border-bottom:1px solid var(--line);color:var(--fg2)">{{s.k}}</td>
+<td style="padding:6px 8px;border-bottom:1px solid var(--line);text-align:right;color:var(--fg2)">{{s.d}}</td>
+<td style="padding:6px 8px;border-bottom:1px solid var(--line);text-align:right">{{s.tok}}</td>
+<td style="padding:6px 14px 6px 8px;border-bottom:1px solid var(--line);text-align:right;font-weight:600">{{s.cost}}</td>
+</tr>
+</sc-for>
+</tbody>
+</table>
+</div>
+</section>
+
+<div style="display:flex;flex-direction:column;gap:12px;min-height:0">
+<section style="border-radius:var(--r-card);background:var(--card);box-shadow:0 0 0 1px var(--line);padding:10px 14px;display:flex;flex-direction:column;gap:6px">
+<h2 style="margin:0 0 2px;font-size:13px;font-weight:600">Upcoming resets</h2>
+<sc-for list="{{resets}}" as="r" hint-placeholder-count="5">
+<div style="display:grid;grid-template-columns:62px 1fr auto;align-items:center;gap:8px">
+<span style="display:flex;flex-direction:column;line-height:1.2"><span style="font-size:12px;font-weight:600">{{r.at}}</span><span style="font-size:10.5px;color:var(--fg3)">{{r.in}}</span></span>
+<span style="font-size:12px;color:var(--fg2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><span style="display:inline-block;width:7px;height:7px;border-radius:2px;margin-right:6px;background:var({{r.c}})"></span>{{r.what}}</span>
+<span style="font-size:12px;font-weight:600;color:var({{r.tc}})">{{r.used}}</span>
+</div>
+</sc-for>
+</section>
+<section style="border-radius:var(--r-card);background:var(--card);box-shadow:0 0 0 1px var(--line);padding:10px 14px;display:flex;flex-direction:column;gap:8px;flex:1;min-height:0">
+<div style="display:flex;align-items:baseline;justify-content:space-between"><h2 style="margin:0;font-size:13px;font-weight:600">Tokens per day</h2><span style="font-size:11px;color:var(--fg3)">26 weeks</span></div>
+<div style="display:grid;grid-template-rows:repeat(7, 9px);grid-auto-flow:column;grid-auto-columns:9px;gap:2px">
+<sc-for list="{{heat}}" as="h" hint-placeholder-count="182">
+<span style="width:9px;height:9px;border-radius:2px;background:var({{h.c}});box-shadow:{{h.ring}}"></span>
+</sc-for>
+</div>
+<div style="display:flex;align-items:center;gap:3px;font-size:10.5px;color:var(--fg3)">
+<span style="margin-right:3px">Less</span>
+<span style="width:9px;height:9px;border-radius:2px;background:var(--heat0)"></span><span style="width:9px;height:9px;border-radius:2px;background:var(--heat1)"></span><span style="width:9px;height:9px;border-radius:2px;background:var(--heat2)"></span><span style="width:9px;height:9px;border-radius:2px;background:var(--heat3)"></span><span style="width:9px;height:9px;border-radius:2px;background:var(--heat4)"></span>
+<span style="margin-left:3px">More</span>
+</div>
+</section>
+</div>
+</div>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1100,"height":720}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const theme = this.props.theme ?? 'dark';
+    // 30 days of spend by model, 24 Sep to 23 Oct 2026
+    const months = ['Sep', 'Oct'];
+    const days = [];
+    const totals = { opus: 0, sonnet: 0, codex: 0, other: 0 };
+    const scale = 150 / 120;
+    for (let i = 0; i < 30; i++) {
+      const d = new Date(2026, 8, 24 + i);
+      const wd = d.getDay();
+      const weekend = wd === 0 || wd === 6;
+      let v = weekend ? 7 + 6 * Math.abs(Math.sin(i * 1.7)) : 46 + 38 * Math.abs(Math.sin(i * 0.9 + 1.3)) + 9 * Math.sin(i * 2.3);
+      if (i === 29) v = 54.3;
+      const so = 0.55 + 0.08 * Math.sin(i);
+      const ss = 0.2 + 0.05 * Math.cos(i * 1.3);
+      const sc = 0.15 + 0.05 * Math.sin(i * 0.7);
+      const parts = { opus: v * so, sonnet: v * ss, codex: v * sc, other: v * (1 - so - ss - sc) };
+      Object.keys(parts).forEach((k) => { totals[k] += parts[k]; });
+      days.push({
+        title: d.getDate() + ' ' + months[d.getMonth() - 8] + ' · $' + v.toFixed(2),
+        o: i === 29 ? 1 : 0.92,
+        segs: [
+          { h: Math.max(1, Math.round(parts.opus * scale)), c: '--m-opus' },
+          { h: Math.max(1, Math.round(parts.sonnet * scale)), c: '--m-sonnet' },
+          { h: Math.max(1, Math.round(parts.codex * scale)), c: '--m-codex' },
+          { h: Math.max(1, Math.round(parts.other * scale)), c: '--m-other' }
+        ]
+      });
+    }
+    const sum = totals.opus + totals.sonnet + totals.codex + totals.other;
+    const money = (n) => '$' + n.toLocaleString('en-AU', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+
+    // burn-down geometry: x 36..306 over 5 h, y 12 (100%) .. 152 (0%)
+    const X = (h) => (36 + (h / 5) * 270).toFixed(1);
+    const Y = (r) => (12 + ((100 - r) / 100) * 140).toFixed(1);
+    const pts = [[0, 100], [0.5, 95], [1, 87], [1.5, 72], [2, 41], [2.32, 22]];
+    const actual = 'M' + pts.map((p) => X(p[0]) + ' ' + Y(p[1])).join('L');
+    const now = pts[pts.length - 1];
+
+    // 26-week heatmap ending today (Friday); levels 0..4
+    const heat = [];
+    for (let i = 0; i < 182; i++) {
+      const dow = i % 7; // 0 = Sun
+      const future = i > 182 - 2; // Saturday after today
+      const weekend = dow === 0 || dow === 6;
+      const n = Math.abs(Math.sin(i * 12.9898) * 43758.5453) % 1;
+      let lvl = weekend ? (n > 0.7 ? 1 : 0) : Math.min(4, Math.floor(n * 3.2) + (i > 120 ? 1 : 0));
+      if (future) lvl = 0;
+      heat.push({ c: '--heat' + lvl, ring: i === 180 ? '0 0 0 1.5px var(--fg1)' : 'none' });
+    }
+
+    return {
+      theme,
+      days,
+      legend: [
+        { n: 'Opus 5.5', c: '--m-opus', v: money(totals.opus) },
+        { n: 'Sonnet 5.5', c: '--m-sonnet', v: money(totals.sonnet) },
+        { n: 'GPT-5 Codex', c: '--m-codex', v: money(totals.codex) },
+        { n: 'Other', c: '--m-other', v: money(totals.other) }
+      ],
+      gridlines: [
+        { y: 0, label: '$0' }, { y: Math.round(40 * scale), label: '$40' },
+        { y: Math.round(80 * scale), label: '$80' }, { y: Math.round(120 * scale), label: '$120' }
+      ],
+      kpis: [
+        { label: 'Spend · API-equivalent', value: money(sum), sub: '30 days · all harnesses', color: '--fg1' },
+        { label: 'Actually billed', value: '$212.60', sub: 'Bedrock + Anthropic API', color: '--fg1' },
+        { label: 'Tokens', value: '196.4M', sub: '68% cache reads', color: '--fg1' },
+        { label: 'Sessions', value: '312', sub: 'avg 27m · 4 harnesses', color: '--fg1' },
+        { label: 'Ran out', value: '3×', sub: 'last Tue 15:40, 5-hour', color: '--crit-text' },
+        { label: 'Next reset', value: '2h 41m', sub: 'Claude — work · 14:20', color: '--fg1' }
+      ],
+      bd: {
+        actual,
+        nowX: X(now[0]), nowY: Y(now[1]),
+        outX: X(3.77),
+        forecast: 'M' + X(now[0]) + ' ' + Y(now[1]) + 'L' + X(3.77) + ' ' + Y(0),
+        cone: 'M' + X(now[0]) + ' ' + Y(now[1]) + 'L' + X(3.33) + ' ' + Y(0) + 'L' + X(4.33) + ' ' + Y(0) + 'Z'
+      },
+      sessions: [
+        { t: '11:02', h: 'Claude Code', c: '--p-claude', p: 'third-eye', m: 'Opus 5.5', k: 'Build', d: '37m', tok: '2.4M', cost: '$14.80' },
+        { t: '10:21', h: 'Claude Code', c: '--p-claude', p: 'tokenrunway', m: 'Opus 5.5', k: 'Bug fix', d: '41m', tok: '3.1M', cost: '$19.60' },
+        { t: '09:48', h: 'Codex', c: '--p-openai', p: 'intake-classifier', m: 'GPT-5 Codex', k: 'Test', d: '18m', tok: '0.9M', cost: '$3.10' },
+        { t: '09:20', h: 'Claude Code', c: '--p-claude', p: 'third-eye', m: 'Sonnet 5.5', k: 'Refactor', d: '26m', tok: '1.6M', cost: '$4.90' },
+        { t: 'Thu 17:44', h: 'opencode', c: '--h-opencode', p: 'dotfiles', m: 'Sonnet 5.5', k: 'Ops', d: '12m', tok: '0.4M', cost: '$1.20' },
+        { t: 'Thu 16:05', h: 'Claude Code', c: '--p-claude', p: 'tokenrunway', m: 'Opus 5.5', k: 'Planning', d: '22m', tok: '1.1M', cost: '$7.40' },
+        { t: 'Thu 14:31', h: 'Gemini CLI', c: '--p-gemini', p: 'intake-classifier', m: 'Gemini Pro', k: 'Discovery', d: '9m', tok: '0.3M', cost: '$0.60' }
+      ],
+      resets: [
+        { at: '14:20', in: 'in 2h 41m', what: 'Claude — work · 5-hour', c: '--p-claude', used: '78%', tc: '--crit-text' },
+        { at: '15:31', in: 'in 3h 52m', what: 'ChatGPT · Codex 5-hour', c: '--p-openai', used: '12%', tc: '--fg2' },
+        { at: 'Mon 09:00', in: 'in 2d 21h', what: 'Claude — work · Weekly Opus', c: '--p-claude', used: '83%', tc: '--warn-text' },
+        { at: '1 Nov', in: 'in 8d 12h', what: 'Bedrock · iokig-prod budget', c: '--p-bedrock', used: '$184', tc: '--fg2' }
+      ],
+      heat
+    };
+  }
+}
+</script>
+</body>
+</html>

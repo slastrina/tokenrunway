@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Add account flow</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.tr{--font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI Variable Text","Segoe UI",system-ui,Ubuntu,Cantarell,sans-serif;--mono:ui-monospace,"SF Mono","Cascadia Mono",Menlo,Consolas,monospace;--r-pop:12px;--r-card:10px;--r-ctl:6px;font-family:var(--font);font-size:13px;line-height:1.35;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;color:var(--fg1)}
+.tr-dark{--pop-solid:#141b2b;--card:rgba(255,255,255,.045);--field:rgba(0,0,0,.22);--track:rgba(255,255,255,.10);--line:rgba(255,255,255,.08);--line-strong:rgba(255,255,255,.16);--fg1:#eef1f7;--fg2:#aab3c4;--fg3:#8a94a8;--btn:rgba(255,255,255,.08);--tile-ink:#0d1321;--accent:#f5a524;--accent-ink:#1d1405;--accent-text:#f7b84a;--sel-bg:rgba(245,165,36,.10);--ok:#7cc4fa;--ok-text:#8ccdfb;--ok-bg:rgba(124,196,250,.13);--warn:#f5a524;--warn-text:#f7b84a;--crit:#ff6b75;--crit-text:#ff8f97;--p-claude:#e5865f;--p-openai:#45c9a0;--p-bedrock:#b59cff;--p-gemini:#6aa8ff;--p-grok:#c3c9d4;--p-copilot:#f08bcf;--p-cursor:#e6cf62;--p-api:#aab3c4;--shadow-pop:0 0 0 .5px rgba(0,0,0,.6),inset 0 0 0 .5px rgba(255,255,255,.14),0 18px 48px rgba(0,0,0,.35)}
+.tr button{font:inherit;color:inherit}
+a{color:inherit}a:hover{color:inherit;text-decoration:underline}
+</style>
+</helmet>
+<div class="tr tr-dark" style="width:1300px;height:700px;box-sizing:border-box;padding:36px 28px;background:#e2e6ec;display:flex;align-items:flex-start;gap:12px">
+
+<div style="display:flex;flex-direction:column;gap:12px">
+<span style="font-size:13px;font-weight:600;color:#0d1321">1 · Pick a provider</span>
+<div role="dialog" aria-label="Add account" style="width:380px;height:560px;border-radius:var(--r-pop);background:var(--pop-solid);box-shadow:var(--shadow-pop);display:flex;flex-direction:column;overflow:hidden">
+<div style="display:flex;align-items:center;gap:6px;padding:10px 12px 10px 6px;border-bottom:1px solid var(--line)">
+<button style="height:28px;padding:0 6px;border:0;border-radius:6px;background:transparent;color:var(--fg2);display:inline-flex;align-items:center;gap:2px;font-size:12.5px"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3.5 5.5 8l4.5 4.5"></path></svg>Now</button>
+<h2 style="margin:0;font-size:13px;font-weight:600;flex:1;text-align:center;padding-right:40px">Add account</h2>
+</div>
+<div style="padding:12px 14px 6px">
+<label for="ps" style="position:absolute;width:1px;height:1px;overflow:hidden">Search providers</label>
+<input id="ps" placeholder="Search providers" style="width:100%;height:28px;box-sizing:border-box;padding:0 10px;border:0;border-radius:7px;background:var(--field);box-shadow:inset 0 0 0 1px var(--line-strong);font:inherit;font-size:12.5px;color:var(--fg1)">
+</div>
+<div style="flex:1;padding:6px 10px;display:flex;flex-direction:column;gap:2px">
+<span style="padding:6px 6px 4px;font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--fg3)">Subscriptions &amp; APIs</span>
+<sc-for list="{{providers}}" as="p" hint-placeholder-count="5">
+<button style="display:flex;align-items:center;gap:10px;height:44px;padding:0 10px;border:0;border-radius:8px;background:{{p.bg}};box-shadow:{{p.ring}};text-align:left">
+<span style="width:26px;height:26px;border-radius:7px;background:var({{p.color}});color:var(--tile-ink);display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700">{{p.m}}</span>
+<span style="display:flex;flex-direction:column;flex:1;line-height:1.25"><span style="font-size:13px;font-weight:600">{{p.n}}</span><span style="font-size:11.5px;color:var(--fg3)">{{p.d}}</span></span>
+<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="var(--fg3)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"></path></svg>
+</button>
+</sc-for>
+<span style="padding:10px 6px 4px;font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--fg3)">Coming soon</span>
+<div style="display:grid;grid-template-columns:repeat(2, minmax(0, 1fr));gap:4px">
+<sc-for list="{{soon}}" as="p" hint-placeholder-count="4">
+<div style="display:flex;align-items:center;gap:8px;height:34px;padding:0 10px;border-radius:8px;opacity:.6">
+<span style="width:20px;height:20px;border-radius:5px;background:var({{p.color}});color:var(--tile-ink);display:inline-flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:700">{{p.m}}</span>
+<span style="font-size:12.5px;color:var(--fg2)">{{p.n}}</span>
+</div>
+</sc-for>
+</div>
+</div>
+<footer style="height:34px;flex-shrink:0;display:flex;align-items:center;gap:6px;padding:0 14px;border-top:1px solid var(--line);font-size:11.5px;color:var(--fg3)"><span>Tokenrunway v0.1.0</span><span aria-hidden="true">·</span><a href="https://iokig.com" style="color:var(--fg2);text-decoration:none">iokig.com</a></footer>
+</div>
+</div>
+
+<svg width="28" height="28" viewBox="0 0 16 16" fill="none" stroke="#5d6779" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-top:300px"><path d="M2.5 8h11M9.5 4l4 4-4 4"></path></svg>
+
+<div style="display:flex;flex-direction:column;gap:12px">
+<span style="font-size:13px;font-weight:600;color:#0d1321">2 · Pick a method</span>
+<div role="dialog" aria-label="Connect Claude" style="width:380px;height:560px;border-radius:var(--r-pop);background:var(--pop-solid);box-shadow:var(--shadow-pop);display:flex;flex-direction:column;overflow:hidden">
+<div style="display:flex;align-items:center;gap:6px;padding:10px 12px 10px 6px;border-bottom:1px solid var(--line)">
+<button style="height:28px;padding:0 6px;border:0;border-radius:6px;background:transparent;color:var(--fg2);display:inline-flex;align-items:center;gap:2px;font-size:12.5px"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3.5 5.5 8l4.5 4.5"></path></svg>Providers</button>
+<h2 style="margin:0;font-size:13px;font-weight:600;flex:1;text-align:center;padding-right:60px;display:flex;align-items:center;justify-content:center;gap:6px"><span style="width:16px;height:16px;border-radius:4px;background:var(--p-claude);color:var(--tile-ink);display:inline-flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:700">C</span>Claude</h2>
+</div>
+<div role="radiogroup" aria-label="Connection method" style="flex:1;padding:12px 10px;display:flex;flex-direction:column;gap:6px">
+<sc-for list="{{methods}}" as="m" hint-placeholder-count="4">
+<button role="radio" aria-checked="{{m.checked}}" style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:0;border-radius:9px;background:{{m.bg}};box-shadow:{{m.ring}};text-align:left;opacity:{{m.o}}">
+<span style="width:16px;height:16px;margin-top:1px;flex-shrink:0;border-radius:50%;box-sizing:border-box;border:{{m.radio}};background:var(--pop-solid)"></span>
+<span style="display:flex;flex-direction:column;gap:2px;flex:1">
+<span style="display:flex;align-items:center;gap:6px"><span style="font-size:13px;font-weight:600">{{m.n}}</span><sc-if value="{{m.rec}}" hint-placeholder-val="{{ false }}"><span style="height:16px;padding:0 6px;border-radius:4px;background:var(--ok-bg);color:var(--ok-text);font-size:10.5px;font-weight:600;display:inline-flex;align-items:center">Recommended</span></sc-if></span>
+<span style="font-size:11.5px;color:var(--fg2);line-height:1.4">{{m.d}}</span>
+</span>
+</button>
+</sc-for>
+<div style="display:grid;grid-template-columns:90px 1fr;align-items:center;gap:8px;margin-top:8px;padding:0 4px">
+<label for="an" style="font-size:12px;color:var(--fg2)">Account name</label>
+<input id="an" value="Claude — work" style="height:28px;box-sizing:border-box;padding:0 9px;border:0;border-radius:6px;background:var(--field);box-shadow:inset 0 0 0 1px var(--line-strong);font:inherit;font-size:12.5px;color:var(--fg1)">
+</div>
+<p style="margin:6px 4px 0;font-size:11px;color:var(--fg3);line-height:1.45">Read-only. Tokenrunway reads usage pages and local logs; it never sends prompts, and keys stay in the system keychain.</p>
+<span style="flex:1"></span>
+<div style="display:flex;justify-content:flex-end;gap:8px;padding:0 4px 2px">
+<button style="height:30px;padding:0 14px;border:0;border-radius:7px;background:var(--btn);font-size:12.5px;font-weight:510">Cancel</button>
+<button style="height:30px;padding:0 18px;border:0;border-radius:7px;background:var(--accent);color:var(--accent-ink);font-size:12.5px;font-weight:600">Connect</button>
+</div>
+</div>
+<footer style="height:34px;flex-shrink:0;display:flex;align-items:center;gap:6px;padding:0 14px;border-top:1px solid var(--line);font-size:11.5px;color:var(--fg3)"><span>Tokenrunway v0.1.0</span><span aria-hidden="true">·</span><a href="https://iokig.com" style="color:var(--fg2);text-decoration:none">iokig.com</a></footer>
+</div>
+</div>
+
+<svg width="28" height="28" viewBox="0 0 16 16" fill="none" stroke="#5d6779" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-top:300px"><path d="M2.5 8h11M9.5 4l4 4-4 4"></path></svg>
+
+<div style="display:flex;flex-direction:column;gap:12px">
+<span style="font-size:13px;font-weight:600;color:#0d1321">3 · Connected, first reading</span>
+<div role="dialog" aria-label="Account connected" style="width:380px;height:560px;border-radius:var(--r-pop);background:var(--pop-solid);box-shadow:var(--shadow-pop);display:flex;flex-direction:column;overflow:hidden">
+<div style="flex:1;padding:34px 14px 12px;display:flex;flex-direction:column;align-items:center;gap:12px">
+<span style="width:48px;height:48px;border-radius:50%;background:var(--ok-bg);color:var(--ok-text);display:inline-flex;align-items:center;justify-content:center"><svg width="24" height="24" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 8.3 2.6 2.6L12 5.4"></path></svg></span>
+<div style="display:flex;flex-direction:column;align-items:center;gap:3px;text-align:center">
+<h2 style="margin:0;font-size:17px;font-weight:600">Claude — work is connected</h2>
+<span style="font-size:12.5px;color:var(--fg2)">Enterprise · 3 usage windows found · via Claude Code login</span>
+</div>
+<article style="align-self:stretch;margin-top:8px;border-radius:var(--r-card);background:var(--card);box-shadow:0 0 0 1px var(--line);padding:12px;display:flex;flex-direction:column;gap:12px">
+<div style="display:flex;align-items:baseline;justify-content:space-between"><span style="font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--fg3)">First reading</span><span style="font-size:11px;color:var(--fg3)">just now</span></div>
+<sc-for list="{{reading}}" as="w" hint-placeholder-count="3">
+<div style="display:flex;flex-direction:column;gap:5px">
+<div style="display:flex;align-items:baseline;gap:6px"><span style="font-size:12.5px;font-weight:600">{{w.label}}</span><span style="margin-left:auto;font-size:13px;font-weight:600;color:var({{w.text}})">{{w.pct}}%</span></div>
+<div style="height:6px;border-radius:3px;background:var(--track);overflow:hidden"><div style="width:{{w.pct}}%;height:6px;border-radius:3px;background:var({{w.fill}})"></div></div>
+<span style="font-size:11.5px;color:var(--fg2)">{{w.reset}}</span>
+</div>
+</sc-for>
+<p style="margin:0;font-size:11px;color:var(--fg3)">Forecasts appear after a few more readings (about 10 minutes).</p>
+</article>
+<span style="flex:1"></span>
+<div style="align-self:stretch;display:flex;gap:8px">
+<button style="flex:1;height:30px;border:0;border-radius:7px;background:var(--btn);font-size:12.5px;font-weight:510">Add another</button>
+<button style="flex:1;height:30px;border:0;border-radius:7px;background:var(--accent);color:var(--accent-ink);font-size:12.5px;font-weight:600">Done</button>
+</div>
+</div>
+<footer style="height:34px;flex-shrink:0;display:flex;align-items:center;gap:6px;padding:0 14px;border-top:1px solid var(--line);font-size:11.5px;color:var(--fg3)"><span>Tokenrunway v0.1.0</span><span aria-hidden="true">·</span><a href="https://iokig.com" style="color:var(--fg2);text-decoration:none">iokig.com</a></footer>
+</div>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1300,"height":700}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const sel = { bg: 'var(--sel-bg)', ring: 'inset 0 0 0 1.5px var(--accent)' };
+    const none = { bg: 'transparent', ring: 'none' };
+    return {
+      providers: [
+        Object.assign({ m: 'C', n: 'Claude', d: 'Pro, Max, Team, Enterprise', color: '--p-claude' }, sel),
+        Object.assign({ m: 'O', n: 'ChatGPT / Codex', d: 'Plus, Pro, Business', color: '--p-openai' }, none),
+        Object.assign({ m: 'B', n: 'AWS Bedrock', d: 'Budgets and on-demand spend', color: '--p-bedrock' }, none),
+        Object.assign({ m: 'A', n: 'Anthropic API', d: 'Console spend limits', color: '--p-api' }, none),
+        Object.assign({ m: 'O', n: 'OpenAI API', d: 'Project budgets', color: '--p-api' }, none)
+      ],
+      soon: [
+        { m: 'X', n: 'Grok', color: '--p-grok' },
+        { m: 'G', n: 'Gemini', color: '--p-gemini' },
+        { m: 'P', n: 'Copilot', color: '--p-copilot' },
+        { m: 'Cu', n: 'Cursor', color: '--p-cursor' }
+      ],
+      methods: [
+        { n: 'Use my CLI login', d: 'Found a Claude Code login on this Mac. Nothing to type.', rec: true, checked: 'true', bg: 'var(--sel-bg)', ring: 'inset 0 0 0 1.5px var(--accent)', radio: '5px solid var(--accent)', o: 1 },
+        { n: 'Log in', d: 'Opens claude.ai in your browser and returns here.', rec: false, checked: 'false', bg: 'var(--card)', ring: 'inset 0 0 0 1px var(--line)', radio: '1.5px solid var(--line-strong)', o: 1 },
+        { n: 'Paste API key', d: 'For Console orgs. Stored in the keychain, never shown again.', rec: false, checked: 'false', bg: 'var(--card)', ring: 'inset 0 0 0 1px var(--line)', radio: '1.5px solid var(--line-strong)', o: 1 },
+        { n: 'Use AWS profile', d: 'Only for Claude through Bedrock. Pick AWS Bedrock instead.', rec: false, checked: 'false', bg: 'transparent', ring: 'inset 0 0 0 1px var(--line)', radio: '1.5px solid var(--line-strong)', o: 0.5 }
+      ],
+      reading: [
+        { label: '5-hour', pct: 78, fill: '--crit', text: '--crit-text', reset: 'resets in 2h 41m · 14:20' },
+        { label: 'Weekly', pct: 64, fill: '--ok', text: '--ok-text', reset: 'resets in 2d 21h · Mon 09:00' },
+        { label: 'Weekly Opus', pct: 83, fill: '--warn', text: '--warn-text', reset: 'resets in 2d 21h · Mon 09:00' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>
