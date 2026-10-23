@@ -9,6 +9,7 @@
 mod activity;
 mod board;
 mod commands;
+mod login;
 mod notify;
 mod poll;
 mod state;
@@ -250,6 +251,8 @@ pub fn run() {
             tauri::async_runtime::spawn(updates::run(h));
             Ok(())
         })
+        // Login windows (`login-<account id>`, login.rs) watch their own close; closing one, like
+        // closing the dashboard, must not quit the app (see ExitRequested below).
         .on_window_event(|w, e| {
             if w.label() == "popover" {
                 if let WindowEvent::Focused(false) = e {

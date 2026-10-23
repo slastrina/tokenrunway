@@ -238,12 +238,12 @@ impl Provider for CodexCli {
             let plan_claim = auth.as_ref().and_then(|a| a.plan.clone());
             let who = auth.as_ref().and_then(|a| a.email.clone());
             match remote {
-                Ok((windows, plan)) => Ok(Fetched { plan: plan.or(plan_claim), who, windows, caveat: None }),
+                Ok((windows, plan)) => Ok(Fetched { plan: plan.or(plan_claim), who, windows, caveat: None, note: None }),
                 Err(e) => {
                     let home = ctx.home.clone();
                     let local = tokio::task::spawn_blocking(move || local_limits(&home, now)).await.ok().flatten();
                     match local {
-                        Some((_, windows)) => Ok(Fetched { plan: plan_claim, who, windows, caveat: Some(e) }),
+                        Some((_, windows)) => Ok(Fetched { plan: plan_claim, who, windows, caveat: Some(e), note: None }),
                         None => Err(e),
                     }
                 }

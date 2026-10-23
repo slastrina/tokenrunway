@@ -93,6 +93,13 @@ pub struct AccountView {
     pub state: AccountState,
     /// One line for stale/login/broken: "Couldn't reach claude.ai from this network."
     pub problem: Option<String>,
+    /// What kind of problem, when there is one: "auth" | "ratelimit" | "network" | "schema" (a
+    /// Tokenrunway update fixes it) | "setup" (the fix is on the user's side, e.g. an ended
+    /// subscription or a missing CLI)
+    pub cause: Option<String>,
+    /// A line shown when the account has nothing to draw a bar for ("Unlimited premium requests
+    /// on this plan.")
+    pub note: Option<String>,
     /// "How": "cli" | "login" | "key" | "aws"
     pub method: String,
     pub windows: Vec<WindowView>,
@@ -125,9 +132,10 @@ pub struct WindowView {
 #[derive(Debug, Clone, Serialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Detected {
-    /// "claude-code" | "codex" | "aws"
+    /// "claude-code" | "codex" | "aws" | "gh" | "gemini-cli" | "cursor-app"
     pub kind: String,
-    /// "Claude Code login", "Codex CLI login", "AWS profiles"
+    /// "Claude Code login", "Codex CLI login", "AWS profiles", "GitHub CLI login", "Gemini CLI
+    /// login", "Cursor app login"
     pub label: String,
     /// "2 in ~/.aws", or the account email if known
     pub detail: String,

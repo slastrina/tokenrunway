@@ -11,6 +11,11 @@ pub mod alerts;
 pub mod bedrock;
 pub mod claude;
 pub mod codex;
+pub mod copilot;
+pub mod cursor;
+pub mod gemini;
+pub mod grok;
+pub mod login;
 pub mod request;
 pub mod secrets;
 pub mod snapshots;
@@ -77,6 +82,19 @@ impl ProviderError {
             Self::AuthExpired(_) => AccountState::Login,
             Self::RateLimited(_) | Self::Network(_) => AccountState::Stale,
             Self::SchemaChanged(_) | Self::Unavailable(_) => AccountState::Broken,
+        }
+    }
+
+    /// What kind of problem, so the UI can offer the right fix: "auth" | "ratelimit" | "network" |
+    /// "schema" (a Tokenrunway update fixes it) | "setup" (something on the user's side: no aws
+    /// CLI, an ended subscription).
+    pub fn cause(&self) -> &'static str {
+        match self {
+            Self::AuthExpired(_) => "auth",
+            Self::RateLimited(_) => "ratelimit",
+            Self::Network(_) => "network",
+            Self::SchemaChanged(_) => "schema",
+            Self::Unavailable(_) => "setup",
         }
     }
 
@@ -161,6 +179,9 @@ pub struct Fetched {
     /// Readings that came with a problem (e.g. Codex windows from local logs while the remote
     /// login has expired)
     pub caveat: Option<ProviderError>,
+    /// A line for the card when there's nothing to draw a bar for ("Unlimited premium requests
+    /// on this plan.", "xAI has no spend endpoint Tokenrunway can read yet.")
+    pub note: Option<String>,
 }
 
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
@@ -190,6 +211,11 @@ pub fn provider_for(acct: &AccountRecord) -> Option<Box<dyn Provider>> {
         ("bedrock", "aws") => Some(Box::new(bedrock::Bedrock)),
         ("anthropic-api", "key") => Some(Box::new(admin::AnthropicAdmin)),
         ("openai-api", "key") => Some(Box::new(admin::OpenaiAdmin)),
+        ("copilot", "cli" | "key") => Some(Box::new(copilot::Copilot)),
+        ("gemini", "cli") => Some(Box::new(gemini::GeminiCli)),
+        ("cursor", "login" | "cli" | "key") => Some(Box::new(cursor::Cursor)),
+        ("xai", "login") => Some(Box::new(grok::GrokWeb)),
+        ("xai", "key") => Some(Box::new(grok::XaiApi)),
         _ => None,
     }
 }
@@ -238,6 +264,21 @@ pub fn detect(home: &std::path::Path, existing: &[AccountRecord]) -> Vec<Detecte
             out.push(d);
         }
     }
+    if !has("copilot", "cli") {
+        if let Some(d) = copilot::detect(home) {
+            out.push(d);
+        }
+    }
+    if !has("gemini", "cli") {
+        if let Some(d) = gemini::detect(home) {
+            out.push(d);
+        }
+    }
+    if !has("cursor", "cli") {
+        if let Some(d) = cursor::detect(home) {
+            out.push(d);
+        }
+    }
     let profiles: Vec<String> = bedrock::profiles(home)
         .into_iter()
         .filter(|p| !existing.iter().any(|a| a.provider == "bedrock" && a.profile.as_deref() == Some(p)))
@@ -275,11 +316,11 @@ pub fn account_view(
     now: i64,
 ) -> AccountView {
     let problem_of = |e: &ProviderError| e.problem(&acct.provider);
-    let (state, problem) = match (&live.error, live.last.as_ref().and_then(|f| f.caveat.as_ref())) {
-        (Some(e), _) => (e.state(), Some(problem_of(e))),
-        (None, Some(c)) => (c.state(), Some(problem_of(c))),
-        (None, None) if !live.tried => (AccountState::Loading, None),
-        (None, None) => (AccountState::Ok, None),
+    let (state, problem, cause) = match (&live.error, live.last.as_ref().and_then(|f| f.caveat.as_ref())) {
+        (Some(e), _) => (e.state(), Some(problem_of(e)), Some(e.cause().to_string())),
+        (None, Some(c)) => (c.state(), Some(problem_of(c)), Some(c.cause().to_string())),
+        (None, None) if !live.tried => (AccountState::Loading, None, None),
+        (None, None) => (AccountState::Ok, None, None),
     };
     let stale = matches!(state, AccountState::Stale);
     let windows: Vec<WindowView> = live
@@ -319,6 +360,8 @@ pub fn account_view(
         updated_at: live.updated_at,
         state,
         problem,
+        cause,
+        note: live.last.as_ref().and_then(|f| f.note.clone()),
         method: acct.method.clone(),
         windows,
     }
@@ -479,6 +522,27 @@ mod tests {
         assert_eq!(ProviderError::SchemaChanged("x".into()).state(), AccountState::Broken);
         assert_eq!(ProviderError::Network("claude.ai".into()).problem("anthropic"), "Couldn't reach claude.ai from this network.");
         assert_eq!(ProviderError::RateLimited(Some(120)).problem("openai"), "ChatGPT asked Tokenrunway to slow down; trying again in 2m.");
+        assert_eq!(ProviderError::Unavailable("x".into()).cause(), "setup");
+        assert_eq!(ProviderError::SchemaChanged("x".into()).cause(), "schema");
+    }
+
+    #[test]
+    fn new_providers_are_wired() {
+        let rec = |provider: &str, method: &str| AccountRecord { provider: provider.into(), method: method.into(), ..Default::default() };
+        for (p, m, id) in [
+            ("copilot", "cli", "copilot"),
+            ("copilot", "key", "copilot"),
+            ("gemini", "cli", "gemini-cli"),
+            ("cursor", "login", "cursor"),
+            ("cursor", "cli", "cursor"),
+            ("cursor", "key", "cursor"),
+            ("xai", "login", "grok-web"),
+            ("xai", "key", "xai-api"),
+        ] {
+            assert_eq!(provider_for(&rec(p, m)).map(|x| x.id()), Some(id), "{p}/{m}");
+        }
+        assert!(provider_for(&rec("gemini", "key")).is_none());
+        assert_eq!((mono("copilot"), mono("gemini"), mono("cursor"), mono("xai")), ("P", "G", "Cu", "X"));
     }
 
     #[test]

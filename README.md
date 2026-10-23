@@ -6,8 +6,9 @@ how much of each allowance is left, when it resets, whether you'll run out first
 agents spend their tokens on.
 
 - **Allowances at a glance**: Claude (Pro, Max, Team, Enterprise), ChatGPT/Codex (Plus, Pro,
-  Business, Enterprise), AWS Bedrock budgets, and more to come: Grok/xAI, Gemini, Copilot, Cursor,
-  OpenRouter. Several accounts per provider.
+  Business, Enterprise), GitHub Copilot, Cursor, Gemini (CLI), Grok/xAI, AWS Bedrock budgets and
+  the Anthropic/OpenAI API orgs, with OpenRouter to come. Several accounts per provider. Cursor and
+  Grok can be signed in to inside Tokenrunway; only the session cookie is kept, in your keychain.
 - **Resets and forecasts**: every 5-hour, weekly and monthly window with its reset time, and a
   projection of when you'll run out at your current pace.
 - **Notifications before you run out**, and a one-click request to your administrator for more.
@@ -77,7 +78,8 @@ checks) with no Tauri dependency; `src-tauri` is the desktop app; `src` is its U
 Some providers have no public usage API for subscriptions. For those, Tokenrunway reads what their
 own CLIs already keep on your computer, or calls the endpoints their own apps call, for your own
 account only. Those can change without notice. When one does, Tokenrunway keeps the last good
-reading and says the source needs an update.
+reading and says the source needs an update. The Gemini, Grok and xAI readers were built from
+the providers' observed calls without a test account, so treat them as early.
 
 ## Licence
 

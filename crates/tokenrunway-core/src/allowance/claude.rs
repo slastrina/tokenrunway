@@ -248,6 +248,7 @@ impl Provider for ClaudeCode {
                 who: acct.as_ref().and_then(|a| a.get("emailAddress")).and_then(Value::as_str).map(String::from),
                 windows,
                 caveat: None,
+                note: None,
             })
         })
     }

@@ -106,7 +106,13 @@ impl Provider for AnthropicAdmin {
                     break;
                 }
             }
-            Ok(Fetched { plan: Some("API".into()), who: None, windows: vec![month_window(total, acct.limit_usd, now)], caveat: None })
+            Ok(Fetched {
+                plan: Some("API".into()),
+                who: None,
+                windows: vec![month_window(total, acct.limit_usd, now)],
+                caveat: None,
+                note: None,
+            })
         })
     }
 
@@ -146,7 +152,13 @@ impl Provider for OpenaiAdmin {
                     break;
                 }
             }
-            Ok(Fetched { plan: Some("API".into()), who: None, windows: vec![month_window(total, acct.limit_usd, now)], caveat: None })
+            Ok(Fetched {
+                plan: Some("API".into()),
+                who: None,
+                windows: vec![month_window(total, acct.limit_usd, now)],
+                caveat: None,
+                note: None,
+            })
         })
     }
 

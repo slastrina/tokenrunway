@@ -136,6 +136,49 @@ fn unique_label(existing: &[AccountRecord], base: String) -> String {
     (2..).map(|n| format!("{base} {n}")).find(|l| !existing.iter().any(|a| &a.label == l)).unwrap_or(base)
 }
 
+/// The provider/method pairs this version can add.
+fn can_add(provider: &str, method: &str) -> bool {
+    matches!(
+        (provider, method),
+        ("anthropic", "cli")
+            | ("openai", "cli")
+            | ("bedrock", "aws")
+            | ("anthropic-api", "key")
+            | ("openai-api", "key")
+            | ("copilot", "cli" | "key")
+            | ("gemini", "cli")
+            | ("cursor", "login" | "cli" | "key")
+            | ("xai", "login" | "key")
+    )
+}
+
+/// "the Claude Code login", for "… is already added".
+fn cli_name(provider: &str) -> &'static str {
+    match provider {
+        "anthropic" => "Claude Code",
+        "openai" => "Codex CLI",
+        "copilot" => "GitHub CLI",
+        "gemini" => "Gemini CLI",
+        "cursor" => "Cursor app",
+        _ => "CLI",
+    }
+}
+
+/// What to say when a pasted key or cookie is refused on the first reading.
+fn refused(provider: &str) -> &'static str {
+    match provider {
+        "copilot" => "GitHub refused that token. Check it has access to your account and paste it again.",
+        "cursor" => "Cursor refused that cookie. Copy the WorkosCursorSessionToken value from cursor.com again.",
+        "xai" => "xAI refused that API key. Check it on console.x.ai and paste it again.",
+        _ => "That key was refused. Check it's an admin key for the organisation and paste it again.",
+    }
+}
+
+/// Shows the popover again on the view it was on (after a login window).
+fn show_popover(app: &AppHandle) {
+    crate::open_view(app, "current");
+}
+
 #[tauri::command]
 pub async fn add_account(
     app: AppHandle,
@@ -147,19 +190,8 @@ pub async fn add_account(
 ) -> Result<AccountView, String> {
     let st = app.state::<AppState>();
     let name = allowance::provider_name(&provider);
-    if method == "login" {
-        return Err("Signing in inside Tokenrunway comes in a later version. Use the CLI login or a key for now.".into());
-    }
-    let ok = matches!(
-        (provider.as_str(), method.as_str()),
-        ("anthropic", "cli") | ("openai", "cli") | ("bedrock", "aws") | ("anthropic-api", "key") | ("openai-api", "key")
-    );
-    if !ok {
-        return Err(if matches!(provider.as_str(), "xai" | "gemini" | "copilot" | "cursor") {
-            format!("{name} is coming soon.")
-        } else {
-            format!("{name} can't be added that way yet.")
-        });
+    if !can_add(&provider, &method) {
+        return Err(format!("{name} can't be added that way yet."));
     }
     let existing = st.accounts.lock().unwrap().list.clone();
     let home = st.ctx.home.clone();
@@ -178,43 +210,61 @@ pub async fn add_account(
         None
     };
     if method == "cli" && existing.iter().any(|a| a.provider == provider && a.method == "cli") {
-        return Err(format!("The {} login is already added.", if provider == "anthropic" { "Claude Code" } else { "Codex CLI" }));
+        return Err(format!("The {} login is already added.", cli_name(&provider)));
     }
     let key = key.map(|k| k.trim().to_string()).filter(|k| !k.is_empty());
-    if method == "key" && key.is_none() {
-        return Err("Paste the admin key first.".into());
-    }
-    let default_label = match (provider.as_str(), &profile) {
-        ("anthropic", _) => match allowance::claude::email(&home) {
+    let key = match (method.as_str(), provider.as_str(), key) {
+        ("key", "cursor", Some(k)) => Some(allowance::cursor::normalize_pasted(&k)?),
+        ("key", "cursor", None) => return Err("Paste the session cookie first.".into()),
+        ("key", _, None) => return Err("Paste the key first.".into()),
+        (_, _, k) => k,
+    };
+    let detail =
+        |kind: &str| allowance::detect(&home, &[]).into_iter().find(|d| d.kind == kind).map(|d| d.detail).filter(|d| !d.is_empty());
+    let default_label = match (provider.as_str(), method.as_str(), &profile) {
+        ("anthropic", _, _) => match allowance::claude::email(&home) {
             Some(e) => format!("Claude — {}", local_part(&e)),
             None => "Claude".into(),
         },
-        ("openai", _) => match allowance::codex::detect(&home).map(|d| d.detail).filter(|d| !d.is_empty()) {
+        ("openai", _, _) => match allowance::codex::detect(&home).map(|d| d.detail).filter(|d| !d.is_empty()) {
             Some(e) => format!("ChatGPT — {}", local_part(&e)),
             None => "ChatGPT".into(),
         },
-        ("bedrock", Some(p)) => format!("AWS Bedrock — {p}"),
+        ("bedrock", _, Some(p)) => format!("AWS Bedrock — {p}"),
+        ("copilot", "cli", _) => detail("gh").map(|u| format!("Copilot — {u}")).unwrap_or_else(|| "Copilot".into()),
+        ("gemini", _, _) => detail("gemini-cli").map(|e| format!("Gemini — {}", local_part(&e))).unwrap_or_else(|| "Gemini".into()),
+        ("cursor", "cli", _) => detail("cursor-app").map(|e| format!("Cursor — {}", local_part(&e))).unwrap_or_else(|| "Cursor".into()),
+        ("xai", "key", _) => "xAI API".into(),
         _ => name.to_string(),
     };
     let label = unique_label(&existing, label.map(|l| l.trim().to_string()).filter(|l| !l.is_empty()).unwrap_or(default_label));
     let now = now_ms();
     let id = st.accounts.lock().unwrap().new_id(now);
+    let rec = AccountRecord { id: id.clone(), provider, method: method.clone(), label, profile, created_at: now, ..Default::default() };
+    if method == "login" {
+        // Sign in first: the account is only saved once the session is in the keychain.
+        let signed_in = crate::login::run(&app, &rec).await;
+        show_popover(&app);
+        if let Err(e) = signed_in {
+            crate::login::forget(&app, &id);
+            return Err(e);
+        }
+    }
     if let Some(k) = &key {
         secrets::set(&secrets::key_name(&id), k)?;
     }
-    let rec = AccountRecord { id: id.clone(), provider, method: method.clone(), label, profile, created_at: now, ..Default::default() };
     {
         let mut accts = st.accounts.lock().unwrap();
-        accts.list.push(rec);
+        accts.list.push(rec.clone());
         accts.save()?;
     }
     st.sched.lock().unwrap().entry(id.clone()).or_default().in_flight = true;
     crate::poll::poll_one(&app, &id).await;
     // A pasted key that's refused isn't kept.
-    let refused = matches!(st.live.lock().unwrap().get(&id).and_then(|l| l.error.clone()), Some(ProviderError::AuthExpired(_)));
-    if method == "key" && refused {
+    let refused_now = matches!(st.live.lock().unwrap().get(&id).and_then(|l| l.error.clone()), Some(ProviderError::AuthExpired(_)));
+    if method == "key" && refused_now {
         remove_account(app.clone(), id.clone())?;
-        return Err("That key was refused. Check it's an admin key for the organisation and paste it again.".into());
+        return Err(refused(&rec.provider).into());
     }
     st.redetect();
     broadcast(&app);
@@ -231,8 +281,11 @@ pub fn remove_account(app: AppHandle, account_id: String) -> Result<(), String> 
         accts.save()?;
         r
     };
-    if removed.is_some() {
+    if let Some(rec) = &removed {
         secrets::delete(&secrets::key_name(&id));
+        if rec.method == "login" {
+            crate::login::forget(&app, &id);
+        }
         st.snaps.remove_account(&id);
         st.live.lock().unwrap().remove(&id);
         st.sched.lock().unwrap().remove(&id);
@@ -267,13 +320,17 @@ pub fn refresh(app: AppHandle, account_id: Option<String>) {
 }
 
 /// "Log in again" / "I've run codex login": a CLI or AWS login is re-read straight away (the
-/// CLI did the signing in); a refused key has to be pasted again.
+/// CLI did the signing in); an in-app login opens its login window again; a refused key has to
+/// be pasted again.
 #[tauri::command]
 pub async fn login_account(app: AppHandle, account_id: String) -> Result<AccountView, String> {
     let rec = record(&app, &account_id)?;
     match rec.method.as_str() {
         "key" => return Err("Remove this account and add it again with a new key.".into()),
-        "login" => return Err("Signing in inside Tokenrunway comes in a later version.".into()),
+        "login" => {
+            crate::login::run(&app, &rec).await?;
+            show_popover(&app);
+        }
         _ => {}
     }
     let st = app.state::<AppState>();

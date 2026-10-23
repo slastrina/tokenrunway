@@ -1,4 +1,4 @@
-//! Secrets (pasted API/admin keys, later our own session tokens) live in the OS credential store:
+//! Secrets (pasted API/admin keys and session cookies, from the login window or pasted) live in the OS credential store:
 //! macOS Keychain, Windows Credential Manager, Secret Service on Linux. Never in a file, never in
 //! a log. As in Rattleboard, a missing Secret Service is an error that says what to install,
 //! never a plain-text fallback.
@@ -8,6 +8,12 @@ const SERVICE: &str = "io.github.slastrina.tokenrunway";
 /// The keychain account name for an account's key.
 pub fn key_name(account_id: &str) -> String {
     format!("{account_id}-key")
+}
+
+/// The keychain account name for a session from the in-app login window (a Cookie header
+/// value such as "WorkosCursorSessionToken=…", nothing else from the session).
+pub fn session_name(account_id: &str) -> String {
+    format!("{account_id}-session")
 }
 
 /// The secret, or None if there's none (or the store can't be read).

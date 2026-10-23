@@ -49,10 +49,37 @@
     id: 'acct-3', provider: 'bedrock', name: 'AWS Bedrock — iokig-prod', plan: 'On-demand', mono: 'B', updatedAt: at(-4 * M), state: 'ok', problem: null, method: 'aws',
     windows: [win('monthly', 'Monthly budget', '$184 / $500', 37, 8 * D + 12 * H, 72, 51, 'est', 'Rough estimate · ~$255')],
   });
+  const copilot = () => ({
+    id: 'acct-6', provider: 'copilot', name: 'Copilot — sam', plan: 'Individual', mono: 'P', updatedAt: at(-20000), state: 'ok', problem: null, method: 'cli',
+    note: 'Unlimited chat and completions on this plan.',
+    windows: [win('premium', 'Premium requests', '212 / 300', 71, 9 * D + 4 * H, 70, 101, 'warn', 'Tight · ~101% at reset')],
+  });
+  const cursor = () => ({
+    id: 'acct-5', provider: 'cursor', name: 'Cursor', plan: 'Pro', mono: 'Cu', updatedAt: at(-30000), state: 'ok', problem: null, method: 'login',
+    windows: [
+      win('monthly', 'Monthly plan', '$5 / $20', 25, 13 * D + 2 * H, 58, 43, 'ok', 'On track'),
+      win('on-demand', 'On-demand', '$12.40 spent', 0, 13 * D + 2 * H, 58, null, 'est', 'Rough estimate · ~$21'),
+    ],
+  });
+  const gemini = () => ({
+    id: 'acct-7', provider: 'gemini', name: 'Gemini — sam', plan: 'Gemini Code Assist', mono: 'G', updatedAt: at(-15000), state: 'ok', problem: null, method: 'cli',
+    windows: [
+      win('gemini-2.5-pro-daily', 'Gemini 2.5 Pro · daily', null, 75, 9 * H, 62, 98, 'warn', 'Tight · ~98% at reset'),
+      win('gemini-2.5-flash-daily', 'Gemini 2.5 Flash · daily', null, 8, 9 * H, 62, 13, 'ok', 'On track'),
+    ],
+  });
+  const grok = (method) => (method === 'key'
+    ? { id: 'acct-8', provider: 'xai', name: 'xAI API', plan: 'API', mono: 'X', updatedAt: at(-10000), state: 'ok', problem: null, method,
+      note: 'Key “laptop” is active. xAI has no spend endpoint Tokenrunway can read yet, so there’s no usage bar.', windows: [] }
+    : { id: 'acct-8', provider: 'xai', name: 'Grok', plan: '', mono: 'X', updatedAt: at(-10000), state: 'ok', problem: null, method,
+      windows: [win('queries', 'Grok queries', '18 / 30 queries', 60, null, null, null, 'ok', 'On track')] });
   const detected = [
     { kind: 'claude-code', label: 'Claude Code login', detail: 'sam@iokig.com', provider: 'anthropic', mono: 'C' },
     { kind: 'codex', label: 'Codex CLI login', detail: '', provider: 'openai', mono: 'O' },
     { kind: 'aws', label: 'AWS profiles', detail: '2 in ~/.aws', provider: 'bedrock', mono: 'B' },
+    { kind: 'gh', label: 'GitHub CLI login', detail: 'sam', provider: 'copilot', mono: 'P' },
+    { kind: 'gemini-cli', label: 'Gemini CLI login', detail: 'sam@iokig.com', provider: 'gemini', mono: 'G' },
+    { kind: 'cursor-app', label: 'Cursor app login', detail: 'sam@iokig.com', provider: 'cursor', mono: 'Cu' },
   ];
 
   let app = {
@@ -88,6 +115,8 @@
       { ...chatgpt(), state: 'login', problem: 'The Codex CLI session expired. Run `codex login`, or sign in here.', windows: [] },
       { id: 'acct-4', provider: 'gemini', name: 'Gemini — personal', plan: 'AI Pro', mono: 'G', updatedAt: at(-3 * H), state: 'broken', method: 'login',
         problem: 'Google changed the usage endpoint this reader uses. v0.2.0 ships a fixed reader.', windows: [] },
+      { ...copilot(), state: 'broken', cause: 'setup', note: null, windows: [],
+        problem: 'Your Copilot subscription has ended. Renew it on github.com/settings/copilot, then refresh.' },
     ];
   }
   if (scenario === 'compact') {
@@ -265,9 +294,13 @@
     get_dashboard: ({ period, group, account }) => dashboard(period, group, account),
     list_detected: () => detected,
     list_aws_profiles: () => ['iokig-prod', 'default'],
-    add_account: async ({ provider, method, label }) => {
+    add_account: async ({ provider, method, label, key }) => {
+      // ?login=cancel: the login window is closed before signing in.
+      if (method === 'login') { await wait(2500); if (q.get('login') === 'cancel') throw new Error('The login window was closed before signing in finished.'); }
       await wait(500);
-      const base = provider === 'openai' ? chatgpt() : provider === 'bedrock' ? bedrock() : claude();
+      if (method === 'key' && provider === 'cursor' && (key || '').length < 20) throw new Error('Paste the value of the WorkosCursorSessionToken cookie from cursor.com.');
+      const extra = { copilot, cursor, gemini, xai: () => grok(method) }[provider];
+      const base = extra ? extra() : provider === 'openai' ? chatgpt() : provider === 'bedrock' ? bedrock() : claude();
       const acct = { ...base, id: 'acct-' + Math.round(Math.random() * 1e6), name: label || base.name, method, updatedAt: Date.now() };
       acct.windows = acct.windows.map((w) => ({ ...w, status: w.status === 'est' ? 'est' : w.status, proj: null, pace: w.pace }));
       app = { ...app, accounts: [...app.accounts.filter((a) => a.name !== acct.name), acct], detected: app.detected.filter((d) => d.provider !== provider) };

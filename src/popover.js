@@ -138,7 +138,7 @@
     if (acc.state === 'login') return loginCard(acc);
     if (acc.state === 'broken') return brokenCard(acc);
     if (S.app.settings?.density === 'compact') return compactCard(acc);
-    const wins = acc.windows.length ? acc.windows.map((w) => windowRow(acc, w)).join('') : '<p class="note">No usage windows reported for this account yet.</p>';
+    const wins = acc.windows.length ? acc.windows.map((w) => windowRow(acc, w)).join('') : `<p class="note">${esc(acc.note || 'No usage windows reported for this account yet.')}</p>`;
     return `<article class="card" aria-label="${esc(acc.name)}"><div class="acct-h">${tile(acc.provider, acc.mono)}${idBlock(acc, updated(acc))}${cardActions(acc)}</div>${wins}</article>`;
   }
 
@@ -179,7 +179,7 @@
       + `<span class="cp ${w.status === 'ok' ? '' : 'hot'}">${Math.round(w.pct)}%</span><span class="cr">${w.resetsAt ? esc(C.when(w.resetsAt)) : '—'}</span></div>`
       + (w.status === 'crit' ? requestBanner(acc, w) : '')).join('');
     return `<article class="card compact" aria-label="${esc(acc.name)}"><div class="acct-h">${tile(acc.provider, acc.mono, 's20')}<span class="name">${esc(acc.name)}</span>`
-      + `${acc.updatedAt ? `<span class="sub" data-ago="${acc.updatedAt}">${C.ago(acc.updatedAt)}</span>` : ''}</div>${rows}</article>`;
+      + `${acc.updatedAt ? `<span class="sub" data-ago="${acc.updatedAt}">${C.ago(acc.updatedAt)}</span>` : ''}</div>${rows || (acc.note ? `<p class="note">${esc(acc.note)}</p>` : '')}</article>`;
   }
 
   function staleCard(acc) {
@@ -202,6 +202,14 @@
   }
 
   function brokenCard(acc) {
+    if (acc.cause === 'setup') {
+      // The fix is on the user's side (an ended subscription, a missing CLI), not an update.
+      const sflag = `<span class="flag" style="color:var(--fg2)">${ICON.tool()}Not available</span>`;
+      return `<article class="card problem" aria-label="${esc(acc.name)}, not available"><div class="acct-h">${tile(acc.provider, acc.mono)}${idBlock(acc, sflag)}</div>`
+        + `<p class="note">${inlineMd(acc.problem || 'This account has nothing to read right now.')}</p>`
+        + `<div class="row-btns"><button class="btn strong" data-act="open-provider" data-id="${esc(acc.id)}" data-k="bopen-${esc(acc.id)}">Open provider page</button>`
+        + `<button class="btn ghost" data-act="refresh" data-id="${esc(acc.id)}" data-k="bref-${esc(acc.id)}"${S.busy.has(acc.id) ? ' disabled' : ''}>${S.busy.has(acc.id) ? 'Checking…' : 'Check again'}</button></div></article>`;
+    }
     const flag = `<span class="flag" style="color:var(--fg2)">${ICON.tool()}Source needs an update</span>`;
     const upd = S.app.update
       ? `<button class="btn strong" data-act="view" data-v="update" data-k="bupd-${esc(acc.id)}">Update Tokenrunway</button>`
@@ -350,8 +358,17 @@
     { id: 'bedrock', m: 'B', n: 'AWS Bedrock', d: 'Budgets and on-demand spend', kind: 'aws' },
     { id: 'anthropic-api', m: 'A', n: 'Anthropic API', d: 'Console spend limits' },
     { id: 'openai-api', m: 'O', n: 'OpenAI API', d: 'Project budgets' },
+    { id: 'copilot', m: 'P', n: 'GitHub Copilot', d: 'Premium requests, Free-tier quotas', kind: 'gh' },
+    { id: 'cursor', m: 'Cu', n: 'Cursor', d: 'Monthly plan usage, on-demand spend', site: 'cursor.com', kind: 'cursor-app' },
+    { id: 'gemini', m: 'G', n: 'Gemini', d: 'Gemini CLI daily quotas', kind: 'gemini-cli' },
+    { id: 'xai', m: 'X', n: 'Grok / xAI', d: 'SuperGrok query limits, xAI API keys', site: 'grok.com' },
   ];
-  const SOON = [{ id: 'xai', m: 'X', n: 'Grok' }, { id: 'gemini', m: 'G', n: 'Gemini' }, { id: 'copilot', m: 'P', n: 'Copilot' }, { id: 'cursor', m: 'Cu', n: 'Cursor' }];
+  const SOON = [];
+  // The key field per provider: its label and placeholder.
+  const KEYFIELD = {
+    copilot: ['GitHub token', 'gho_… or ghp_…'], cursor: ['Session cookie', 'WorkosCursorSessionToken value'], xai: ['xAI API key', 'xai-…'],
+    'openai-api': ['API key', 'sk-admin-…'], openai: ['API key', 'sk-admin-…'],
+  };
 
   function methodsFor(p, detected) {
     const det = detected.find((d) => d.kind === p.kind);
@@ -359,7 +376,25 @@
     const login = () => ({ id: 'login', n: 'Log in', soon: true, disabled: true, d: `Opens ${p.site} in your browser and returns here.` });
     const key = (d) => ({ id: 'key', n: 'Paste API key', d });
     const aws = (d, disabled) => ({ id: 'aws', n: 'Use AWS profile', d, disabled, rec: !disabled && !!det });
+    const found = (what) => `Found ${what}${det?.detail ? ` for ${det.detail}` : ''} on this ${machine()}. Nothing to type.`;
+    const signIn = (d) => ({ id: 'login', n: 'Log in', rec: true, d });
     switch (p.id) {
+      case 'copilot': return [
+        { id: 'cli', n: 'Use GitHub CLI login', rec: !!det, d: det ? found(`a ${det.label}`) : 'Uses your gh login (or the Copilot editor login), read on each check. Run gh auth login first.' },
+        { ...key('A GitHub token for the account with Copilot. Stored in the keychain, never shown again.'), n: 'Paste token' },
+      ];
+      case 'cursor': return [
+        signIn('Opens cursor.com in a Tokenrunway window. Sign in there; it closes by itself, keeping only the session cookie.'),
+        ...(det ? [{ id: 'cli', n: 'Use Cursor app login', d: found('the Cursor app signed in') }] : []),
+        { id: 'key', n: 'Paste session cookie', d: 'The WorkosCursorSessionToken cookie from cursor.com. Stored in the keychain.' },
+      ];
+      case 'gemini': return [
+        { id: 'cli', n: 'Use Gemini CLI login', rec: !!det, d: det ? found('a Gemini CLI login') : 'Uses the Google login of the Gemini CLI. Run gemini and sign in with Google first.' },
+      ];
+      case 'xai': return [
+        signIn('For SuperGrok and X Premium: opens grok.com in a Tokenrunway window and reads your query limits.'),
+        { id: 'key', n: 'Paste xAI API key', d: 'Checks the key is active. xAI has no spend endpoint yet, so there’s no usage bar.' },
+      ];
       case 'anthropic': return [cli(), login(), key('For Console orgs. Stored in the keychain, never shown again.'), aws('Only for Claude through Bedrock. Pick AWS Bedrock instead.', true)];
       case 'openai': return [cli(), login(), { ...key('For API projects. Pick OpenAI API instead.'), disabled: true }];
       case 'bedrock': return [aws(det ? `Found ${det.detail || 'profiles'}. Reads Budgets and Cost Explorer, nothing else.` : 'Uses a profile from ~/.aws. Reads Budgets and Cost Explorer, nothing else.')];
@@ -415,7 +450,8 @@
         + `<span class="radio" aria-hidden="true"></span><span class="t"><span class="h">${esc(m.n)}${m.rec ? '<span class="badge">Recommended</span>' : ''}${m.soon ? '<span class="badge muted">Coming soon</span>' : ''}</span><span class="d">${esc(m.d)}</span></span></button>`;
     }).join('');
     let extra = '';
-    if (A.method === 'key') extra = `<div class="formrow"><label for="akey">API key</label><input id="akey" class="field" type="password" autocomplete="off" spellcheck="false" placeholder="${p.id.startsWith('openai') ? 'sk-admin-…' : 'sk-ant-admin…'}" value="${esc(A.key)}" data-k="akey" data-bind="add.key"></div>`;
+    const [keyLabel, keyHint] = KEYFIELD[p.id] || ['API key', 'sk-ant-admin…'];
+    if (A.method === 'key') extra = `<div class="formrow"><label for="akey">${esc(keyLabel)}</label><input id="akey" class="field" type="password" autocomplete="off" spellcheck="false" placeholder="${esc(keyHint)}" value="${esc(A.key)}" data-k="akey" data-bind="add.key"></div>`;
     if (A.method === 'aws') {
       const profs = A.profiles;
       extra = `<div class="formrow"><label for="aprof">AWS profile</label>${profs && profs.length
@@ -429,17 +465,18 @@
       + `<div style="display:flex;flex-direction:column;gap:8px;margin-top:8px;padding:0 4px">`
       + `<div class="formrow"><label for="aname">Account name</label><input id="aname" class="field" placeholder="${esc(SHORT[p.id] || p.n)} — work" value="${esc(A.label)}" data-k="aname" data-bind="add.label" spellcheck="false"></div>${extra}</div>`
       + '<p class="fine" style="margin:6px 4px 0;line-height:1.45">Read-only. Tokenrunway reads usage pages and local logs; it never sends prompts, and keys stay in the system keychain.</p>'
+      + (A.busy && A.method === 'login' ? `<p class="fine" style="margin:4px" role="status">Finish signing in in the window that opened. Closing it cancels.</p>` : '')
       + (A.error ? `<p class="err" style="margin:4px" role="alert">${esc(A.error)}</p>` : '')
       + '<span class="flex"></span><div style="display:flex;justify-content:flex-end;gap:8px;padding:8px 4px 2px">'
       + '<button class="btn s30" data-act="cancel" data-k="cancel">Cancel</button>'
-      + `<button class="btn s30 accent" style="padding:0 18px" data-act="connect" data-k="connect" ${ready ? '' : 'disabled'}>${A.busy ? 'Connecting…' : 'Connect'}</button></div></div></div>`;
+      + `<button class="btn s30 accent" style="padding:0 18px" data-act="connect" data-k="connect" ${ready ? '' : 'disabled'}>${A.busy ? (A.method === 'login' ? 'Waiting for sign-in…' : 'Connecting…') : (A.method === 'login' ? 'Log in' : 'Connect')}</button></div></div></div>`;
   }
 
   function viewAdded() {
     const A = S.add;
     const acc = A.result || {};
     const how = A.method === 'cli' ? (A.detected.find((d) => d.provider === acc.provider)?.label || 'CLI login')
-      : A.method === 'aws' ? `AWS profile ${A.profile || 'default'}` : A.method === 'key' ? 'API key' : 'login';
+      : A.method === 'aws' ? `AWS profile ${A.profile || 'default'}` : A.method === 'key' ? ({ copilot: 'GitHub token', cursor: 'session cookie', xai: 'xAI API key' }[A.provider] || 'API key') : 'Tokenrunway login';
     const wins = acc.windows || [];
     const sub = [acc.plan, wins.length ? `${plural(wins.length, 'usage window')} found` : 'No usage windows yet', `via ${how}`].filter(Boolean).join(' · ');
     const rows = wins.map((w) => `<div class="win st-${esc(w.status)}"><div class="win-h"><span class="wl">${esc(w.label)}</span><span class="wp">${Math.round(w.pct)}%</span></div>`
@@ -766,6 +803,7 @@
 
   function show(view) {
     const v = String(view || 'now');
+    if (v === 'current') return; // shown again after a login window: stay where it was
     if (v === 'add') startAdd();
     else if (v === 'request') { const a = S.app?.accounts.find((x) => x.windows?.some(wantsRequest)); if (a) openRequest(a.id, a.windows.find(wantsRequest).id); else go('now'); }
     else if (['now', 'stats', 'harness', 'settings', 'update'].includes(v)) go(v);

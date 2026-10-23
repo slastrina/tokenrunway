@@ -100,10 +100,11 @@ softly. **Local** = files on disk.
 | AWS Bedrock | CloudWatch `AWS/Bedrock` metrics (`InputTokenCount`, `OutputTokenCount`, `Invocations` by `ModelId`); Cost Explorer `GetCostAndUsage` (service = Amazon Bedrock); AWS Budgets as the "allowance"; Service Quotas for TPM/RPM | Tokens per model per hour, spend per day (Cost Explorer lags ~24 h and costs $0.01 per call, so we cache it), budget vs actual | AWS profile / SSO from `~/.aws` (read-only IAM policy in docs) | Official |
 | Anthropic API / OpenAI API orgs | Admin API usage & cost reports | Tokens & cost per model/day, spend limits | Admin key (user-provided, kept in the keychain) | Official |
 | OpenRouter | `GET /api/v1/key`, `/credits` | Credits left, usage | API key | Official |
-| GitHub Copilot | `api.github.com/copilot_internal/user` | Premium-request quota, reset date | GitHub token (device flow) | Observed |
-| Cursor | cursor.com usage API | Requests/usage-based spend, cycle reset | Session cookie (login window) | Observed |
-| xAI / Grok | API: management API billing/usage for API keys. SuperGrok consumer plans: no known usage API | API spend; consumer plans: "unknown" until a source exists | API/management key | Official (API) / none (consumer) |
-| Google Gemini (CLI / AI Studio) | Gemini CLI local logs + quota errors; Cloud Billing / quotas for API projects | Requests/day vs free-tier quota, API spend | Local / gcloud ADC | Local / Official |
+| GitHub Copilot | `GET api.github.com/copilot_internal/user` (`Authorization: token …`, `X-GitHub-Api-Version: 2025-04-01`) | `quota_snapshots.premium_interactions` (and chat/completions when limited), `quota_reset_date`; Free: `limited_user_quotas` / `monthly_quotas`; unlimited → a note, no bar; `access_type_sku: subscription_ended` → "subscription has ended" (Broken, cause "setup") | `gh auth token`, else the Copilot editor login (`~/.config/github-copilot/apps.json`/`hosts.json`), else `GH_TOKEN`/`GITHUB_TOKEN` (method cli); or a pasted token (key) | Observed — verified Oct 2026 for an ended subscription only; quota shapes as documented, unverified |
+| Cursor | `GET cursor.com/api/usage-summary` (plan `totalPercentUsed`, `used`/`limit` assumed cents, on-demand), `POST /api/dashboard/get-plan-info` (plan name), `POST /api/dashboard/get-current-period-usage` (fallback) | "Monthly plan" % and $ to the cycle end; "On-demand" spend | `WorkosCursorSessionToken` cookie: in-app login window (login), the Cursor app's `state.vscdb` `cursorAuth/accessToken` as `<user>%3A%3A<token>` (cli), or pasted (key) | Observed — verified Oct 2026 (shapes, zero usage); app login unverified |
+| xAI / Grok | SuperGrok: `POST grok.com/rest/rate-limits` per `requestKind` (DEFAULT, REASONING, DEEPSEARCH). API: `GET api.x.ai/v1/api-key` (key status only; no documented spend endpoint yet) | Queries left per rolling window (reset known only when used up); API: key active/blocked, "spend not available yet" note | grok.com `sso`/`sso-rw` cookies (login window); xAI API key (key) | Observed — unverified (no account to test) |
+| Google Gemini (CLI) | `POST cloudcode-pa.googleapis.com/v1internal:loadCodeAssist` (tier, project) then `:retrieveUserQuota` (per-model `remainingFraction`, `resetTime`) | "Gemini 2.5 Pro · daily" etc. | Gemini CLI login `~/.gemini/oauth_creds.json`, read-only, never refreshed | Observed — unverified (no CLI login to test) |
+| Google Gemini (API projects) | Cloud Billing / quotas | API spend | gcloud ADC | Official (not built yet) |
 
 **Bedrock in practice.** A Bedrock "allowance" is usually a budget (AWS Budgets) or a soft cap your
 platform team sets, not a provider window. Tokenrunway shows month-to-date spend against the budget,
@@ -269,7 +270,12 @@ call.
    directory per account, so work and personal sessions never mix) loads the provider's real login
    page. We keep only the session cookie or token the adapter needs, in the OS keychain
    (`keyring`: Keychain, Credential Manager, Secret Service). SSO and SAML (Enterprise) work
-   because it's the provider's own page.
+   because it's the provider's own page. Built for Cursor and Grok (`src-tauri/src/login.rs`,
+   `allowance/login.rs`): window `login-<account id>`, not in any capability; its own store per
+   account (`data_store_identifier` on macOS 14+, a non-persistent store on older macOS,
+   `data_directory` on Windows/Linux); the cookies are polled every second until the session
+   cookie appears; closing the window or 10 minutes cancels; removing the account deletes the
+   store. A re-login waits for a session different from the refused one.
 3. **API / admin key**: pasted in and stored in the keychain.
 
 Each account shows its auth state (OK / expiring / needs login). An expired login sends one quiet

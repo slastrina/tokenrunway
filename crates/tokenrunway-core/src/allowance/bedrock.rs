@@ -245,6 +245,7 @@ impl Provider for Bedrock {
                 who: Some(profile),
                 windows: vec![window(&c, acct.limit_usd, crate::now_ms())],
                 caveat: None,
+                note: None,
             })
         })
     }
