@@ -8,8 +8,9 @@
 #
 # - Exports the "Developer ID Application" identity from your login keychain as a .p12 (macOS asks
 #   you to allow it), protected by a fresh random password, and stores both as secrets.
-# - Asks for your Apple ID and an app-specific password (appleid.apple.com → Sign-In and Security →
-#   App-Specific Passwords) for notarization. Typed input is hidden and goes straight to `gh`.
+# - The Apple ID and app-specific password for notarization come from the keychain item
+#   "apple-notarization" when it exists; otherwise it asks (account.apple.com → Sign-In and
+#   Security → App-Specific Passwords). Typed input is hidden and goes straight to `gh`.
 # - Optionally a HOMEBREW_TAP_PAT: a fine-grained token with Contents read/write on
 #   slastrina/homebrew-tap.
 # Nothing is kept on disk: the exported files live in a private temp folder deleted at the end.
@@ -59,8 +60,16 @@ set_secret APPLE_TEAM_ID "$TEAM_ID"
 set_secret APPLE_ORG_NAME "$(sed -n 's/Developer ID Application: \(.*\) (.*/\1/p' <<<"$identity")"
 if [ "${1:-}" = "--cert" ]; then echo "Certificate updated."; exit 0; fi
 
-read -r -p "Apple ID (email) for notarization: " apple_id
-read -r -s -p "App-specific password: " app_pw; echo
+# The notarization login, from the keychain item "apple-notarization" if it's there (account = the
+# Apple ID, password = the app-specific password); otherwise asked for.
+if security find-generic-password -s apple-notarization >/dev/null 2>&1; then
+  apple_id=$(security find-generic-password -s apple-notarization | sed -n 's/.*"acct"<blob>="\(.*\)"/\1/p')
+  app_pw=$(security find-generic-password -s apple-notarization -w)
+  echo "Notarization login from the keychain (apple-notarization): $apple_id"
+else
+  read -r -p "Apple ID (email) for notarization: " apple_id
+  read -r -s -p "App-specific password: " app_pw; echo
+fi
 [ -n "$apple_id" ] && set_secret APPLE_ID "$apple_id"
 [ -n "$app_pw" ] && set_secret APPLE_APP_PASSWORD "$app_pw"
 
