@@ -175,8 +175,9 @@ wipe), About (version, licence, iokig.com, Ko-fi).
 ### 6.5 The iokig.com credit
 "Visible at all times" means three places that can't be turned off: the popover footer, the first
 item of the tray menu (`Tokenrunway vX on iokig.com`, which opens https://www.iokig.com/tokenrunway)
-and the tray tooltip. We considered putting permanent text in the menubar itself, but it would cost
-every user menubar space. It's a one-line change (`tray.set_title`) if wanted.
+and the tray tooltip. In other words, it's in whatever opens when you click the icon, alongside the
+details. The menubar itself shows only the icon (and the optional usage label in §6.1), never the
+credit.
 
 ## 7. Architecture
 
@@ -445,9 +446,8 @@ Codex, opencode, …) is a first-class tab, not just a filter.
 - **S4**: Bedrock at work: what read access does the laptop's AWS profile actually have?
 
 ## 15. Open questions
-1. Should the macOS menubar show permanent "iokig.com" text next to the icon (see §6.5)?
-2. Store prompt-derived session titles (more useful session lists) or never (more private)?
-3. LLM categorisation: allow it to run through the user's Claude Code/Codex CLI (`claude -p`), or
+1. Store prompt-derived session titles (more useful session lists) or never (more private)?
+2. LLM categorisation: allow it to run through the user's Claude Code/Codex CLI (`claude -p`), or
    only through an API key?
-4. Later: an E2E-encrypted export/import to merge stats from several machines?
-5. A `tokenrunway` CLI and a Rattleboard source plugin ("Claude 38% · resets 14:20" on the board)?
+3. Later: an E2E-encrypted export/import to merge stats from several machines?
+4. A `tokenrunway` CLI and a Rattleboard source plugin ("Claude 38% · resets 14:20" on the board)?
