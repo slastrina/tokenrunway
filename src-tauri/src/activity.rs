@@ -38,6 +38,8 @@ fn ingest(app: &AppHandle, stats: &Stats) {
     }
     if r.events_added > 0 {
         let _ = app.emit("tr://stats-changed", ());
+        // Today's spend may be in the tray label.
+        crate::state::broadcast(app);
     }
 }
 

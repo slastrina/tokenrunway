@@ -85,7 +85,7 @@
   let app = {
     version: '0.1.0', os: q.get('os') === 'windows' ? 'windows' : 'mac', update: null, updateHow: 'install', loading: false,
     summary: { label: '1h 26m', status: 'crit', window: 'Claude — work · 5-hour', crit: 1, warn: 1, ok: 4 },
-    accounts: [claude(), chatgpt(), bedrock()], detected: [], settings, rattleboardStatus: null, rattleboardKey: false,
+    accounts: [claude(), chatgpt(), bedrock()], detected: [], settings, rattleboardStatus: null, rattleboardKey: false, spendToday: 58.4,
   };
   if (['local', 'local-key', 'network', 'vestaboard', 'error'].includes(rbq)) {
     const local = rbq.startsWith('local');

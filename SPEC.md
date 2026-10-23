@@ -137,8 +137,9 @@ catches anything the watchers miss.
   so it follows light/dark). It turns amber at the warning threshold and red at critical or when
   you're projected to run out.
 - **Label** (optional; macOS and Linux appindicator. Windows can't put text in the tray, so it
-  goes in the tooltip): choose between *none*, *% left*, *time to run out*, *time to reset*, or a
-  specific account/window.
+  goes in the tooltip): choose between *none*, *% left*, *time to run out*, *time to reset*, a
+  specific account/window, or *$ today*: API-equivalent spend since local midnight from the
+  agents' logs (`$12.40`, `$318`, `$12.3k`), refreshed as the logs are read.
 - **Tooltip**: `Tokenrunway · Claude work 5h: 38% left, resets 14:20 · iokig.com`.
 - **Left click** opens the popover. **Right click** (or the menu on Linux) opens the native menu:
   `Tokenrunway v0.1.0 on iokig.com`, Open dashboard, Refresh now, Pause notifications ▸,

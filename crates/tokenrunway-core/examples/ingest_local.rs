@@ -23,6 +23,9 @@ fn main() {
     println!("second ingest (nothing changed): {:?}, {} files, {} events", t.elapsed(), r.files_read, r.events_added);
 
     let now = tokenrunway_core::now_ms();
+    let t = Instant::now();
+    let today = stats.spend_today(now);
+    println!("spend today: ${today:.2} ({:?}; the tray's \"$ today\" label)", t.elapsed());
     for period in ["7d", "lifetime"] {
         let t = Instant::now();
         let s = stats.stats(period, now);

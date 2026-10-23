@@ -41,6 +41,7 @@ pub fn describe(view: &AppView) -> (Level, Option<String>, String) {
     let label = match (view.settings.menubar_label.as_str(), &view.summary, tight) {
         ("percent", _, Some((_, w))) => Some(format!("{:.0}%", w.pct)),
         ("runway", Some(s), _) => Some(s.label.clone()),
+        ("spend", _, _) => view.spend_today.map(money),
         _ => None,
     };
     let now = tokenrunway_core::now_ms();
@@ -48,7 +49,11 @@ pub fn describe(view: &AppView) -> (Level, Option<String>, String) {
     if let Some(v) = &view.update {
         parts.push(format!("v{v} available"));
     }
-    if cfg!(windows) {
+    if view.settings.menubar_label == "spend" {
+        if let Some(d) = view.spend_today {
+            parts.push(format!("Today {}", money(d)));
+        }
+    } else if cfg!(windows) {
         if let Some(l) = &label {
             parts.push(l.clone());
         }
@@ -70,6 +75,15 @@ pub fn describe(view: &AppView) -> (Level, Option<String>, String) {
         tip = format!("{keep}… · iokig.com");
     }
     (level, label, tip)
+}
+
+/// Short dollars for the tray: cents under $100, whole dollars above, then "$1.2k".
+fn money(d: f64) -> String {
+    match d {
+        d if d < 100.0 => format!("${d:.2}"),
+        d if d < 10_000.0 => format!("${d:.0}"),
+        d => format!("${:.1}k", d / 1000.0),
+    }
 }
 
 /// Applies the view to the tray icon, its label and tooltip.
@@ -187,9 +201,18 @@ mod tests {
         assert!(tip.ends_with(" · iokig.com"));
         view.settings.menubar_label = "percent".into();
         assert_eq!(describe(&view).1.as_deref(), Some("78%"));
+        view.settings.menubar_label = "spend".into();
+        assert_eq!(describe(&view).1, None, "nothing until the logs are read");
+        view.spend_today = Some(12.4);
+        let (_, label, tip) = describe(&view);
+        assert_eq!(label.as_deref(), Some("$12.40"));
+        assert!(tip.contains(" · Today $12.40 · "));
         view.settings.menubar_label = "none".into();
         assert_eq!(describe(&view).1, None);
         assert_eq!(describe(&AppView::default()).2, "Tokenrunway · iokig.com");
+        assert_eq!(money(0.0), "$0.00");
+        assert_eq!(money(318.4), "$318");
+        assert_eq!(money(12_340.0), "$12.3k");
         for l in [Level::Normal, Level::Warn, Level::Crit] {
             assert!(image(l).is_some());
         }

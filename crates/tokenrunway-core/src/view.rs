@@ -44,6 +44,8 @@ pub struct AppView {
     pub rattleboard_status: Option<String>,
     /// Rattleboard: its key is in the keychain (the card needs it)
     pub rattleboard_key: bool,
+    /// API-equivalent spend since local midnight from the agents' logs; None until they're read
+    pub spend_today: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
@@ -148,7 +150,7 @@ pub struct Detected {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Settings {
-    /// Tray label: "none" | "percent" | "runway"
+    /// Tray label: "none" | "percent" | "runway" | "spend" (today's spend so far)
     pub menubar_label: String,
     /// "comfortable" | "compact"
     pub density: String,

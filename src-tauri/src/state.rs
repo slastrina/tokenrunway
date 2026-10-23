@@ -147,6 +147,7 @@ pub fn app_view(app: &AppHandle) -> AppView {
         settings,
         rattleboard_status: crate::board::status(app),
         rattleboard_key,
+        spend_today: st.stats.get().map(|s| s.spend_today(now)),
     }
 }
 

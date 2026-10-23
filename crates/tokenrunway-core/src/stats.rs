@@ -160,6 +160,13 @@ impl Stats {
         self.roots.existing()
     }
 
+    /// API-equivalent spend since local midnight (the tray's "Spend today" label): a cheap sum, so
+    /// it can run on every state broadcast.
+    pub fn spend_today(&self, now: i64) -> f64 {
+        let p = Span::of("today", now);
+        self.store().agg(p.start, i64::MAX).iter().map(|r| r.cost).sum()
+    }
+
     /// `period`: "today" | "7d" | "30d" | "90d" | "lifetime"; `now` in ms, local time zone.
     pub fn stats(&self, period: &str, now: i64) -> StatsView {
         let p = Span::of(period, now);

@@ -249,3 +249,20 @@ fn nothing_stored_but_counts() {
         assert!(!dump.contains(secret), "{secret:?} leaked into the store");
     }
 }
+
+#[test]
+fn spend_today_matches_the_today_stats() {
+    let env = Env::new("today");
+    env.stats.ingest();
+    let day = |ms: i64| (env.stats.spend_today(ms), env.stats.stats("today", ms).spend_api);
+    // Every local "today" from the first fixture day to a week later: the cheap sum and the full
+    // stats agree, and at least one of them saw spend.
+    let mut seen = 0.0;
+    for d in -3..7 {
+        let (a, b) = day(now() + d * 86_400_000);
+        assert!(close(a, b), "day {d}: {a} vs {b}");
+        seen += a;
+    }
+    assert!(seen > 0.0);
+    assert_eq!(env.stats.spend_today(now() + 30 * 86_400_000), 0.0);
+}

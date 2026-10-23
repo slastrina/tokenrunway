@@ -604,7 +604,7 @@
       + `<div class="group"><span class="caps">Accounts</span><div class="box">${accRows}`
       + `<div class="srow"><button class="btn icon s24" data-act="add" data-k="set-add">${ICON.plus(12, 1.8)}Add account</button></div></div></div>`
       + '<div class="group"><span class="caps">Menubar and popover</span><div class="box">'
-      + `<div class="srow"><span class="t"><b>Menubar label</b><span>Most urgent window</span></span>${seg('Menubar label', 'menubarLabel', [['none', 'None'], ['percent', '% left'], ['runway', 'Runway']], st.menubarLabel)}</div>`
+      + `<div class="srow"><span class="t"><b>Menubar label</b><span>${st.menubarLabel === 'spend' ? 'Since midnight' : 'Most urgent window'}</span></span>${seg('Menubar label', 'menubarLabel', [['none', 'None'], ['percent', '% left'], ['runway', 'Runway'], ['spend', '$ today']], st.menubarLabel)}</div>`
       + `<div class="srow"><span class="t"><b>Density</b></span>${seg('Density', 'density', [['comfortable', 'Comfortable'], ['compact', 'Compact']], st.density)}</div></div></div>`
       + '<div class="group"><span class="caps">Notifications</span><div class="box">'
       + (paused ? `<div class="srow"><span class="t"><b>Paused</b><span>${st.pausedUntil > 8e15 ? 'Until you resume' : 'Until ' + esc(C.when(st.pausedUntil))}</span></span><button class="btn s24" data-act="resume" data-k="resume">Resume</button></div>` : '')
