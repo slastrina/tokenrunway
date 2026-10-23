@@ -11,6 +11,7 @@ pub mod forecast;
 pub mod ingest;
 pub mod model;
 pub mod pricing;
+pub mod rattleboard;
 pub mod stats;
 pub mod store;
 pub mod update;

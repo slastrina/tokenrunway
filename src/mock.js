@@ -1,14 +1,16 @@
 // Mock backend for checking the UI in a plain browser (loaded by common.js only when
 // window.__TAURI__ is missing). Returns the sample data from docs/design/*.dc.html for every
 // command and simulates the events. Query params: ?state=empty|loading|problems|compact|update,
-// ?os=windows, plus ?view= and ?theme= (handled by the UI).
+// ?os=windows, ?rb=local|local-key|network|vestaboard|error|none (Rattleboard: connected that way,
+// with a failed send, or not installed), plus ?view= and ?theme= (handled by the UI).
 (() => {
   const q = new URLSearchParams(location.search);
   const scenario = q.get('state') || '';
   const now = Date.now();
   const M = 60000, H = 60 * M, D = 24 * H;
   const listeners = {};
-  const emit = (event, payload) => (listeners[event] || []).forEach((cb) => cb({ event, payload }));
+  // Cloned, as Tauri serialises events: the UI never shares objects with the mock.
+  const emit = (event, payload) => (listeners[event] || []).forEach((cb) => cb({ event, payload: structuredClone(payload) }));
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
   // Next local Monday 09:00, the 1st of next month etc., so local times read like the design.
@@ -17,12 +19,16 @@
     id, label, abs, pct, pace, proj, resetsAt: resetIn == null ? null : at(resetIn), status, forecast, outAt: outIn == null ? null : at(outIn),
   });
 
+  const rbDefault = { mode: 'off', url: '', name: '', rows: 6, cols: 22, kind: '', target: '', alerts: 'alerts', card: false };
   const settings = {
     menubarLabel: 'runway', density: scenario === 'compact' ? 'compact' : 'comfortable', warnAt: 75, critAt: 90, leadMinutes: 60,
     notifyThresholds: true, notifyProjection: true, notifyReset: false, pausedUntil: 0, requestAt: 85,
     admins: { 'acct-1': { name: 'Jordan Lee', email: 'jordan@iokig.com', slack: '@Jordan Lee', teams: '' } },
     myName: 'Sam', updateCheck: true, startAtLogin: false,
+    rattleboard: { ...rbDefault },
   };
+  const rbq = q.get('rb') || '';
+  const hhmm = () => new Date().toTimeString().slice(0, 5);
 
   const claude = () => ({
     id: 'acct-1', provider: 'anthropic', name: 'Claude — work', plan: 'Enterprise', mono: 'C', updatedAt: at(-12000), state: 'ok', problem: null, method: 'cli',
@@ -52,8 +58,19 @@
   let app = {
     version: '0.1.0', os: q.get('os') === 'windows' ? 'windows' : 'mac', update: null, updateHow: 'install', loading: false,
     summary: { label: '1h 26m', status: 'crit', window: 'Claude — work · 5-hour', crit: 1, warn: 1, ok: 4 },
-    accounts: [claude(), chatgpt(), bedrock()], detected: [], settings,
+    accounts: [claude(), chatgpt(), bedrock()], detected: [], settings, rattleboardStatus: null, rattleboardKey: false,
   };
+  if (['local', 'local-key', 'network', 'vestaboard', 'error'].includes(rbq)) {
+    const local = rbq.startsWith('local');
+    app.settings.rattleboard = {
+      ...rbDefault, mode: local ? 'local' : 'network', url: local ? 'http://127.0.0.1:7070' : 'http://192.168.1.20:7070',
+      name: local ? 'This computer' : rbq === 'vestaboard' ? 'Vestaboard' : 'Living room TV', kind: rbq === 'vestaboard' ? 'vestaboard' : 'rattleboard',
+      card: rbq === 'network' || rbq === 'error',
+    };
+    app.rattleboardKey = rbq !== 'local';
+    if (rbq === 'network') app.rattleboardStatus = `Added the AI runway card to the rotation at ${hhmm()}`;
+    if (rbq === 'error') app.rattleboardStatus = `Couldn't send an alert at ${hhmm()}: Couldn't connect to 192.168.1.20:7070. Is the board on, with its API server turned on?`;
+  }
 
   if (scenario === 'empty') Object.assign(app, { summary: null, accounts: [], detected });
   if (scenario === 'loading') {
@@ -197,7 +214,52 @@
     get_state: () => app,
     get_info: () => ({ version: app.version, update: app.update, updateHow: app.updateHow }),
     get_settings: () => app.settings,
-    set_settings: ({ patch }) => { app = { ...app, settings: { ...app.settings, ...patch } }; setTimeout(() => emit('tr://state', app), 50); return app.settings; },
+    set_settings: ({ patch }) => {
+      const p = { ...patch };
+      if (p.rattleboard) {
+        const { alerts, card, target } = { ...app.settings.rattleboard, ...p.rattleboard };
+        if (card && !app.settings.rattleboard.card && (!app.rattleboardKey || app.settings.rattleboard.kind === 'vestaboard')) {
+          throw new Error('The card needs the board’s key: paste its pair link from Rattleboard → Settings → API server.');
+        }
+        p.rattleboard = { ...app.settings.rattleboard, alerts, card, target };
+        if (card !== app.settings.rattleboard.card) app.rattleboardStatus = card ? `Added the AI runway card to the rotation at ${hhmm()}` : `Took the card off the board at ${hhmm()}`;
+      }
+      app = { ...app, settings: { ...app.settings, ...p } };
+      setTimeout(() => emit('tr://state', app), 50);
+      return app.settings;
+    },
+    rattleboard_detect: async () => { await wait(250); const there = rbq !== 'none'; return { found: there, binary: there, server: there }; },
+    rattleboard_connect: async ({ mode, link, url, key }) => {
+      await wait(500);
+      let name = 'This computer', rows = 6, cols = 22, base = 'http://127.0.0.1:7070', hasKey = false;
+      if (link) {
+        if (!/^rattleboard:\/\/pair\?/.test(link)) throw new Error("That isn't a pair link. Copy it from Rattleboard → Settings → API server.");
+        const lq = new URLSearchParams(link.split('?')[1]);
+        if (mode === 'network') { name = lq.get('name') || 'Rattleboard'; base = lq.get('url') || base; }
+        rows = +(lq.get('rows') || 6); cols = +(lq.get('cols') || 22); hasKey = true;
+      } else if (mode === 'network') {
+        if (!url) throw new Error('Enter the board’s address, like 192.168.1.20:7070');
+        if (!key) throw new Error('Paste the board’s pair link, or its key.');
+        name = 'Living room TV'; base = /^https?:/.test(url) ? url : `http://${url.includes(':') ? url : url + ':7070'}`; hasKey = true;
+      }
+      const prev = app.settings.rattleboard;
+      app = { ...app, rattleboardKey: hasKey, rattleboardStatus: null, settings: { ...app.settings, rattleboard: { ...prev, mode, url: base, name, rows, cols, kind: 'rattleboard', card: prev.card && hasKey } } };
+      setTimeout(() => emit('tr://state', app), 50);
+      return { name, rows, cols, message: null };
+    },
+    rattleboard_test: async () => {
+      await wait(700);
+      const r = app.settings.rattleboard;
+      const message = app.rattleboardKey ? `Sent to “${r.name}” (${r.rows}×${r.cols})` : 'Sent with rattleboard --notify (exit 0)';
+      app = { ...app, rattleboardStatus: `${message} at ${hhmm()}` };
+      setTimeout(() => emit('tr://state', app), 50);
+      return { name: r.name, rows: r.rows, cols: r.cols, message };
+    },
+    rattleboard_disconnect: async () => {
+      await wait(300);
+      app = { ...app, rattleboardKey: false, rattleboardStatus: null, settings: { ...app.settings, rattleboard: { ...rbDefault } } };
+      setTimeout(() => emit('tr://state', app), 50);
+    },
     get_stats: ({ period }) => stats(period),
     get_harness: ({ period }) => harness(period),
     get_dashboard: ({ period, group, account }) => dashboard(period, group, account),

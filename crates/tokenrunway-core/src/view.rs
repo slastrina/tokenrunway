@@ -40,6 +40,10 @@ pub struct AppView {
     /// Logins found on this machine that aren't accounts yet (empty state's "Found on this Mac")
     pub detected: Vec<Detected>,
     pub settings: Settings,
+    /// Rattleboard: the last thing that happened ("Sent an alert at 14:02", or what went wrong)
+    pub rattleboard_status: Option<String>,
+    /// Rattleboard: its key is in the keychain (the card needs it)
+    pub rattleboard_key: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
@@ -158,6 +162,45 @@ pub struct Settings {
     pub my_name: String,
     pub update_check: bool,
     pub start_at_login: bool,
+    /// Alerts and the AI runway card on a Rattleboard (SPEC.md §8.4); its key is in the keychain
+    pub rattleboard: RattleboardSettings,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct RattleboardSettings {
+    /// "off" | "local" (the Rattleboard app on this computer) | "network" (a board's API)
+    pub mode: String,
+    /// The board's API ("http://192.168.1.20:7070"); for "local", this computer's server
+    pub url: String,
+    /// "Living room TV"
+    pub name: String,
+    pub rows: u32,
+    pub cols: u32,
+    /// "rattleboard" | "vestaboard" (a real one: alerts only, no card), "" before connecting
+    pub kind: String,
+    /// "local" only: a saved board or group in Rattleboard for `--notify --target`
+    pub target: String,
+    /// "off" | "alerts" (critical, run-out, login) | "warnings" (also warnings) | "all" (also resets)
+    pub alerts: String,
+    /// The AI runway card in the board's rotation (needs the key)
+    pub card: bool,
+}
+
+impl Default for RattleboardSettings {
+    fn default() -> Self {
+        Self {
+            mode: "off".into(),
+            url: String::new(),
+            name: String::new(),
+            rows: 6,
+            cols: 22,
+            kind: String::new(),
+            target: String::new(),
+            alerts: "alerts".into(),
+            card: false,
+        }
+    }
 }
 
 impl Default for Settings {
@@ -177,6 +220,7 @@ impl Default for Settings {
             my_name: String::new(),
             update_check: true,
             start_at_login: false,
+            rattleboard: RattleboardSettings::default(),
         }
     }
 }

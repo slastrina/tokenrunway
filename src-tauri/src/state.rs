@@ -37,6 +37,8 @@ pub struct AppState {
     pub wake: tokio::sync::Notify,
     /// The last time a harness wrote to its logs (ms)
     pub last_activity: AtomicI64,
+    /// Rattleboard: the key (cached), the card as last sent, the status line
+    pub board: Mutex<crate::board::Runtime>,
     /// The last AppView pushed, to push only changes
     last_json: Mutex<String>,
 }
@@ -68,6 +70,7 @@ impl AppState {
             detected: Mutex::new(detected),
             wake: tokio::sync::Notify::new(),
             last_activity: AtomicI64::new(0),
+            board: Mutex::new(Default::default()),
             last_json: Mutex::new(String::new()),
             data_dir,
         }
@@ -131,6 +134,7 @@ pub fn app_view(app: &AppHandle) -> AppView {
     };
     let detected = st.detected.lock().unwrap().clone();
     let settings = st.settings.lock().unwrap().clone();
+    let rattleboard_key = crate::board::has_key(app, &settings.rattleboard);
     AppView {
         version: env!("CARGO_PKG_VERSION").into(),
         os: OS.into(),
@@ -141,13 +145,17 @@ pub fn app_view(app: &AppHandle) -> AppView {
         accounts,
         detected,
         settings,
+        rattleboard_status: crate::board::status(app),
+        rattleboard_key,
     }
 }
 
 /// Rebuilds the view and, if anything changed, pushes `tr://state` to every window, updates the
-/// tray and runs the notification rules.
+/// tray and runs the notification rules (desktop and Rattleboard). The Rattleboard card is
+/// checked every time (its runway moves with the clock).
 pub fn broadcast(app: &AppHandle) {
     let view = app_view(app);
+    crate::board::card_tick(app, &view);
     let json = serde_json::to_string(&view).unwrap_or_default();
     let st = app.state::<AppState>();
     {
@@ -167,4 +175,5 @@ pub fn broadcast(app: &AppHandle) {
     let fired = st.alerts.lock().unwrap().evaluate(&view.accounts, &view.settings, now);
     st.save_alerts();
     crate::notify::show(app, &fired);
+    crate::board::on_alerts(app, &fired, &view.accounts);
 }

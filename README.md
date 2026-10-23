@@ -31,6 +31,25 @@ development, see [SPEC.md](SPEC.md) for the design and roadmap.
 Tokenrunway checks GitHub for new versions once a day, shows what's new, and updates in place when
 you say so. Homebrew installs update with `brew upgrade --cask tokenrunway`.
 
+## Rattleboard
+
+Tokenrunway can show its alerts, and an "AI runway" card, on a [Rattleboard](https://github.com/slastrina/rattleboard)
+split-flap board. In **Settings → Rattleboard**:
+
+1. **Rattleboard on this computer:** click **Connect** next to *Found on this computer*. Turn on
+   Rattleboard's **Settings → API server** first. Alerts go through the Rattleboard app, with its
+   own key.
+2. **A board on your network:** in that Rattleboard, **Settings → API server → Copy link** (turn on
+   **Other devices**), paste the `rattleboard://pair?…` link and click **Connect**. Or open *or enter
+   address and key*.
+3. **Test** shows "TOKENRUNWAY CONNECTED" for 15 seconds. Pick which alerts go to the board, and turn
+   on **Show an AI runway card in the rotation**. The card needs the board's key: on this computer,
+   paste its pair link under *Add the key for the card*.
+
+The key is kept in your OS keychain. The board only gets window names, percentages and reset
+times. It never gets prompts or costs. **Disconnect** removes the card from the board and the key
+from the keychain.
+
 ## Build from source
 
 ```sh

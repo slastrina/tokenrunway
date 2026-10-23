@@ -7,6 +7,9 @@
 //!   well before the reset (by at least the lead time).
 //! - Reset: a window that just started over (off by default).
 //! - Auth: an account that needs signing in again (always on, once per expiry).
+//!
+//! Every rule that fires comes back with `desktop` saying whether its switch is on; the desktop
+//! shows only those, and Rattleboard (rattleboard.rs) picks by its own level. Pausing holds both.
 
 use crate::forecast;
 use crate::view::{AccountState, AccountView, Settings, WindowView};
@@ -19,8 +22,27 @@ const DAY: i64 = 24 * 60 * MIN;
 #[derive(Debug, Clone, PartialEq)]
 pub struct Alert {
     pub account_id: String,
+    /// The window it's about (None for a login)
+    pub window_id: Option<String>,
+    pub kind: Kind,
+    /// Its desktop notification switch is on
+    pub desktop: bool,
     pub title: String,
     pub body: String,
+}
+
+/// Which rule fired.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Kind {
+    /// The warning threshold
+    Warn,
+    /// The critical threshold or 100%
+    Crit,
+    /// Projected to run out before the reset
+    Projection,
+    Reset,
+    /// Needs signing in again
+    Login,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -77,6 +99,9 @@ impl Memory {
                 if self.auth.insert(a.id.clone()) {
                     out.push(Alert {
                         account_id: a.id.clone(),
+                        window_id: None,
+                        kind: Kind::Login,
+                        desktop: true,
                         title: format!("{} needs you to sign in again", a.name),
                         body: a.problem.clone().unwrap_or_else(|| "The login expired.".into()),
                     });
@@ -91,9 +116,12 @@ impl Memory {
                 // Reset
                 if let Some(r) = w.resets_at {
                     let prev = self.resets.insert(base.clone(), r);
-                    if s.notify_reset && prev.is_some_and(|p| r > p + 10 * MIN) {
+                    if prev.is_some_and(|p| r > p + 10 * MIN) {
                         out.push(Alert {
                             account_id: a.id.clone(),
+                            window_id: Some(w.id.clone()),
+                            kind: Kind::Reset,
+                            desktop: s.notify_reset,
                             title: format!("{} · {} just reset", a.name, w.label),
                             body: format!("You're back to {:.0}%.", w.pct),
                         });
@@ -106,7 +134,7 @@ impl Memory {
                     for l in levels.iter().filter(|l| **l <= top) {
                         new |= self.fire(format!("{inst}/t{l}"), until) && *l == top;
                     }
-                    if new && s.notify_thresholds {
+                    if new {
                         let mut body = format!("{:.0}% of {} used", w.pct, lower_first(&w.label));
                         if let Some(r) = w.resets_at {
                             body += &format!(", resets {}", forecast::when(r, now));
@@ -117,15 +145,25 @@ impl Memory {
                             (None, Some(p)) if w.pct < 100.0 => body += &format!(" On track to finish {} at ~{:.0}%.", period(w), p),
                             _ => {}
                         }
-                        out.push(Alert { account_id: a.id.clone(), title: a.name.clone(), body });
+                        out.push(Alert {
+                            account_id: a.id.clone(),
+                            window_id: Some(w.id.clone()),
+                            kind: if top >= s.crit_at { Kind::Crit } else { Kind::Warn },
+                            desktop: s.notify_thresholds,
+                            title: a.name.clone(),
+                            body,
+                        });
                     }
                 }
                 // Projection
                 if let (Some(o), Some(r)) = (w.out_at, w.resets_at) {
                     let lead = s.lead_minutes as i64 * MIN;
-                    if (o - now <= lead || r - o >= lead) && self.fire(format!("{inst}/proj"), until) && s.notify_projection {
+                    if (o - now <= lead || r - o >= lead) && self.fire(format!("{inst}/proj"), until) {
                         out.push(Alert {
                             account_id: a.id.clone(),
+                            window_id: Some(w.id.clone()),
+                            kind: Kind::Projection,
+                            desktop: s.notify_projection,
                             title: format!("{} · {} at {:.0}%", a.name, w.label, w.pct),
                             body: format!("At this pace you'll run out {}, {} before reset.", out_words(o, now), forecast::duration(r - o)),
                         });
@@ -165,6 +203,11 @@ mod tests {
         }
     }
 
+    /// What the desktop shows.
+    fn desk(v: Vec<Alert>) -> Vec<Alert> {
+        v.into_iter().filter(|a| a.desktop).collect()
+    }
+
     #[test]
     fn thresholds_fire_once_per_window() {
         let (now, reset) = (1_000 * DAY, 1_000 * DAY + 3 * DAY);
@@ -179,7 +222,22 @@ mod tests {
         assert!(m.evaluate(&[acct(92.0, None, reset)], &s, now).is_empty(), "once");
         assert_eq!(m.evaluate(&[acct(100.0, None, reset)], &s, now).len(), 1, "then 100%");
         // A new window instance starts over.
-        assert_eq!(m.evaluate(&[acct(80.0, None, reset + 7 * DAY)], &s, now + 4 * DAY).len(), 1);
+        let a = m.evaluate(&[acct(80.0, None, reset + 7 * DAY)], &s, now + 4 * DAY);
+        assert_eq!(desk(a.clone()).len(), 1);
+        assert_eq!(desk(a.clone())[0].kind, Kind::Warn);
+        // The reset fired too, for the board, with its desktop switch off.
+        assert_eq!(a.iter().map(|x| (x.kind, x.desktop)).collect::<Vec<_>>(), [(Kind::Reset, false), (Kind::Warn, true)]);
+    }
+
+    #[test]
+    fn switches_only_affect_the_desktop() {
+        let (now, reset) = (1_000 * DAY, 1_000 * DAY + 160 * MIN);
+        let s = Settings { notify_thresholds: false, notify_projection: false, ..Default::default() };
+        let mut m = Memory::default();
+        let a = m.evaluate(&[acct(95.0, Some(now + 30 * MIN), reset)], &s, now);
+        assert_eq!(a.iter().map(|x| (x.kind, x.desktop)).collect::<Vec<_>>(), [(Kind::Crit, false), (Kind::Projection, false)]);
+        assert!(a.iter().all(|x| x.window_id.as_deref() == Some("weekly")));
+        assert!(m.evaluate(&[acct(96.0, Some(now + 30 * MIN), reset)], &s, now).is_empty(), "still once per window");
     }
 
     #[test]

@@ -396,26 +396,44 @@ pub fn merge(s: &Settings, patch: &serde_json::Value) -> Result<Settings, String
     let mut v = serde_json::to_value(s).map_err(|e| e.to_string())?;
     let (Some(obj), Some(p)) = (v.as_object_mut(), patch.as_object()) else { return Err("Settings must be an object.".into()) };
     for (k, val) in p {
-        if obj.contains_key(k) {
+        if k == "rattleboard" {
+            // Only these change here; the connection itself goes through rattleboard_connect.
+            let (Some(cur), Some(inner)) = (obj.get_mut(k).and_then(|c| c.as_object_mut()), val.as_object()) else {
+                return Err("rattleboard must be an object.".into());
+            };
+            for (ik, iv) in inner {
+                if matches!(ik.as_str(), "alerts" | "card" | "target") {
+                    cur.insert(ik.clone(), iv.clone());
+                }
+            }
+        } else if obj.contains_key(k) {
             obj.insert(k.clone(), val.clone());
         }
     }
     let mut out: Settings = serde_json::from_value(v).map_err(|e| format!("Invalid settings: {e}"))?;
     out.warn_at = out.warn_at.clamp(1.0, 100.0);
     out.crit_at = out.crit_at.clamp(out.warn_at, 100.0);
+    if !matches!(out.rattleboard.alerts.as_str(), "off" | "alerts" | "warnings" | "all") {
+        return Err(format!("Unknown alert level {}", out.rattleboard.alerts));
+    }
     Ok(out)
 }
 
 #[tauri::command]
 pub fn set_settings(app: AppHandle, patch: serde_json::Value) -> Result<Settings, String> {
     let st = app.state::<AppState>();
-    let (before, after) = {
+    let before = st.settings.lock().unwrap().clone();
+    let next = merge(&before, &patch)?;
+    if next.rattleboard.card && !before.rattleboard.card {
+        crate::board::card_possible(&app, &next.rattleboard)?;
+    }
+    let after = {
         let mut s = st.settings.lock().unwrap();
-        let before = s.clone();
-        *s = merge(&before, &patch)?;
-        (before, s.clone())
+        *s = next;
+        s.clone()
     };
     st.save_settings();
+    crate::board::settings_changed(&app, &before.rattleboard, &after.rattleboard);
     if before.start_at_login != after.start_at_login {
         use tauri_plugin_autostart::ManagerExt;
         let al = app.autolaunch();
@@ -487,6 +505,21 @@ mod tests {
         assert_eq!(out.crit_at, 90.0);
         assert!(merge(&s, &serde_json::json!({"warnAt": "x"})).is_err());
         assert!(merge(&s, &serde_json::json!([1])).is_err());
+    }
+
+    #[test]
+    fn rattleboard_patch() {
+        let s = Settings::default();
+        let out =
+            merge(&s, &serde_json::json!({"rattleboard": {"alerts": "warnings", "card": true, "mode": "network", "url": "http://x"}}))
+                .unwrap();
+        assert_eq!(out.rattleboard.alerts, "warnings");
+        assert!(out.rattleboard.card);
+        assert_eq!(out.rattleboard.mode, "off", "the connection isn't changed here");
+        assert_eq!(out.rattleboard.url, "");
+        assert_eq!(out.rattleboard.rows, 6, "the rest is kept");
+        assert!(merge(&s, &serde_json::json!({"rattleboard": {"alerts": "loud"}})).is_err());
+        assert!(merge(&s, &serde_json::json!({"rattleboard": 1})).is_err());
     }
 
     #[test]

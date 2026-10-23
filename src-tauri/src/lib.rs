@@ -7,6 +7,7 @@
 //! "update"), `tr://info` and `tr://update-progress` (updates).
 
 mod activity;
+mod board;
 mod commands;
 mod notify;
 mod poll;
@@ -202,6 +203,10 @@ pub fn run() {
             commands::snooze,
             commands::open_dashboard,
             commands::open_settings,
+            board::rattleboard_detect,
+            board::rattleboard_connect,
+            board::rattleboard_test,
+            board::rattleboard_disconnect,
         ])
         .setup(|app| {
             #[cfg(target_os = "macos")]

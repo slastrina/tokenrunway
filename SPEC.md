@@ -168,7 +168,7 @@ accounts. Filters: account, harness, model, project, category, date range. Expor
 
 ### 6.4 Settings
 Accounts (add/remove/re-login/rename/colour), Harness sources (detected paths, enable/disable,
-custom paths), Notifications (§8.3), Menubar label, Pricing (currency, overrides), Categories
+custom paths), Notifications (§8.3), Rattleboard (§8.4), Menubar label, Pricing (currency, overrides), Categories
 (rules, LLM classification opt-in), Updates (auto-check), Start at login, Data (retention, export,
 wipe), About (version, licence, iokig.com, Ko-fi).
 
@@ -277,7 +277,8 @@ notification, never a loop of prompts.
 
 ### 8.2 Security and privacy rules
 - No Tokenrunway backend and no telemetry. The only outbound calls go to the providers you add and to
-  GitHub (update checks, price-table refresh), and both can be turned off.
+  GitHub (update checks, price-table refresh), and both can be turned off. A Rattleboard you
+  connect (§8.4) gets window names, percentages and times, nothing else.
 - Prompts and transcripts are read only to classify them locally. Only counts, model ids, paths and
   categories are stored, never prompt text (unless you turn on "keep session titles").
 - Strict CSP, no remote scripts, and login webviews isolated from app IPC: they get no Tauri
@@ -299,6 +300,39 @@ libnotify). Rules, per window and editable:
 - Each rule fires once per window instance (the window id plus `resets_at`). Quiet hours, and
   *Pause for 1 h / 2 h / until resumed* as in Rattleboard.
 - Actions where the OS supports them: **Request more**, **Open**, **Snooze**.
+
+### 8.4 Rattleboard
+Tokenrunway can put its alerts and an "AI runway" card on a [Rattleboard](../rattleboard) split-flap
+board (`crates/tokenrunway-core/src/rattleboard.rs`, wired in `src-tauri/src/board.rs`; Settings →
+Rattleboard).
+
+- **Connecting.** *This computer*: the Rattleboard app's own `rattleboard --notify` CLI, which uses
+  the app's key, so nothing to set up (found at the usual install paths or on PATH; detected with
+  the binary plus an unauthenticated `GET /rattleboard/info` on the port in Rattleboard's
+  `settings.json`, 7070 by default, answering 401). *A board on my network*: its pair link
+  (`rattleboard://pair?v=2&url=…&key=…`, Rattleboard → Settings → API server → Copy link) or an
+  address and key, checked with `GET /rattleboard/info` before anything is saved. The key goes only
+  in the OS keychain (`rattleboard-key`), never in settings.json or the log. A real Vestaboard (404
+  or 401 on `/rattleboard/info`, a layout from `/local-api/message`) gets alerts as a plain layout.
+- **Alerts.** Whatever the §8.3 rules raise (once per window instance, held while paused) goes to
+  the board too, by its own level, independent of the desktop switches: *Alerts* (critical,
+  projected run-out, login expired), *+ Warnings*, *Everything* (also resets). Short upper-case text
+  with a chip: "CLAUDE 5H OUT AT 13:05 / 1H 15M BEFORE RESET". Red for critical (sent with priority
+  `alert`, so it gets through a Focus), orange for warnings, green for resets, violet for logins.
+  Shown for 30 s, linked to the provider's usage page. API: `POST /rattleboard/notify`, or
+  `/local-api/message` where the board lacks `notify`; CLI: `--notify --color --seconds --source
+  Tokenrunway [--target]`.
+- **The card** (needs the key: network mode, or this computer with its pair link): a `text` plugin
+  `com.iokig.tokenrunway` installed with `POST /rattleboard/sources/plugins` and added to the
+  rotation once per session if it isn't there (`GET /rattleboard/sources`, then `PUT
+  …/rotation` with every other source exactly as it was and nothing else). Re-posted when its text
+  changes, at most every 5 minutes, at once when the runway turns critical; a failure waits the 5
+  minutes too. Turning it off (or disconnecting) deletes the plugin. The text fits the board's
+  rows × cols: "AI RUNWAY 1H 26M", then one line per window, most urgent first: "{63} CLAUDE 5H 78%
+  14:20" (chip, account, window, % used, reset).
+- **Privacy.** Only account short names, window names, percentages and times reach the board: no
+  prompts, no costs, no keys. Failures are a status line in Settings and the debug log, never a
+  pop-up.
 
 ## 9. Asking for more allowance
 

@@ -23,6 +23,8 @@
     req: null,
     settings: null, openAdmin: new Set(), confirmRemove: null, renames: {},
     upd: { phase: 'idle' },
+    // Settings → Rattleboard: what's on this computer, the fields, what's going on
+    rb: { detect: null, link: '', addr: '', key: '', localLink: '', manual: false, busy: '', error: '', note: '' },
     dirty: false,
   };
 
@@ -576,6 +578,7 @@
       + `<div class="srow"><span class="t"><b>Lead time</b><span>Warn if running out this long before reset</span></span>${numField('leadMinutes', st.leadMinutes, 'Lead time in minutes', 5, 1440, 'min')}</div>`
       + `<div class="srow"><span class="t"><b>Window resets</b></span>${sw('notifyReset', st.notifyReset, 'Notify when a window resets')}</div>`
       + `<div class="srow"><span class="t"><b>Offer Request more at</b></span>${numField('requestAt', st.requestAt, 'Offer request more at percent used', 1, 100, '%')}</div></div></div>`
+      + rbGroup()
       + '<div class="group"><span class="caps">Request messages</span><div class="box">'
       + `<div class="srow"><span class="t"><b>Your name</b><span>Signed under request messages</span></span><input class="field" style="width:130px" value="${esc(st.myName || '')}" placeholder="Sam" aria-label="Your name" data-k="myName" data-text="myName" spellcheck="false"></div></div></div>`
       + '<div class="group"><span class="caps">General</span><div class="box">'
@@ -584,6 +587,87 @@
       + `<div class="srow"><span class="t"><b>Tokenrunway v${esc(S.app?.version || '')}</b><span>${S.app?.update ? `v${esc(S.app.update)} is available` : 'MIT licence · made by iokig'}</span></span><button class="btn s24" data-act="view" data-v="update" data-k="set-upd">${S.app?.update ? 'Update' : 'Check now'}</button></div>`
       + `<div class="srow"><span class="t"><b>iokig.com</b><span>More tools and the changelog</span></span><button class="btn s24" data-act="site" data-k="set-site">Open</button></div>`
       + '</div></div></div></div>';
+  }
+
+  // ---------- Settings → Rattleboard ----------
+  const rbSettings = () => S.app?.settings?.rattleboard || S.settings?.rattleboard || { mode: 'off', alerts: 'alerts', card: false, rows: 6, cols: 22 };
+  const hostOf = (u) => String(u || '').replace(/^[a-z]+:\/\//, '').replace(/\/$/, '');
+  const failed = (t) => /^Couldn't/.test(t || '');
+  function rbGroup() {
+    const r = rbSettings();
+    const R = S.rb;
+    const busy = (what, idle, doing) => (R.busy === what ? doing : idle);
+    const dis = R.busy ? 'disabled' : '';
+    const errLine = R.error ? `<div class="srow rb-note"><p class="err" role="alert">${esc(R.error)}</p></div>` : '';
+    let rows = '';
+    if (r.mode === 'off') {
+      const d = R.detect;
+      rows += '<div class="srow"><span class="t"><b>Not connected</b><span>Show your alerts and an AI runway card on a Rattleboard split-flap board</span></span></div>';
+      if (d?.binary || d?.server) {
+        rows += `<div class="srow"><span class="t"><b>Found on this computer</b><span>${d.found ? 'Rattleboard, with its API server on. Nothing to set up.' : 'Rattleboard is installed. Turn on Settings → API server in it, then connect.'}</span></span>`
+          + `<button class="btn s24 ${d.found ? 'accent' : ''}" data-act="rb-local" data-k="rb-local" ${dis}>${busy('local', 'Connect', 'Connecting…')}</button></div>`;
+      }
+      rows += '<div class="srow stack"><span class="t"><b>Use a board on my network</b><span>Paste its pair link: in Rattleboard, Settings → API server → Copy link</span></span>'
+        + `<div class="rb-line"><input class="field" value="${esc(R.link)}" placeholder="rattleboard://pair?…" aria-label="Pair link" data-bind="rb.link" data-k="rb-link" spellcheck="false" autocomplete="off">`
+        + `<button class="btn s24" data-act="rb-network" data-k="rb-network" ${dis}>${busy('network', 'Connect', 'Connecting…')}</button></div>`
+        + `<button class="link rb-more" data-act="rb-manual" data-k="rb-manual" aria-expanded="${R.manual}">${R.manual ? ICON.down() : ICON.chevron(11)}or enter address and key</button>`
+        + (R.manual ? '<div class="admin rb-manual">'
+          + `<label for="rb-addr">Address</label><input id="rb-addr" class="field" value="${esc(R.addr)}" placeholder="192.168.1.20:7070" data-bind="rb.addr" data-k="rb-addr" spellcheck="false" autocomplete="off">`
+          + `<label for="rb-key">Key</label><input id="rb-key" class="field" type="password" value="${esc(R.key)}" placeholder="From Settings → API server" data-bind="rb.key" data-k="rb-key" autocomplete="off">`
+          + `<span></span><span><button class="btn s24" data-act="rb-network-manual" data-k="rb-network-manual" ${dis}>${busy('manual', 'Connect', 'Connecting…')}</button></span></div>` : '')
+        + '</div>' + errLine;
+    } else {
+      const where = r.mode === 'local' ? (S.app?.rattleboardKey ? 'this computer, with its key' : 'this computer, through the Rattleboard app') : hostOf(r.url);
+      const status = S.app?.rattleboardStatus || R.note || '';
+      const vesta = r.kind === 'vestaboard';
+      const canCard = !vesta && !!S.app?.rattleboardKey;
+      const title = r.mode === 'local' && r.name === 'This computer' ? 'Connected to Rattleboard on this computer' : `Connected to “${r.name || 'Rattleboard'}”`;
+      rows += `<div class="srow"><span class="t"><b>${esc(title)}</b><span>${esc(`${r.rows}×${r.cols} · ${where}`)}</span></span>`
+        + `<button class="btn s24" data-act="rb-test" data-k="rb-test" ${dis}>${busy('test', 'Test', 'Sending…')}</button></div>`
+        + (status && !R.error ? `<div class="srow rb-note"><p class="${failed(status) ? 'err' : 'hint'}" role="status">${esc(status)}</p></div>` : '') + errLine
+        + `<div class="srow stack"><span class="t"><b>Alerts on the board</b><span>${esc({ off: 'None', alerts: 'Critical, projected to run out, and expired logins', warnings: 'Also warnings', all: 'Also window resets' }[r.alerts] || '')}. Pausing notifications pauses these too.</span></span>`
+        + `<div class="seg" role="radiogroup" aria-label="Alerts on the board">${[['off', 'Off'], ['alerts', 'Alerts'], ['warnings', '+ Warnings'], ['all', 'Everything']].map(([v, l]) => {
+          const on = r.alerts === v;
+          return `<button role="radio" aria-checked="${on}" tabindex="${on ? 0 : -1}" data-act="rb-alerts" data-v="${v}" data-k="rb-alerts-${v}">${l}</button>`;
+        }).join('')}</div></div>`
+        + `<div class="srow"><span class="t"><b>Show an AI runway card in the rotation</b><span>${vesta ? 'Needs a Rattleboard: a Vestaboard has no rotation' : canCard ? 'Your shortest runway and each window, updated every few minutes' : 'Needs the board’s key: paste its pair link below'}</span></span>`
+        + `<button class="switch" role="switch" aria-checked="${!!r.card}" aria-label="Show an AI runway card in the rotation" data-act="rb-card" data-k="rb-card" ${canCard || r.card ? '' : 'disabled'}></button></div>`
+        + (r.mode === 'local' && !S.app?.rattleboardKey ? '<div class="srow stack"><span class="t"><b>Add the key for the card</b><span>Paste this computer’s pair link: Rattleboard → Settings → API server → Copy link</span></span>'
+          + `<div class="rb-line"><input class="field" value="${esc(R.localLink)}" placeholder="rattleboard://pair?…" aria-label="Pair link for this computer" data-bind="rb.localLink" data-k="rb-local-link" spellcheck="false" autocomplete="off">`
+          + `<button class="btn s24" data-act="rb-local-key" data-k="rb-local-key" ${dis}>${busy('local-key', 'Add', 'Checking…')}</button></div></div>` : '')
+        + `<div class="srow"><span class="t"><span>Removes the card from the board and the key from your keychain</span></span><button class="btn s24 danger" data-act="rb-disconnect" data-k="rb-disconnect" ${dis}>${busy('disconnect', 'Disconnect', 'Disconnecting…')}</button></div>`;
+    }
+    return `<div class="group"><span class="caps">Rattleboard</span><div class="box">${rows}</div></div>`;
+  }
+  async function rbDetect() {
+    try { S.rb.detect = await invoke('rattleboard_detect'); } catch { S.rb.detect = null; }
+    if (S.view === 'settings') softRender();
+  }
+  async function rbRun(what, fn) {
+    const R = S.rb;
+    if (R.busy) return;
+    R.busy = what; R.error = ''; R.note = ''; render();
+    try { await fn(); } catch (e) { R.error = String(e?.message || e); announce(R.error); }
+    R.busy = '';
+    try { const st = await invoke('get_state'); S.app = st; S.settings = { ...st.settings }; } catch { /* keep what we have */ }
+    render();
+  }
+  const rbConnect = (what, args, after) => rbRun(what, async () => {
+    const c = await invoke('rattleboard_connect', args);
+    after?.();
+    announce(`Connected to ${c.name}`);
+  });
+  async function rbSet(patch) {
+    const r = { ...rbSettings(), ...patch };
+    S.rb.error = '';
+    if (S.app) S.app.settings = { ...S.app.settings, rattleboard: r };
+    S.settings = { ...(S.settings || {}), rattleboard: r };
+    render();
+    try { await invoke('set_settings', { patch: { rattleboard: patch } }); } catch (e) {
+      S.rb.error = String(e?.message || e);
+      try { const st = await invoke('get_settings'); S.settings = st; if (S.app) S.app.settings = st; } catch { /* keep */ }
+      render();
+    }
   }
 
   async function setSettings(patch) {
@@ -652,7 +736,12 @@
     render();
     if (view === 'stats' && (!S.stats || S.stats.period !== S.period.stats)) loadData('stats');
     if (view === 'harness' && (!S.harness || S.harness.period !== S.period.harness)) loadData('harness');
-    if (view === 'settings') { S.settings = { ...(S.app?.settings || {}) }; invoke('get_settings').then((s) => { S.settings = s; if (S.view === 'settings') softRender(); }).catch(() => {}); }
+    if (view === 'settings') {
+      S.settings = { ...(S.app?.settings || {}) };
+      invoke('get_settings').then((s) => { S.settings = s; if (S.view === 'settings') softRender(); }).catch(() => {});
+      S.rb.error = ''; S.rb.note = '';
+      if ((S.app?.settings?.rattleboard?.mode || 'off') === 'off') rbDetect();
+    }
     if (view === 'update' && S.upd.phase !== 'available') checkUpdates();
   }
   async function loadData(which) {
@@ -739,6 +828,15 @@
       case 'remove': S.confirmRemove = id; render(); break;
       case 'remove-no': S.confirmRemove = null; render(); break;
       case 'remove-yes': S.confirmRemove = null; invoke('remove_account', { accountId: id }).catch((err) => announce(String(err))); break;
+      case 'rb-local': rbConnect('local', { mode: 'local' }); break;
+      case 'rb-local-key': rbConnect('local-key', { mode: 'local', link: S.rb.localLink.trim() }, () => { S.rb.localLink = ''; }); break;
+      case 'rb-network': rbConnect('network', { mode: 'network', link: S.rb.link.trim() }, () => { S.rb.link = ''; }); break;
+      case 'rb-network-manual': rbConnect('manual', { mode: 'network', url: S.rb.addr.trim(), key: S.rb.key.trim() }, () => { S.rb.key = ''; S.rb.manual = false; }); break;
+      case 'rb-manual': S.rb.manual = !S.rb.manual; render(); break;
+      case 'rb-test': rbRun('test', async () => { const c = await invoke('rattleboard_test'); S.rb.note = c.message || 'Sent'; announce(S.rb.note); }); break;
+      case 'rb-alerts': rbSet({ alerts: v }); break;
+      case 'rb-card': rbSet({ card: t.getAttribute('aria-checked') !== 'true' }); break;
+      case 'rb-disconnect': rbRun('disconnect', async () => { await invoke('rattleboard_disconnect'); announce('Disconnected'); }).then(rbDetect); break;
       case 'recheck': checkUpdates(); break;
       case 'install':
         S.upd.installing = true; S.upd.msg = ''; render();

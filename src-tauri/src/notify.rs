@@ -17,7 +17,7 @@ pub fn init(app: &AppHandle) {
 }
 
 pub fn show(app: &AppHandle, alerts: &[Alert]) {
-    for a in alerts {
+    for a in alerts.iter().filter(|a| a.desktop) {
         crate::debug(&format!("notify: {} — {}", a.title, a.body));
         let _ = app.notification().builder().title(&a.title).body(&a.body).show();
     }
