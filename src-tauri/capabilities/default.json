@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Tokenrunway's own windows: core IPC and events only. Provider login windows get none.",
+  "windows": ["popover"],
+  "permissions": ["core:default"]
+}

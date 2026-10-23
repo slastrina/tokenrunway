@@ -1,0 +1,33 @@
+:root {
+  --bg: #f7f8fa; --panel: #ffffff; --ink: #141a26; --muted: #5d6676; --line: rgba(20,26,38,.10);
+  --accent: #d98a00; --ok: #1f8a4c; --warn: #c77700; --bad: #c8322b;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #0d1321; --panel: #151d2e; --ink: #e8edf5; --muted: #95a0b3; --line: rgba(232,237,245,.10);
+          --accent: #f5a524; --ok: #3cc47a; --warn: #f5a524; --bad: #ff6b5e; }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { display: flex; flex-direction: column; background: var(--bg); color: var(--ink);
+       font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; overflow: hidden;
+       -webkit-user-select: none; user-select: none; cursor: default; }
+header { padding: 10px 12px 0; }
+#tabs { display: flex; gap: 2px; background: var(--line); border-radius: 8px; padding: 2px; }
+#tabs button { flex: 1; border: 0; background: none; color: var(--muted); font: inherit; padding: 5px 0; border-radius: 6px; }
+#tabs button.on { background: var(--panel); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+main { flex: 1; overflow-y: auto; padding: 12px; }
+.empty { text-align: center; color: var(--muted); padding: 40px 16px; }
+.empty h2 { color: var(--ink); font-size: 15px; margin: 0 0 6px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin-bottom: 10px; }
+.card h3 { margin: 0 0 4px; font-size: 13px; }
+.notes ul { padding-left: 18px; margin: 6px 0; }
+.notes p { margin: 6px 0; }
+.hint { color: var(--muted); font-size: 12px; }
+button.primary { border: 0; border-radius: 7px; padding: 7px 14px; background: var(--accent); color: #111; font: inherit; font-weight: 600; }
+button.primary:disabled { opacity: .5; }
+a { color: var(--accent); text-decoration: none; cursor: pointer; }
+footer { display: flex; align-items: center; gap: 6px; padding: 8px 12px; border-top: 1px solid var(--line);
+         color: var(--muted); font-size: 11.5px; }
+footer .update { margin-left: auto; font-weight: 600; }
+code { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; }
