@@ -223,7 +223,7 @@ fn reopening_keeps_everything() {
     let env = Env::new("reopen");
     env.stats.ingest();
     let a = env.stats.stats("lifetime", now());
-    let roots = Roots { claude: vec![env.dir.join("claude/projects")], ..Default::default() };
+    let roots = Roots { claude: vec![env.dir.join("claude").join("projects")], ..Default::default() };
     let again = Stats::open_with(&env.dir.join("activity.db"), roots).unwrap();
     assert_eq!(again.ingest().files_read, 0, "cursors survive a restart");
     assert_eq!(again.stats("lifetime", now()), a);
