@@ -1,25 +1,89 @@
-# Tokenrunway
+<p align="center">
+  <img src="docs/banner.png" alt="Tokenrunway: every AI allowance in your menubar, with resets, forecasts and alerts before you run out" width="100%">
+</p>
 
-**How much AI runway do you have left?** Tokenrunway is a free, open-source menubar and system-tray
-app for macOS, Windows and Linux. It shows all your AI subscriptions and API accounts in one place:
-how much of each allowance is left, when it resets, whether you'll run out first, and what your
-agents spend their tokens on.
+<p align="center">
+  <a href="https://github.com/slastrina/tokenrunway/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/slastrina/tokenrunway?color=f5a524&label=release"></a>
+  <a href="https://github.com/slastrina/tokenrunway/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/slastrina/tokenrunway/ci.yml?branch=main&label=ci"></a>
+  <img alt="Platforms" src="https://img.shields.io/badge/macOS%20·%20Windows%20·%20Linux-0d1321">
+  <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/badge/licence-MIT-7cc4fa"></a>
+  <a href="https://www.iokig.com/tokenrunway"><img alt="iokig.com/tokenrunway" src="https://img.shields.io/badge/site-iokig.com-f5a524"></a>
+</p>
 
-- **Allowances at a glance**: Claude (Pro, Max, Team, Enterprise), ChatGPT/Codex (Plus, Pro,
-  Business, Enterprise), GitHub Copilot, Cursor, Gemini (CLI), Grok/xAI, AWS Bedrock budgets and
-  the Anthropic/OpenAI API orgs, with OpenRouter to come. Several accounts per provider. Cursor and
-  Grok can be signed in to inside Tokenrunway; only the session cookie is kept, in your keychain.
-- **Resets and forecasts**: every 5-hour, weekly and monthly window with its reset time, and a
-  projection of when you'll run out at your current pace.
-- **Notifications before you run out**, and a one-click request to your administrator for more.
+<p align="center">
+  <b>How much AI runway do you have left?</b><br>
+  A free, open-source menubar and system-tray app that puts all your AI subscriptions and API
+  accounts in one place: how much of each allowance is left, when it resets, whether you'll run
+  out first, and what your agents spend their tokens on.
+</p>
+
+<p align="center">
+  <a href="#install"><b>Install</b></a> ·
+  <a href="#screenshots"><b>Screenshots</b></a> ·
+  <a href="#rattleboard"><b>Rattleboard</b></a> ·
+  <a href="#build-from-source"><b>Build</b></a> ·
+  <a href="SPEC.md"><b>Spec</b></a>
+</p>
+
+<br>
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/screenshots/popover-now-dark.png" alt="The Now view: shortest runway, each account's windows with reset times and forecasts">
+    </td>
+    <td width="50%" valign="top">
+      <h3>Allowances at a glance</h3>
+      Claude (Pro, Max, Team, Enterprise), ChatGPT/Codex (Plus, Pro, Business, Enterprise),
+      GitHub Copilot, Cursor, Gemini (CLI), Grok/xAI, AWS Bedrock budgets and the
+      Anthropic/OpenAI API orgs. Several accounts per provider.
+      <h3>Resets and forecasts</h3>
+      Every 5-hour, weekly and monthly window with its reset time, a pace marker, and a
+      projection of when you'll run out at your current rate. The menubar shows your shortest
+      runway.
+      <h3>Alerts before you run out</h3>
+      Notifications at your thresholds and when a forecast says you'll hit the wall before the
+      reset, plus a one-click request to your administrator for more.
+    </td>
+  </tr>
+</table>
+
+### Features
+
 - **Local stats from your agents' logs**: Claude Code, Codex, opencode and others. Spend per day,
-  week, month and lifetime; your most-used models; and what the work was (building, discovery,
-  bug fixing…). View it by harness.
+  week, month and lifetime; your most-used models and projects; and what the work was (building,
+  discovery, bug fixing…). Compare harnesses side by side.
+- **A full dashboard** with daily spend by model, harness or category, a burn-down for any window,
+  every session, upcoming resets and a contribution-style heatmap.
+- **Sign in where there's no CLI**: Cursor and Grok can be signed in to inside Tokenrunway. Only
+  the session cookie is kept, in your keychain.
+- **Rattleboard**: alerts and an "AI runway" card on a split-flap board.
+- **Updates itself** with release notes, and installs with Homebrew.
 - **Private**: no account, no server, no telemetry. Your logins stay in your OS keychain, and your
   stats stay on your computer.
 
-Project page: [iokig.com/tokenrunway](https://www.iokig.com/tokenrunway) · Status: early
-development, see [SPEC.md](SPEC.md) for the design and roadmap.
+## Screenshots
+
+<p align="center">
+  <img src="docs/screenshots/dashboard-dark.png" alt="The dashboard in dark mode: spend tiles, daily spend by model, burn-down, sessions, upcoming resets and a tokens-per-day heatmap">
+  <br><sub>The dashboard: daily spend by model, burn-down to the next reset, every session and what's resetting next.</sub>
+</p>
+
+<table>
+  <tr>
+    <td align="center" width="25%"><img src="docs/screenshots/popover-stats-dark.png" alt="Stats view"><br><sub><b>Stats</b>: spend, tokens, top models and projects, kind of work</sub></td>
+    <td align="center" width="25%"><img src="docs/screenshots/popover-harness-dark.png" alt="Harness view"><br><sub><b>Harness</b>: Claude Code vs Codex vs opencode vs Gemini CLI</sub></td>
+    <td align="center" width="25%"><img src="docs/screenshots/popover-now-light.png" alt="Now view in light mode"><br><sub><b>Light mode</b>: follows your system theme</sub></td>
+    <td align="center" width="25%"><img src="docs/screenshots/popover-request-light.png" alt="Request more view"><br><sub><b>Request more</b>: a prefilled ask to your admin</sub></td>
+  </tr>
+</table>
+
+<p align="center">
+  <img src="docs/screenshots/dashboard-light.png" alt="The dashboard in light mode, grouped by kind of work">
+  <br><sub>Grouped by kind of work: build, bug fix, discovery and more, classified locally from your sessions.</sub>
+</p>
+
+<sub>Screenshots use sample data.</sub>
 
 ## Install
 
@@ -84,3 +148,5 @@ the providers' observed calls without a test account, so treat them as early.
 ## Licence
 
 MIT. Not affiliated with Anthropic, OpenAI, Amazon, xAI, Google, GitHub or Cursor.
+
+<p align="center"><sub>Made by <a href="https://www.iokig.com">iokig.com</a> · <a href="https://www.iokig.com/tokenrunway">Project page</a> · <a href="CHANGELOG.md">Changelog</a></sub></p>
