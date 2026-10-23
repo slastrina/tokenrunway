@@ -235,7 +235,8 @@ SQLite in the app data dir (`io.github.slastrina.tokenrunway`), WAL mode.
 - `accounts(id, provider, label, plan, colour, created_at, …)`, with secrets in the OS keychain only
 - `snapshots(account_id, window, ts, used, limit, unit, resets_at, raw_json?)`
 - `events(key PK, ts, harness, account_id?, provider, model, session_id, project, branch,
-  input, output, cache_read, cache_write_5m, cache_write_1h, reasoning, cost_usd, category, confidence)`
+  input, output, cache_read, cache_write_5m, cache_write_1h, reasoning, cost_usd, cost_actual, turn_id)`
+- `turns(id, signals, category, confidence)`: a turn's category signals as counts (never prompt text)
 - `cursors(source, path, inode, offset, mtime)`
 - `rollups_daily(day, harness, account_id, model, category, tokens…, cost)`, kept in step with
   `events` for fast charts
@@ -369,7 +370,7 @@ to the winner (or are split when two scores are within 15%).
 | Planning | Plan mode, TodoWrite-heavy turns, spec/ADR files |
 | Chat | No tools at all |
 
-- Rules are data (`categories.toml`), shipped with defaults and editable in Settings.
+- Rules are data (`categories.json`), shipped with defaults and editable in Settings.
 - Optional **LLM pass** (off by default, opt-in per account): it sends a short, local, redacted turn
   summary (tool names, file extensions, the first 200 characters of the prompt) through a model you
   choose (e.g. a cheap model via your own CLI or key). The UI shows that this uses your allowance.

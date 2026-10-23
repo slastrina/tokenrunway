@@ -1,0 +1,226 @@
+//! Notification rules (SPEC.md §8.3, docs/design/Notifications.dc.html). Each rule fires once
+//! per window instance (account + window + `resets_at`); what has fired is remembered across
+//! restarts by the app (`Memory` is serialisable).
+//!
+//! - Thresholds: the highest of warn_at / crit_at / 100% that was crossed.
+//! - Projection: projected to run out before the reset, and either soon (within the lead time) or
+//!   well before the reset (by at least the lead time).
+//! - Reset: a window that just started over (off by default).
+//! - Auth: an account that needs signing in again (always on, once per expiry).
+
+use crate::forecast;
+use crate::view::{AccountState, AccountView, Settings, WindowView};
+use serde::{Deserialize, Serialize};
+use std::collections::{BTreeMap, BTreeSet};
+
+const MIN: i64 = 60_000;
+const DAY: i64 = 24 * 60 * MIN;
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Alert {
+    pub account_id: String,
+    pub title: String,
+    pub body: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Memory {
+    /// Rule key → when it can be forgotten (ms)
+    fired: BTreeMap<String, i64>,
+    /// "account/window" → the resets_at last seen
+    resets: BTreeMap<String, i64>,
+    /// Accounts already told they need to sign in
+    auth: BTreeSet<String>,
+}
+
+fn lower_first(s: &str) -> String {
+    let mut c = s.chars();
+    match c.next() {
+        Some(f) if s.split_whitespace().count() == 1 => f.to_lowercase().collect::<String>() + c.as_str(),
+        _ => s.to_string(),
+    }
+}
+
+/// "the week", "the 5-hour window", "the month"
+fn period(w: &WindowView) -> &'static str {
+    if w.id.starts_with("weekly") {
+        "the week"
+    } else if w.id == "monthly" || w.id == "budget" {
+        "the month"
+    } else {
+        "the window"
+    }
+}
+
+/// "at 13:05" today, "on Thu 15:00" another day (local time).
+fn out_words(at: i64, now: i64) -> String {
+    let w = forecast::when(at, now);
+    if w.contains(' ') {
+        format!("on {w}")
+    } else {
+        format!("at {w}")
+    }
+}
+
+impl Memory {
+    fn fire(&mut self, key: String, until: i64) -> bool {
+        self.fired.insert(key, until).is_none()
+    }
+
+    /// The notifications to show now. While paused, rules still count as fired, so resuming
+    /// doesn't bring a backlog.
+    pub fn evaluate(&mut self, accounts: &[AccountView], s: &Settings, now: i64) -> Vec<Alert> {
+        let mut out = Vec::new();
+        for a in accounts {
+            if a.state == AccountState::Login {
+                if self.auth.insert(a.id.clone()) {
+                    out.push(Alert {
+                        account_id: a.id.clone(),
+                        title: format!("{} needs you to sign in again", a.name),
+                        body: a.problem.clone().unwrap_or_else(|| "The login expired.".into()),
+                    });
+                }
+            } else if a.state == AccountState::Ok {
+                self.auth.remove(&a.id);
+            }
+            for w in &a.windows {
+                let base = format!("{}/{}", a.id, w.id);
+                let inst = format!("{base}/{}", w.resets_at.unwrap_or(0));
+                let until = w.resets_at.unwrap_or(now + 7 * DAY);
+                // Reset
+                if let Some(r) = w.resets_at {
+                    let prev = self.resets.insert(base.clone(), r);
+                    if s.notify_reset && prev.is_some_and(|p| r > p + 10 * MIN) {
+                        out.push(Alert {
+                            account_id: a.id.clone(),
+                            title: format!("{} · {} just reset", a.name, w.label),
+                            body: format!("You're back to {:.0}%.", w.pct),
+                        });
+                    }
+                }
+                // Thresholds: only the highest one crossed is announced.
+                let levels = [s.warn_at, s.crit_at, 100.0];
+                if let Some(top) = levels.iter().copied().filter(|l| w.pct >= *l).reduce(f64::max) {
+                    let mut new = false;
+                    for l in levels.iter().filter(|l| **l <= top) {
+                        new |= self.fire(format!("{inst}/t{l}"), until) && *l == top;
+                    }
+                    if new && s.notify_thresholds {
+                        let mut body = format!("{:.0}% of {} used", w.pct, lower_first(&w.label));
+                        if let Some(r) = w.resets_at {
+                            body += &format!(", resets {}", forecast::when(r, now));
+                        }
+                        body.push('.');
+                        match (w.out_at, w.proj) {
+                            (Some(o), _) => body += &format!(" At this pace you'll run out {}.", out_words(o, now)),
+                            (None, Some(p)) if w.pct < 100.0 => body += &format!(" On track to finish {} at ~{:.0}%.", period(w), p),
+                            _ => {}
+                        }
+                        out.push(Alert { account_id: a.id.clone(), title: a.name.clone(), body });
+                    }
+                }
+                // Projection
+                if let (Some(o), Some(r)) = (w.out_at, w.resets_at) {
+                    let lead = s.lead_minutes as i64 * MIN;
+                    if (o - now <= lead || r - o >= lead) && self.fire(format!("{inst}/proj"), until) && s.notify_projection {
+                        out.push(Alert {
+                            account_id: a.id.clone(),
+                            title: format!("{} · {} at {:.0}%", a.name, w.label, w.pct),
+                            body: format!("At this pace you'll run out {}, {} before reset.", out_words(o, now), forecast::duration(r - o)),
+                        });
+                    }
+                }
+            }
+        }
+        self.fired.retain(|_, until| *until > now - DAY);
+        if now < s.paused_until {
+            return Vec::new();
+        }
+        out
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::view::Status;
+
+    fn acct(pct: f64, out_at: Option<i64>, resets_at: i64) -> AccountView {
+        AccountView {
+            id: "a".into(),
+            name: "Claude — work".into(),
+            state: AccountState::Ok,
+            windows: vec![WindowView {
+                id: "weekly".into(),
+                label: "Weekly".into(),
+                pct,
+                proj: Some(96.0),
+                resets_at: Some(resets_at),
+                out_at,
+                status: Status::Warn,
+                ..Default::default()
+            }],
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn thresholds_fire_once_per_window() {
+        let (now, reset) = (1_000 * DAY, 1_000 * DAY + 3 * DAY);
+        let s = Settings::default();
+        let mut m = Memory::default();
+        assert!(m.evaluate(&[acct(50.0, None, reset)], &s, now).is_empty());
+        let a = m.evaluate(&[acct(91.0, None, reset)], &s, now);
+        assert_eq!(a.len(), 1, "only the highest threshold: {a:?}");
+        assert_eq!(a[0].title, "Claude — work");
+        assert!(a[0].body.starts_with("91% of weekly used, resets "), "{}", a[0].body);
+        assert!(a[0].body.ends_with("On track to finish the week at ~96%."), "{}", a[0].body);
+        assert!(m.evaluate(&[acct(92.0, None, reset)], &s, now).is_empty(), "once");
+        assert_eq!(m.evaluate(&[acct(100.0, None, reset)], &s, now).len(), 1, "then 100%");
+        // A new window instance starts over.
+        assert_eq!(m.evaluate(&[acct(80.0, None, reset + 7 * DAY)], &s, now + 4 * DAY).len(), 1);
+    }
+
+    #[test]
+    fn projection_and_pause() {
+        let now = 1_000 * DAY;
+        let reset = now + 160 * MIN;
+        let mut s = Settings::default();
+        let mut m = Memory::default();
+        let a = m.evaluate(&[acct(60.0, Some(now + 86 * MIN), reset)], &s, now);
+        assert_eq!(a.len(), 1);
+        assert_eq!(a[0].title, "Claude — work · Weekly at 60%");
+        assert!(a[0].body.starts_with("At this pace you'll run out at "), "{}", a[0].body);
+        assert!(a[0].body.ends_with(", 1h 14m before reset."), "{}", a[0].body);
+        s.paused_until = i64::MAX;
+        let mut m2 = Memory::default();
+        assert!(m2.evaluate(&[acct(95.0, Some(now + 30 * MIN), reset)], &s, now).is_empty());
+        s.paused_until = 0;
+        assert!(m2.evaluate(&[acct(95.0, Some(now + 30 * MIN), reset)], &s, now).is_empty(), "no backlog after resuming");
+    }
+
+    #[test]
+    fn auth_once_per_expiry() {
+        let s = Settings::default();
+        let mut m = Memory::default();
+        let mut a = acct(10.0, None, 5 * DAY);
+        a.state = AccountState::Login;
+        a.problem = Some("Run `claude` to sign in again".into());
+        assert_eq!(m.evaluate(&[a.clone()], &s, DAY)[0].title, "Claude — work needs you to sign in again");
+        assert!(m.evaluate(&[a.clone()], &s, DAY).is_empty());
+        let mut ok = a.clone();
+        ok.state = AccountState::Ok;
+        m.evaluate(&[ok], &s, DAY);
+        assert_eq!(m.evaluate(&[a], &s, DAY).len(), 1, "expired again");
+    }
+
+    #[test]
+    fn reset_rule() {
+        let s = Settings { notify_reset: true, ..Default::default() };
+        let mut m = Memory::default();
+        m.evaluate(&[acct(10.0, None, 5 * DAY)], &s, DAY);
+        let a = m.evaluate(&[acct(1.0, None, 12 * DAY)], &s, 6 * DAY);
+        assert_eq!(a[0].title, "Claude — work · Weekly just reset");
+    }
+}

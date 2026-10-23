@@ -1,0 +1,108 @@
+/* Tokenrunway design tokens (docs/design/Main.dc.html). Scope: .tr on the root, plus .tr-dark or
+   .tr-light (set by common.js from prefers-color-scheme), plus .tr-win for the Windows 11 flyout.
+   Status rule: colour + icon + words, never colour alone. ok = check circle, warn = triangle,
+   crit = octagon + hatched projection, est = dashed circle with a neutral fill. */
+
+.tr {
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", system-ui, Ubuntu, Cantarell, sans-serif;
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+
+  --fs-2xs: 10.5px; --fs-sm: 11.5px; --fs-base: 13px; --fs-md: 14px;
+  --fs-lg: 17px; --fs-xl: 22px; --fs-2xl: 28px;
+  --fw-medium: 510; --fw-semibold: 600;
+
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 20px; --sp-6: 24px; --sp-8: 32px;
+
+  --r-pop: 12px;      /* macOS popover */
+  --r-pop-win: 8px;   /* Windows flyout */
+  --r-card: 10px; --r-ctl: 6px; --r-bar: 3px; --r-pill: 999px; --r-tile: 7px;
+  --bar-h: 6px;
+  --blur: blur(32px) saturate(1.7);
+
+  /* The popover panel fills the window minus this inset (room for the shadow if the native side
+     makes the window larger than 380×560). */
+  --pop-inset: 0px;
+
+  font-family: var(--font);
+  font-size: var(--fs-base);
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+  color: var(--fg1);
+  color-scheme: light dark;
+}
+
+.tr-dark {
+  color-scheme: dark;
+  --bg: #0d1321; --desk: #1b2438; --wall-a: #24324f; --wall-b: #4a3416;
+  --pop: rgba(18, 25, 40, .80); --pop-solid: #141b2b;
+  --card: rgba(255, 255, 255, .045); --card-hover: rgba(255, 255, 255, .07);
+  --track: rgba(255, 255, 255, .10); --line: rgba(255, 255, 255, .08); --line-strong: rgba(255, 255, 255, .16);
+  --fg1: #eef1f7; --fg2: #aab3c4; --fg3: #8a94a8;
+  --seg-on: rgba(255, 255, 255, .16); --seg-shadow: none;
+  --btn: rgba(255, 255, 255, .08); --btn-hover: rgba(255, 255, 255, .13); --pressed: rgba(255, 255, 255, .16);
+  --tile-ink: #0d1321; --field: rgba(0, 0, 0, .22); --sel-bg: rgba(245, 165, 36, .10); --focus: rgba(245, 165, 36, .55);
+  --skel: rgba(255, 255, 255, .07); --bar: #7f8aa0; --sep: #141b2b;
+  --accent: #f5a524; --accent-ink: #1d1405; --accent-text: #f7b84a;
+  --ok: #7cc4fa; --ok-text: #8ccdfb; --ok-bg: rgba(124, 196, 250, .13);
+  --warn: #f5a524; --warn-text: #f7b84a; --warn-bg: rgba(245, 165, 36, .15);
+  --crit: #ff6b75; --crit-text: #ff8f97; --crit-bg: rgba(255, 107, 117, .15);
+  --p-claude: #e5865f; --p-openai: #45c9a0; --p-bedrock: #b59cff; --p-gemini: #6aa8ff; --p-grok: #c3c9d4;
+  --p-copilot: #f08bcf; --p-cursor: #e6cf62; --p-api: #aab3c4; --h-opencode: #c9b48a;
+  --shadow-pop: 0 0 0 .5px rgba(0, 0, 0, .6), inset 0 0 0 .5px rgba(255, 255, 255, .14), 0 18px 48px rgba(0, 0, 0, .5);
+  /* Dashboard */
+  --win: #0d1321; --titlebar: #111829; --grid: rgba(255, 255, 255, .07); --cone: rgba(255, 107, 117, .18);
+  --m-opus: #e5865f; --m-sonnet: #b59cff; --m-codex: #45c9a0; --m-other: #6b7488;
+  --heat0: rgba(255, 255, 255, .06); --heat1: rgba(245, 165, 36, .22); --heat2: rgba(245, 165, 36, .45);
+  --heat3: rgba(245, 165, 36, .72); --heat4: #f5a524;
+  --shadow-win: 0 0 0 .5px rgba(0, 0, 0, .7), inset 0 0 0 .5px rgba(255, 255, 255, .12);
+}
+
+.tr-light {
+  color-scheme: light;
+  --bg: #f4f5f8; --desk: #d9dee7; --wall-a: #c3cddd; --wall-b: #f0d6a8;
+  --pop: rgba(248, 249, 251, .84); --pop-solid: #f7f8fa;
+  --card: #ffffff; --card-hover: #fbfbfc;
+  --track: rgba(13, 19, 33, .08); --line: rgba(13, 19, 33, .09); --line-strong: rgba(13, 19, 33, .16);
+  --fg1: #0d1321; --fg2: #465064; --fg3: #5d6779;
+  --seg-on: #ffffff; --seg-shadow: 0 1px 2px rgba(13, 19, 33, .14), 0 0 0 .5px rgba(13, 19, 33, .08);
+  --btn: rgba(13, 19, 33, .06); --btn-hover: rgba(13, 19, 33, .10); --pressed: rgba(13, 19, 33, .12);
+  --tile-ink: #ffffff; --field: #ffffff; --sel-bg: rgba(245, 165, 36, .12); --focus: rgba(245, 165, 36, .6);
+  --skel: rgba(13, 19, 33, .07); --bar: #8a93a5; --sep: #ffffff;
+  --accent: #f5a524; --accent-ink: #1d1405; --accent-text: #94570a;
+  --ok: #3b82d6; --ok-text: #1f62b0; --ok-bg: rgba(59, 130, 214, .11);
+  --warn: #f0a020; --warn-text: #94570a; --warn-bg: rgba(245, 165, 36, .17);
+  --crit: #e0384a; --crit-text: #bd2536; --crit-bg: rgba(224, 56, 74, .10);
+  --p-claude: #b8572f; --p-openai: #0b7d5c; --p-bedrock: #6d4fd6; --p-gemini: #2f6fd8; --p-grok: #4b5262;
+  --p-copilot: #b0388c; --p-cursor: #7d6800; --p-api: #5d6779; --h-opencode: #7a6740;
+  --shadow-pop: 0 0 0 .5px rgba(0, 0, 0, .18), 0 18px 48px rgba(13, 19, 33, .22);
+  /* Dashboard */
+  --win: #f4f5f8; --titlebar: #eceef2; --grid: rgba(13, 19, 33, .07); --cone: rgba(224, 56, 74, .14);
+  --m-opus: #c8653d; --m-sonnet: #7a5ce0; --m-codex: #12936d; --m-other: #9aa2b1;
+  --heat0: rgba(13, 19, 33, .06); --heat1: rgba(245, 165, 36, .28); --heat2: rgba(240, 160, 32, .52);
+  --heat3: rgba(226, 140, 16, .78); --heat4: #c97a00;
+  --shadow-win: 0 0 0 .5px rgba(0, 0, 0, .2);
+}
+
+/* Windows 11 flyout (docs/design/Windows.dc.html): Segoe first, 8 px radius, Mica-like solid
+   surface, no inset highlight, squarer controls. */
+.tr-win {
+  --font: "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --r-pop: var(--r-pop-win); --r-card: 6px; --r-ctl: 4px; --r-tile: 4px; --bar-h: 4px;
+}
+.tr-win.tr-dark {
+  --pop: #1b2030; --pop-solid: #1b2030; --card: rgba(255, 255, 255, .05); --track: rgba(255, 255, 255, .12);
+  --line: rgba(255, 255, 255, .08); --line-strong: rgba(255, 255, 255, .14);
+  --fg1: #ffffff; --fg2: #c5cad4; --fg3: #9aa1ae; --btn: rgba(255, 255, 255, .06);
+  --shadow-pop: 0 0 0 1px rgba(0, 0, 0, .4), 0 32px 64px rgba(0, 0, 0, .45);
+}
+.tr-win.tr-light {
+  --pop: #f3f4f6; --pop-solid: #f3f4f6; --card: #fbfbfc; --track: rgba(0, 0, 0, .09);
+  --line: rgba(0, 0, 0, .07); --line-strong: rgba(0, 0, 0, .13);
+  --fg1: #1b1b1b; --fg2: #4a4f59; --fg3: #5f6571; --btn: rgba(0, 0, 0, .04);
+  --shadow-pop: 0 0 0 1px rgba(0, 0, 0, .08), 0 32px 64px rgba(0, 0, 0, .22);
+}
+
+.tr button { font: inherit; color: inherit; }
+.tr :focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.tr input:focus-visible, .tr textarea:focus-visible, .tr select:focus-visible { outline: none; box-shadow: inset 0 0 0 1px var(--line-strong), 0 0 0 3px var(--focus) !important; }

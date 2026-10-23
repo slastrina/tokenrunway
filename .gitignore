@@ -25,3 +25,6 @@ Thumbs.db
 
 
 
+
+# Real usage data dumped for UI checks (examples/ingest_local.rs); never commit it.
+src/.fixture/

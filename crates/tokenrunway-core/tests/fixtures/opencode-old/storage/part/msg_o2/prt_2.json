@@ -1,0 +1,14 @@
+{
+ "id": "prt_2",
+ "messageID": "msg_o2",
+ "sessionID": "ses_old",
+ "type": "tool",
+ "tool": "bash",
+ "state": {
+  "status": "completed",
+  "input": {
+   "command": "npm test"
+  },
+  "output": "synthetic"
+ }
+}

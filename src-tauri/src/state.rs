@@ -1,0 +1,170 @@
+//! The app's state: accounts and their latest readings, settings, the snapshot history and the
+//! activity stats, plus building the `AppView` the popover gets and pushing it when it changes.
+
+use std::collections::HashMap;
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicI64, Ordering};
+use std::sync::{Arc, Mutex, OnceLock};
+use tauri::{AppHandle, Emitter, Manager};
+use tokenrunway_core::allowance::{self, alerts, snapshots::Snapshots, Accounts, Ctx, Live};
+use tokenrunway_core::forecast::{self, Thresholds};
+use tokenrunway_core::stats::Stats;
+use tokenrunway_core::view::{AppView, Detected, Settings};
+
+/// When to poll an account next, and how it's been going.
+#[derive(Debug, Clone, Default)]
+pub struct Sched {
+    pub next_due: i64,
+    pub failures: u32,
+    pub last_forced: i64,
+    pub in_flight: bool,
+}
+
+pub struct AppState {
+    /// The newest release the last check found, and its page.
+    pub update: Mutex<Option<tokenrunway_core::update::Release>>,
+    pub data_dir: PathBuf,
+    pub ctx: Ctx,
+    pub accounts: Mutex<Accounts>,
+    pub live: Mutex<HashMap<String, Live>>,
+    pub sched: Mutex<HashMap<String, Sched>>,
+    pub settings: Mutex<Settings>,
+    pub snaps: Snapshots,
+    pub stats: OnceLock<Arc<Stats>>,
+    pub alerts: Mutex<alerts::Memory>,
+    pub detected: Mutex<Vec<Detected>>,
+    /// Wakes the poller (refresh, a new account)
+    pub wake: tokio::sync::Notify,
+    /// The last time a harness wrote to its logs (ms)
+    pub last_activity: AtomicI64,
+    /// The last AppView pushed, to push only changes
+    last_json: Mutex<String>,
+}
+
+impl AppState {
+    pub fn new(data_dir: PathBuf) -> Self {
+        let _ = std::fs::create_dir_all(&data_dir);
+        let snaps = Snapshots::open(&data_dir.join("snapshots.db")).unwrap_or_else(|e| {
+            crate::debug(&format!("snapshots.db: {e}; keeping readings in memory"));
+            Snapshots::in_memory()
+        });
+        let settings: Settings =
+            std::fs::read_to_string(data_dir.join("settings.json")).ok().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();
+        let alerts =
+            std::fs::read_to_string(data_dir.join("alerts.json")).ok().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();
+        let ctx = Ctx::new(data_dir.clone());
+        let accounts = Accounts::load(&data_dir);
+        let detected = allowance::detect(&ctx.home, &accounts.list);
+        Self {
+            update: Mutex::new(None),
+            ctx,
+            accounts: Mutex::new(accounts),
+            live: Mutex::new(HashMap::new()),
+            sched: Mutex::new(HashMap::new()),
+            settings: Mutex::new(settings),
+            snaps,
+            stats: OnceLock::new(),
+            alerts: Mutex::new(alerts),
+            detected: Mutex::new(detected),
+            wake: tokio::sync::Notify::new(),
+            last_activity: AtomicI64::new(0),
+            last_json: Mutex::new(String::new()),
+            data_dir,
+        }
+    }
+
+    pub fn save_settings(&self) {
+        let s = self.settings.lock().unwrap().clone();
+        if let Ok(json) = serde_json::to_string_pretty(&s) {
+            let _ = allowance::accounts::write_atomic(&self.data_dir.join("settings.json"), &json);
+        }
+    }
+
+    fn save_alerts(&self) {
+        let m = self.alerts.lock().unwrap().clone();
+        if let Ok(json) = serde_json::to_string(&m) {
+            let _ = allowance::accounts::write_atomic(&self.data_dir.join("alerts.json"), &json);
+        }
+    }
+
+    pub fn redetect(&self) {
+        let list = self.accounts.lock().unwrap().list.clone();
+        *self.detected.lock().unwrap() = allowance::detect(&self.ctx.home, &list);
+    }
+
+    pub fn harness_active(&self, now: i64) -> bool {
+        now - self.last_activity.load(Ordering::Relaxed) < 5 * 60_000
+    }
+
+    /// Every account's card, most urgent first.
+    pub fn account_views(&self, now: i64) -> Vec<tokenrunway_core::view::AccountView> {
+        let th = Thresholds::from(&*self.settings.lock().unwrap());
+        let list = self.accounts.lock().unwrap().list.clone();
+        let live = self.live.lock().unwrap().clone();
+        let mut views: Vec<_> = list
+            .iter()
+            .map(|a| {
+                let l = live.get(&a.id).cloned().unwrap_or_default();
+                let history = |w: &str| self.snaps.history(&a.id, w, now - forecast::LOOKBACK_MS - 60_000);
+                allowance::account_view(a, &l, &history, &th, now)
+            })
+            .collect();
+        allowance::sort_urgent(&mut views);
+        views
+    }
+}
+
+#[cfg(target_os = "macos")]
+pub const OS: &str = "mac";
+#[cfg(target_os = "windows")]
+pub const OS: &str = "windows";
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+pub const OS: &str = "linux";
+
+pub fn app_view(app: &AppHandle) -> AppView {
+    let st = app.state::<AppState>();
+    let now = tokenrunway_core::now_ms();
+    let accounts = st.account_views(now);
+    let loading = {
+        let live = st.live.lock().unwrap();
+        accounts.iter().any(|a| !live.get(&a.id).is_some_and(|l| l.tried))
+    };
+    let detected = st.detected.lock().unwrap().clone();
+    let settings = st.settings.lock().unwrap().clone();
+    AppView {
+        version: env!("CARGO_PKG_VERSION").into(),
+        os: OS.into(),
+        update: crate::updates::available(app),
+        update_how: crate::updates::how().into(),
+        loading,
+        summary: forecast::summary(&accounts, now),
+        accounts,
+        detected,
+        settings,
+    }
+}
+
+/// Rebuilds the view and, if anything changed, pushes `tr://state` to every window, updates the
+/// tray and runs the notification rules.
+pub fn broadcast(app: &AppHandle) {
+    let view = app_view(app);
+    let json = serde_json::to_string(&view).unwrap_or_default();
+    let st = app.state::<AppState>();
+    {
+        let mut last = st.last_json.lock().unwrap();
+        if *last == json {
+            return;
+        }
+        *last = json;
+    }
+    if crate::debugging() {
+        let _ =
+            std::fs::write(std::env::temp_dir().join("tokenrunway-state.json"), serde_json::to_string_pretty(&view).unwrap_or_default());
+    }
+    let _ = app.emit("tr://state", &view);
+    crate::tray::update(app, &view);
+    let now = tokenrunway_core::now_ms();
+    let fired = st.alerts.lock().unwrap().evaluate(&view.accounts, &view.settings, now);
+    st.save_alerts();
+    crate::notify::show(app, &fired);
+}

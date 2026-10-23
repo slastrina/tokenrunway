@@ -1,0 +1,59 @@
+{
+  "_comment": "Turn classification rules (SPEC.md §10.4). Keywords match whole words (or phrases) in the user's prompt, in memory only. Paths and commands match as lower-case substrings. Weights say how much one hit of each signal is worth.",
+  "keywords": {
+    "build": ["add", "implement", "create", "build", "make", "scaffold", "feature", "support", "wire up", "integrate", "new"],
+    "bugfix": ["fix", "bug", "error", "errors", "broken", "failing", "fails", "failed", "crash", "crashes", "exception", "panic", "regression", "not working", "doesn't work", "wrong", "issue"],
+    "discovery": ["how", "why", "where", "explain", "find", "investigate", "understand", "look into", "explore", "what does", "walk me through", "research", "compare"],
+    "refactor": ["refactor", "rename", "clean up", "cleanup", "simplify", "restructure", "extract", "reorganise", "reorganize", "dedupe", "tidy", "move"],
+    "test": ["test", "tests", "testing", "coverage", "unit test", "e2e", "flaky"],
+    "review": ["review", "pr", "pull request", "diff", "feedback", "audit", "critique"],
+    "docs": ["docs", "documentation", "readme", "changelog", "document", "docstring", "comments"],
+    "ops": ["deploy", "ci", "pipeline", "docker", "kubernetes", "terraform", "release", "infra", "workflow", "install", "upgrade", "publish"],
+    "planning": ["plan", "design", "spec", "roadmap", "architecture", "proposal", "adr", "outline", "brainstorm", "milestones"],
+    "chat": []
+  },
+  "branches": {
+    "feat": "build", "feature": "build", "features": "build",
+    "fix": "bugfix", "bugfix": "bugfix", "hotfix": "bugfix", "bug": "bugfix",
+    "refactor": "refactor", "cleanup": "refactor",
+    "test": "test", "tests": "test",
+    "docs": "docs", "doc": "docs",
+    "ci": "ops", "ops": "ops", "chore": "ops", "release": "ops", "build": "ops", "infra": "ops",
+    "plan": "planning", "spec": "planning", "rfc": "planning",
+    "spike": "discovery", "explore": "discovery"
+  },
+  "tools": {
+    "edit": ["edit", "write", "multiedit", "notebookedit", "apply_patch", "patch", "str_replace_based_edit_tool", "create_file", "replace"],
+    "read": ["read", "grep", "glob", "ls", "list", "notebookread", "read_file", "list_dir", "grep_files", "codebase_search", "view"],
+    "web": ["webfetch", "websearch", "web_search", "web_fetch", "fetch"],
+    "shell": ["bash", "shell", "exec_command", "local_shell", "exec", "unified_exec", "container.exec", "run_terminal_cmd"],
+    "todo": ["todowrite", "todoread", "update_plan", "taskcreate", "taskupdate"],
+    "plan": ["exitplanmode", "enterplanmode"]
+  },
+  "commands": {
+    "test": ["cargo test", "cargo nextest", "pytest", "npm test", "npm run test", "yarn test", "pnpm test", "bun test", "go test", "jest", "vitest", "mocha", "rspec", "phpunit", "dotnet test", "mvn test", "gradle test", "make test", "ctest", "playwright test", "tox"],
+    "ops": ["docker", "kubectl", "terraform", "helm ", "aws ", "gcloud ", "az ", "gh workflow", "gh run", "gh release", "deploy", "ansible", "systemctl", "flyctl", "vercel", "wrangler", "npm publish", "cargo publish", "brew install", "launchctl"],
+    "review": ["gh pr", "git range-diff"],
+    "read": ["cat ", "rg ", "grep ", "ls", "find ", "sed -n", "head ", "tail ", "git log", "git status", "git diff", "git show", "wc ", "tree"]
+  },
+  "paths": {
+    "test": ["test", "spec.", "_spec", "__tests__", "fixtures/"],
+    "docs": [".md", ".mdx", ".rst", ".adoc", "docs/", "readme", "changelog", "license"],
+    "ops": [".github/workflows", ".gitlab-ci", "dockerfile", "docker-compose", ".tf", "k8s/", "helm/", "jenkinsfile", ".circleci", "release.yml", "cask"],
+    "planning": ["spec.md", "plan.md", "adr/", "adrs/", "rfc", "design.md", "roadmap"]
+  },
+  "weights": {
+    "keyword": 2.0,
+    "stack_trace": 3.0,
+    "branch": 1.5,
+    "edit": 1.0,
+    "read": 0.4,
+    "web": 0.6,
+    "command": 1.5,
+    "todo": 0.5,
+    "plan_mode": 4.0,
+    "many_files": 1.5,
+    "many_files_at": 6,
+    "no_tools_chat": 3.0
+  }
+}

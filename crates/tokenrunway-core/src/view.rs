@@ -305,6 +305,15 @@ pub struct DashboardView {
     pub resets: Vec<ResetRow>,
     /// Filled in by the app: burn-down of the most urgent window
     pub burndown: Option<Burndown>,
+    /// Filled in by the app: actually billed in the period, where a source reports it
+    pub billed: Option<f64>,
+    pub billed_note: Option<String>,
+    /// Filled in by the app: cache reads as a share of all tokens in the period, 0–100
+    pub cache_share: Option<f64>,
+    /// Filled in by the app: how many window instances hit 100% in the period (from the readings
+    /// kept since Tokenrunway started tracking)
+    pub ran_out: Option<u32>,
+    pub ran_out_note: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Default, PartialEq)]
@@ -335,6 +344,7 @@ pub struct ResetRow {
     pub window: String,
     pub resets_at: i64,
     pub pct: f64,
+    pub status: Status,
 }
 
 #[derive(Debug, Clone, Serialize, Default, PartialEq)]

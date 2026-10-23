@@ -1,21 +1,21 @@
 <!DOCTYPE html>
-<html>
+<html lang="en" class="tr">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Tokenrunway</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="tokens.css">
 <link rel="stylesheet" href="popover.css">
+<script src="common.js"></script>
 </head>
 <body>
-<header>
-  <nav id="tabs">
-    <button data-view="now" class="on">Now</button>
-    <button data-view="stats">Stats</button>
-    <button data-view="harness">Harness</button>
-  </nav>
-</header>
-<main id="view"></main>
-<!-- The credit stays whatever the view (SPEC.md §6.5). -->
-<footer id="footer"></footer>
+<div class="pop" id="pop" role="dialog" aria-label="Tokenrunway">
+  <div class="view" id="view"></div>
+  <!-- The credit stays whatever the view (SPEC.md §6.5). -->
+  <footer class="foot" id="foot"></footer>
+</div>
+<div class="sr-only" aria-live="polite" id="live"></div>
 <script src="popover.js"></script>
 </body>
 </html>

@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en" class="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tokenrunway</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="dashboard.css">
+<script src="common.js"></script>
+</head>
+<body>
+<div class="dash" role="main">
+  <header class="tbar" data-tauri-drag-region>
+    <div class="lights" aria-hidden="true"><span></span><span></span><span></span></div>
+    <h1 data-tauri-drag-region>Tokenrunway</h1>
+    <span class="flex" data-tauri-drag-region></span>
+    <div class="seg" role="radiogroup" aria-label="Range" id="period"></div>
+    <div class="seg" role="radiogroup" aria-label="Group by" id="group"></div>
+    <button class="pick" id="account" aria-haspopup="menu" aria-expanded="false"><span id="account-l">All accounts</span><svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></button>
+  </header>
+
+  <div class="body" id="body">
+    <div class="kpis" id="kpis"></div>
+
+    <div class="row">
+      <section class="panel">
+        <div class="ph"><h2 id="chart-t">Daily spend by model</h2><span class="muted" id="chart-s"></span><span class="flex"></span><div class="legend" id="legend"></div></div>
+        <div class="chart" id="chart"></div>
+        <div class="xl" id="xl"></div>
+      </section>
+      <section class="panel bd">
+        <div class="ph"><h2 class="flex">Burn-down</h2><span class="tag" id="bd-t"></span></div>
+        <div id="burn"></div>
+      </section>
+    </div>
+
+    <div class="row grow">
+      <section class="panel sessions">
+        <div class="ph pad"><h2 class="flex">Sessions</h2><span class="muted" id="sess-n"></span></div>
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th scope="col">Started</th><th scope="col">Harness</th><th scope="col">Project</th><th scope="col">Model</th><th scope="col">Kind</th><th scope="col" class="r">Time</th><th scope="col" class="r">Tokens</th><th scope="col" class="r">Cost</th></tr></thead>
+            <tbody id="sessions"></tbody>
+          </table>
+        </div>
+      </section>
+      <div class="col">
+        <section class="panel resets"><h2>Upcoming resets</h2><div id="resets"></div></section>
+        <section class="panel heat">
+          <div class="ph"><h2 class="flex">Tokens per day</h2><span class="muted sm">26 weeks</span></div>
+          <div id="heat"></div>
+          <div class="hl"><span>Less</span><i style="background:var(--heat0)"></i><i style="background:var(--heat1)"></i><i style="background:var(--heat2)"></i><i style="background:var(--heat3)"></i><i style="background:var(--heat4)"></i><span>More</span></div>
+        </section>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="dashboard.js"></script>
+</body>
+</html>

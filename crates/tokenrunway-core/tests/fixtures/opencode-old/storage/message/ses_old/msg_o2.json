@@ -1,0 +1,26 @@
+{
+ "id": "msg_o2",
+ "sessionID": "ses_old",
+ "role": "assistant",
+ "parentID": "msg_o1",
+ "modelID": "gpt-5",
+ "providerID": "openai",
+ "path": {
+  "cwd": "/tmp/oldproj",
+  "root": "/tmp/oldproj"
+ },
+ "cost": 0.0002,
+ "tokens": {
+  "input": 100,
+  "output": 10,
+  "reasoning": 0,
+  "cache": {
+   "read": 0,
+   "write": 0
+  }
+ },
+ "time": {
+  "created": 1792486805000,
+  "completed": 1792486806000
+ }
+}

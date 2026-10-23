@@ -130,36 +130,11 @@ pub fn from_homebrew() -> bool {
     })
 }
 
-/// Notes the update in the tray tooltip and puts "Update available" at the top of the menu.
+/// Puts "Update available" at the top of the tray menu and in the tooltip.
 pub fn sync_tray(app: &AppHandle) {
-    let Some(v) = available(app) else { return };
-    let h = app.clone();
-    let _ = app.run_on_main_thread(move || {
-        let Some(t) = h.tray_by_id("main") else { return };
-        let _ = t.set_tooltip(Some(format!("Tokenrunway · v{v} available · iokig.com")));
-        use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
-        let built = (|| -> tauri::Result<Menu<tauri::Wry>> {
-            Menu::with_items(
-                &h,
-                &[
-                    &MenuItem::with_id(&h, "update", format!("Update available: v{v}…"), true, None::<&str>)?,
-                    &MenuItem::with_id(
-                        &h,
-                        "site",
-                        concat!("Tokenrunway v", env!("CARGO_PKG_VERSION"), " on iokig.com"),
-                        true,
-                        None::<&str>,
-                    )?,
-                    &PredefinedMenuItem::separator(&h)?,
-                    &MenuItem::with_id(&h, "open", "Open Tokenrunway", true, None::<&str>)?,
-                    &MenuItem::with_id(&h, "check_updates", "Check for updates…", true, None::<&str>)?,
-                    &PredefinedMenuItem::separator(&h)?,
-                    &MenuItem::with_id(&h, "quit", "Quit Tokenrunway", true, None::<&str>)?,
-                ],
-            )
-        })();
-        if let Ok(m) = built {
-            let _ = t.set_menu(Some(m));
-        }
-    });
+    if available(app).is_none() {
+        return;
+    }
+    crate::tray::refresh_menu(app);
+    crate::state::broadcast(app);
 }
