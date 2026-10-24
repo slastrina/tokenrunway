@@ -36,7 +36,7 @@
       <h3>Allowances at a glance</h3>
       Claude (Pro, Max, Team, Enterprise), ChatGPT/Codex (Plus, Pro, Business, Enterprise),
       GitHub Copilot, Cursor, Gemini (CLI), Grok/xAI, AWS Bedrock budgets and the
-      Anthropic/OpenAI API orgs. Several accounts per provider.
+      Anthropic/OpenAI API orgs and OpenRouter keys. Several accounts per provider.
       <h3>Resets and forecasts</h3>
       Every 5-hour, weekly and monthly window with its reset time, a pace marker, and a
       projection of when you'll run out at your current rate. The menubar shows your shortest

@@ -94,7 +94,7 @@
   // ---------- colours ----------
   const PROVIDER = {
     anthropic: '--p-claude', openai: '--p-openai', bedrock: '--p-bedrock', 'anthropic-api': '--p-api', 'openai-api': '--p-api',
-    xai: '--p-grok', grok: '--p-grok', gemini: '--p-gemini', copilot: '--p-copilot', cursor: '--p-cursor',
+    xai: '--p-grok', grok: '--p-grok', gemini: '--p-gemini', copilot: '--p-copilot', cursor: '--p-cursor', openrouter: '--p-openrouter',
   };
   const providerVar = (p) => PROVIDER[p] || '--p-api';
   const HARNESS = { 'claude-code': '--p-claude', codex: '--p-openai', opencode: '--h-opencode', 'gemini-cli': '--p-gemini', cline: '--p-bedrock' };

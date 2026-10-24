@@ -149,6 +149,7 @@ fn can_add(provider: &str, method: &str) -> bool {
             | ("gemini", "cli")
             | ("cursor", "login" | "cli" | "key")
             | ("xai", "login" | "key")
+            | ("openrouter", "key")
     )
 }
 
@@ -170,6 +171,7 @@ fn refused(provider: &str) -> &'static str {
         "copilot" => "GitHub refused that token. Check it has access to your account and paste it again.",
         "cursor" => "Cursor refused that cookie. Copy the WorkosCursorSessionToken value from cursor.com again.",
         "xai" => "xAI refused that API key. Check it on console.x.ai and paste it again.",
+        "openrouter" => "OpenRouter refused that API key. Check it on openrouter.ai/settings/keys and paste it again.",
         _ => "That key was refused. Check it's an admin key for the organisation and paste it again.",
     }
 }
