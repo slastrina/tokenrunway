@@ -137,8 +137,8 @@ catches anything the watchers miss.
   so it follows light/dark). It turns amber at the warning threshold and red at critical or when
   you're projected to run out.
 - **Label** (optional; macOS and Linux appindicator. Windows can't put text in the tray, so it
-  goes in the tooltip): choose between *none*, *% left*, *time to run out*, *time to reset*, a
-  specific account/window, or *$ today*: API-equivalent spend since local midnight from the
+  goes in the tooltip): choose between *none*, *% left*, *runway* (time to run out, or to the
+  reset), for the most urgent window or one pinned in Settings (`menubarWindow`), or *$ today*: API-equivalent spend since local midnight from the
   agents' logs (`$12.40`, `$318`, `$12.3k`), refreshed as the logs are read.
 - **Tooltip**: `Tokenrunway · Claude work 5h: 38% left, resets 14:20 · iokig.com`.
 - **Left click** opens the popover. **Right click** (or the menu on Linux) opens the native menu:
@@ -322,6 +322,22 @@ libnotify). Rules, per window and editable:
   projected run-out is earlier than the reset and within the lead time (default 60 min).
 - **Reset**: "Claude work weekly just reset" (off by default; useful after running out).
 - **Auth**: login expired.
+- **Spend goals** (Settings → Spend goals): a daily and a monthly API-equivalent goal from the
+  agents' logs; notified at 80% and 100%, once per day or month. The Now tab shows a ring for
+  each, and with the *$ today* label the tray icon turns amber at 80% of the daily goal and red
+  at 100%.
+- **Fast sessions** (`live.rs`): a session whose last 20 minutes spent at least $5 and at least 3×
+  the median 20-minute slice of the last 14 days' sessions, while it's still writing (within
+  5 minutes). Without 10 slices of history, only $15 in 20 minutes counts. At most every 2 hours
+  per session; also shown as a banner on the Now tab.
+- **Switch to save** (`allowance/tips.rs`): a tight window gets a tip. A model's own window
+  (*Weekly Opus*) tight while the account's *Weekly* isn't: use another model for routine work.
+  Otherwise another seat (Claude, ChatGPT, Copilot, Cursor, Gemini, Grok; not API orgs or cloud
+  budgets) with every window under 60%: move the next task there. The projection notification
+  carries it, and the Now tab shows the most urgent one.
+- **In-app toasts**: every notification is also sent to the open windows (`tr://toast`) and shown
+  for 8 seconds, so it isn't missed when system notifications are off. Settings → Notifications →
+  *Send a test*.
 - Each rule fires once per window instance (the window id plus `resets_at`). Quiet hours, and
   *Pause for 1 h / 2 h / until resumed* as in Rattleboard.
 - Actions where the OS supports them: **Request more**, **Open**, **Snooze**.

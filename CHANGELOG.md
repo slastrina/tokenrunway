@@ -14,8 +14,24 @@ sentence or two each.
   forecasts with today's spend; `tokenrunway statusline` prints one short line for your shell
   prompt or Claude Code's status line; `tokenrunway today` breaks today's spend down by harness,
   model and project. Add `--json` for scripts. Homebrew puts it on your PATH.
+- **Spend goals**: set a daily and a monthly goal (API-equivalent) in Settings → Spend goals. The
+  Now tab shows a ring for each, you're notified at 80% and 100%, and with the *$ today* label the
+  menubar icon turns amber, then red, as you get close.
+- **Fast-session warnings**: when a session spends 3× your usual pace (at least $5 in 20 minutes),
+  you get a notification and a banner on the Now tab, so a runaway agent loop doesn't eat your
+  window.
+- **Switch to save**: when a window is tight, Tokenrunway says where there's room, like "Weekly
+  Opus is at 83% but Weekly is only at 64%: switch to Sonnet" or "ChatGPT has room (Codex weekly
+  at 12%)". It's on the Now tab and in the run-out notification.
+- **In-app toasts**: alerts also pop up inside Tokenrunway while it's open. Settings →
+  Notifications → *Send a test* shows one.
+- **Pin a window to the menubar**: Settings → Menubar label → *Window* picks which window the
+  *% left* or *Runway* label follows, instead of the most urgent one.
+- **Copy usage summary**: the copy button on the Now tab puts a short text summary of every
+  account on the clipboard, ready to paste into Slack.
 
 ### Changed
+- The *% left* menubar label now shows what's left (it showed what was used).
 - Clicking the menubar icon opens Tokenrunway on the tab you left it on (Now, Stats or Harness),
   even after a restart.
 - Stats → Today no longer shows a daily spend chart with a single bar.
