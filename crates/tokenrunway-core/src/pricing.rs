@@ -114,9 +114,18 @@ fn strip_date(s: &str) -> &str {
 
 /// The price for a model id, or None if the table doesn't know it.
 pub fn lookup(model: &str) -> Option<&'static Price> {
+    if is_local(model) {
+        return None;
+    }
     let t = table();
     let key = normalise(model);
     t.models.get(&key).or_else(|| t.aliases.get(&key).and_then(|k| t.models.get(k)))
+}
+
+/// A model run locally (LM Studio): free, and never matched to a cloud model's price, even when
+/// it shares a name with one ("lmstudio/gpt-oss-20b").
+pub fn is_local(model: &str) -> bool {
+    model.starts_with(crate::ingest::lmstudio::MODEL_PREFIX)
 }
 
 /// "Opus 5.5" for "claude-opus-5-5-20260101"; for models the table doesn't know, the id as the

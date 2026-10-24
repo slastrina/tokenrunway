@@ -208,6 +208,7 @@
       [t(0, 10, 21), 'Claude Code', 'tokenrunway', 'Opus 5.5', 'Bug fix', 41, 3.1e6, 19.6],
       [t(0, 9, 48), 'Codex', 'intake-classifier', 'GPT-5 Codex', 'Test', 18, 0.9e6, 3.1],
       [t(0, 9, 20), 'Claude Code', 'third-eye', 'Sonnet 5.5', 'Refactor', 26, 1.6e6, 4.9],
+      [t(-1, 20, 15), 'LM Studio', 'LM Studio', 'qwen3.6-35b-a3b', 'Chat', 14, 0.6e6, 0],
       [t(-1, 17, 44), 'opencode', 'dotfiles', 'Sonnet 5.5', 'Ops', 12, 0.4e6, 1.2],
       [t(-1, 16, 5), 'Claude Code', 'tokenrunway', 'Opus 5.5', 'Planning', 22, 1.1e6, 7.4],
       [t(-1, 14, 31), 'Gemini CLI', 'intake-classifier', 'Gemini Pro', 'Discovery', 9, 0.3e6, 0.6],

@@ -15,6 +15,7 @@
 
 pub mod claude_code;
 pub mod codex;
+pub mod lmstudio;
 pub mod opencode;
 
 use crate::categorise::Signals;
@@ -94,6 +95,8 @@ pub struct Roots {
     pub codex: Vec<PathBuf>,
     /// opencode data directories (holding opencode.db and/or storage/)
     pub opencode: Vec<PathBuf>,
+    /// LM Studio `server-logs` directories
+    pub lmstudio: Vec<PathBuf>,
 }
 
 impl Roots {
@@ -113,8 +116,16 @@ impl Roots {
         if let Some(d) = dirs::data_dir() {
             opencode.push(d.join("opencode"));
         }
-        let mut r = Self { claude, codex, opencode };
-        for v in [&mut r.claude, &mut r.codex, &mut r.opencode] {
+        // LM Studio 0.3+ keeps everything in ~/.lmstudio on every platform (LMSTUDIO_HOME moves
+        // it); 0.2 used ~/.cache/lm-studio.
+        let mut lmstudio = Vec::new();
+        if let Ok(v) = std::env::var("LMSTUDIO_HOME") {
+            lmstudio.push(PathBuf::from(v).join("server-logs"));
+        }
+        lmstudio.push(home.join(".lmstudio").join("server-logs"));
+        lmstudio.push(home.join(".cache").join("lm-studio").join("server-logs"));
+        let mut r = Self { claude, codex, opencode, lmstudio };
+        for v in [&mut r.claude, &mut r.codex, &mut r.opencode, &mut r.lmstudio] {
             let mut seen = std::collections::HashSet::new();
             v.retain(|p| seen.insert(p.clone()));
         }
@@ -123,7 +134,7 @@ impl Roots {
 
     /// The roots that exist, for the file watcher.
     pub fn existing(&self) -> Vec<PathBuf> {
-        self.claude.iter().chain(&self.codex).chain(&self.opencode).filter(|p| p.is_dir()).cloned().collect()
+        self.claude.iter().chain(&self.codex).chain(&self.opencode).chain(&self.lmstudio).filter(|p| p.is_dir()).cloned().collect()
     }
 }
 

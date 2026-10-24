@@ -69,7 +69,7 @@ CLIs call). We don't copy their code unless the licence allows it, and we credit
 | **Account** | One login with a provider: e.g. "Claude — work (Enterprise)" and "Claude — personal (Max)". Many per provider. |
 | **Plan** | The plan behind an account: Pro, Max, Team, Enterprise, Plus, Business, API pay-as-you-go… |
 | **Window** | A limit that resets: `5h`, `weekly`, `weekly-opus`, `monthly`, `credits`, `budget`. Each has `used`, `limit` (absolute or %), `resets_at`. |
-| **Harness** | The tool that ran the agent: Claude Code, Codex CLI, opencode, Gemini CLI, Cline/Roo, Cursor, claude.ai/ChatGPT web… |
+| **Harness** | The tool that ran the agent: Claude Code, Codex CLI, opencode, LM Studio (local models), Gemini CLI, Cline/Roo, Cursor, claude.ai/ChatGPT web… |
 | **Usage event** | One model call, read from local logs: timestamp, harness, model, tokens (in/out/cache-read/cache-write/reasoning), session, project, cost estimate, category. |
 | **Snapshot** | One reading of a remote window at a point in time. The history of snapshots feeds the forecasts. |
 | **Category** | What the work was: Build, Bug fix, Discovery, Refactor, Test, Review, Docs, Ops, Planning, Chat. |
@@ -120,6 +120,7 @@ whether or not AWS access is set up. If your laptop has no AWS console/API acces
 | Claude Code | `~/.claude/projects/**/*.jsonl` (+ `CLAUDE_CONFIG_DIR`) | `message.model`, `message.usage` (input, cache_creation incl. 5m/1h split, cache_read, output, thinking), `cwd`, `gitBranch`, `sessionId`, `isSidechain` (subagents), `requestId` (dedupe) |
 | Codex CLI / app | `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl` (+ `CODEX_HOME`) | `token_count` events (`total_token_usage`, `last_token_usage`, cached, reasoning), `rate_limits`, `turn_context` (model, cwd) |
 | opencode | `~/.local/share/opencode/opencode.db` (SQLite; older: `storage/message/**.json`) | Tokens and the cost opencode itself works out, per message; provider/model id |
+| LM Studio | `~/.lmstudio/server-logs/YYYY-MM/YYYY-MM-DD.N.log` (+ `LMSTUDIO_HOME`; 0.2: `~/.cache/lm-studio/server-logs`) | llama.cpp's per-request `print_timing` (prompt eval = new input tokens, eval = output) and `release` (`n_tokens` − both = the reused prefix, a cache read); the model from `[INFO][<model id>]` tags or the `load_model` path, carried across rotated parts and days. Local, so always free (`lmstudio/<id>`, never priced) and filed under the project "LM Studio". The MLX engine logs no token counts for streamed requests, so those aren't counted. Prompt text in DEBUG lines is never kept |
 | Gemini CLI | `~/.gemini/tmp/*/` chats/telemetry | Tokens per turn when telemetry is on |
 | Cline / Roo Code / Kilo | VS Code `globalStorage/<ext>/tasks/*/ui_messages.json` | `api_req_started` entries carry tokens + cost |
 | Cursor | none locally → allowance plane only | |
@@ -193,7 +194,7 @@ credit.
 ┌──────────────▼──────────── tokenrunway-core (pure Rust, no Tauri) ──────────────┐
 │ model.rs      Account, Window, Snapshot, UsageEvent, Category                    │
 │ store.rs      SQLite (rusqlite, bundled): events, snapshots, cursors, rollups    │
-│ ingest/       harness parsers: claude_code, codex, opencode, gemini, cline…      │
+│ ingest/       harness parsers: claude_code, codex, opencode, lmstudio, gemini…   │
 │ providers/    allowance adapters: anthropic_oauth, claude_web, chatgpt, bedrock, │
 │               openai_admin, anthropic_admin, openrouter, copilot, cursor, xai    │
 │ pricing.rs    model price table (bundled snapshot + refresh), currency           │

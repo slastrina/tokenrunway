@@ -6,6 +6,12 @@ sentence or two each.
 
 ## [Unreleased]
 
+### Added
+- **LM Studio**: requests to LM Studio's local server now show up in Stats, Harness and the
+  dashboard, with each model's input, output and reused (cached) tokens. They're local, so they
+  read as *Free* and never count towards your spend. Models running on the MLX engine don't log
+  token counts, so they aren't included yet.
+
 ### Changed
 - Clicking the menubar icon opens Tokenrunway on the tab you left it on (Now, Stats or Harness),
   even after a restart.

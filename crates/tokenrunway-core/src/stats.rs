@@ -6,7 +6,7 @@
 //! into local days with chrono, so day edges follow the time zone (and its DST) exactly.
 
 use crate::categorise::{self, ALL};
-use crate::ingest::{self, claude_code, codex, opencode, Batch, Cursor, ProjectNames, Roots};
+use crate::ingest::{self, claude_code, codex, lmstudio, opencode, Batch, Cursor, ProjectNames, Roots};
 use crate::pricing;
 use crate::store::{Agg, SessionPart, Store, BUCKET_MS};
 use crate::view::{DashboardView, DayCost, HarnessRow, HarnessView, KindShare, Ranked, Series, SessionRow, StatsView};
@@ -60,6 +60,11 @@ impl Stats {
         for root in &self.roots.codex {
             for p in ingest::files_under(root, &|n| n.starts_with("rollout-") && n.ends_with(".jsonl")) {
                 jobs.push(("codex", p, codex::read));
+            }
+        }
+        for root in &self.roots.lmstudio {
+            for p in ingest::files_under(root, &lmstudio::is_log) {
+                jobs.push(("lmstudio", p, lmstudio::read));
             }
         }
         // Only the files that changed since their cursor.
@@ -469,6 +474,7 @@ fn harness_name(id: &str) -> &str {
         "gemini-cli" => "Gemini CLI",
         "cline" => "Cline",
         "cursor" => "Cursor",
+        "lmstudio" => "LM Studio",
         other => other,
     }
 }

@@ -1,0 +1,21 @@
+[2026-10-20 10:00:00][INFO] Server started on port 1234.
+[2026-10-20 10:00:01][DEBUG] 0.00.044.827 I srv    load_model: loading model '/home/u/.lmstudio/models/acme/Tiny-7B-Coder-GGUF/Tiny-7B-Coder.Q4_K_M.gguf'
+[2026-10-20 10:00:02][DEBUG] 0.01.000.000 I srv  llama_server: model loaded
+[2026-10-20 10:00:10][DEBUG] Received request: POST to /v1/chat/completions with body {
+  "messages": [ { "role": "user", "content": "SYNTHETIC PROMPT, NEVER STORED" } ]
+}
+[2026-10-20 10:00:10][INFO][tiny-7b-coder] Running chat completion on conversation with 1 messages.
+[2026-10-20 10:00:10][INFO][tiny-7b-coder] Streaming response...
+[2026-10-20 10:00:11][DEBUG] 0.10.000.001 I slot print_timing: id  1 | task 0 | prompt processing, n_tokens =   100, progress = 1.0
+[2026-10-20 10:00:12][DEBUG] 0.11.000.001 I slot print_timing: id  1 | task 0 | prompt eval time =     200.00 ms /   100 tokens (    2.00 ms per token,   500.00 tokens per second)
+0.11.000.002 I slot print_timing: id  1 | task 0 |        eval time =    1000.00 ms /    50 tokens (   20.00 ms per token,    50.00 tokens per second)
+0.11.000.003 I slot print_timing: id  1 | task 0 |       total time =    1200.00 ms /   150 tokens
+[2026-10-20 10:00:12][DEBUG] 0.11.000.004 I slot      release: id  1 | task 0 | stop processing: n_tokens = 150, truncated = 0
+[2026-10-20 10:00:12][INFO][tiny-7b-coder] Finished streaming response
+[2026-10-20 10:01:00][INFO][tiny-7b-coder:2] Running chat completion on conversation with 3 messages.
+[2026-10-20 10:01:01][DEBUG] 0.12.000.001 I slot print_timing: id  2 | task 51 | prompt eval time =     100.00 ms /    40 tokens (    2.50 ms per token,   400.00 tokens per second)
+0.12.000.002 I slot print_timing: id  2 | task 51 |        eval time =     500.00 ms /    20 tokens (   25.00 ms per token,    40.00 tokens per second)
+0.12.000.003 I slot print_timing: id  2 | task 51 |       total time =     600.00 ms /    60 tokens
+[2026-10-20 10:01:01][DEBUG] 0.12.000.004 I slot      release: id  2 | task 51 | stop processing: n_tokens = 210, truncated = 0
+[2026-10-20 10:01:01][INFO][tiny-7b-coder:2] Finished streaming response
+[2026-10-20 10:05:00][INFO][LM STUDIO SERVER] Client disconnected. Stopping generation...

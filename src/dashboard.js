@@ -235,7 +235,7 @@
     $('#sessions').innerHTML = rows.length ? rows.map((s) => `<tr><td class="dim">${esc(startedText(s.started))}</td>`
       + `<td><span class="dot" style="--c:var(${C.harnessVar(s.harness)})"></span>${esc(s.harness)}</td>`
       + `<td class="mono">${esc(s.project)}</td><td class="dim">${esc(s.model)}</td><td class="dim">${esc(s.kind)}</td>`
-      + `<td class="r dim">${esc(C.minutes(s.durationMs))}</td><td class="r">${esc(C.tokens(s.tokens))}</td><td class="r cost">${esc(C.money(s.cost))}</td></tr>`).join('')
+      + `<td class="r dim">${esc(C.minutes(s.durationMs))}</td><td class="r">${esc(C.tokens(s.tokens))}</td><td class="r cost">${esc(C.isLocal(s.harness) ? 'Free' : C.money(s.cost))}</td></tr>`).join('')
       : '<tr><td colspan="8" class="dim" style="text-align:center;padding:24px">No sessions in this range.</td></tr>';
   }
 

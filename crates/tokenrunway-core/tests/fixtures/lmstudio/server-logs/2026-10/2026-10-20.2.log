@@ -1,0 +1,7 @@
+[2026-10-20 11:00:00][DEBUG] 0.20.000.001 I slot print_timing: id  1 | task 80 | prompt eval time =     100.00 ms /    10 tokens (   10.00 ms per token,   100.00 tokens per second)
+0.20.000.002 I slot print_timing: id  1 | task 80 |        eval time =     100.00 ms /     5 tokens (   20.00 ms per token,    50.00 tokens per second)
+0.20.000.003 I slot print_timing: id  1 | task 80 |       total time =     200.00 ms /    15 tokens
+[2026-10-20 11:00:00][DEBUG] 0.20.000.004 I slot      release: id  1 | task 80 | stop processing: n_tokens = 15, truncated = 0
+[2026-10-20 11:30:00][INFO][openai/gpt-oss-20b] Running chat completion on conversation with 1 messages.
+[2026-10-20 11:30:01][DEBUG] 0.30.000.001 I slot print_timing: id  0 | task 0 | prompt eval time =     100.00 ms /  1000 tokens (    0.10 ms per token, 10000.00 tokens per second)
+0.30.000.002 I slot print_timing: id  0 | task 0 |        eval time =    1000.00 ms /  1000 tokens (    1.00 ms per token,  1000.00 tokens per second)

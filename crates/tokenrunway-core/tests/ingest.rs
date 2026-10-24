@@ -41,6 +41,8 @@ impl Env {
             claude: vec![dir.join("claude").join("projects")],
             codex: vec![dir.join("codex").join("sessions")],
             opencode: vec![oc, dir.join("opencode-old")],
+            // Read on its own in `lm_studio_is_free_and_counted`, so the totals here stay put.
+            lmstudio: vec![],
         };
         let stats = Stats::open_with(&dir.join("activity.db"), roots).unwrap();
         Self { dir, stats }
@@ -265,4 +267,60 @@ fn spend_today_matches_the_today_stats() {
     }
     assert!(seen > 0.0);
     assert_eq!(env.stats.spend_today(now() + 30 * 86_400_000), 0.0);
+}
+
+#[test]
+fn lm_studio_is_free_and_counted() {
+    let dir = std::env::temp_dir().join(format!("tr-it-lms-{}", std::process::id()));
+    std::fs::remove_dir_all(&dir).ok();
+    copy_dir(&fixtures().join("lmstudio"), &dir);
+    let logs = dir.join("server-logs");
+    let roots = Roots { lmstudio: vec![logs.clone()], ..Default::default() };
+    let stats = Stats::open_with(&dir.join("activity.db"), roots).unwrap();
+    let r = stats.ingest();
+    // Four requests: two on tiny-7b-coder (one on its second instance), one more on it in the
+    // rotated part (the model carried over from part 1), one on gpt-oss-20b. No "no price" errors.
+    assert!(r.errors.is_empty(), "{:?}", r.errors);
+    assert_eq!((r.files_read, r.events_added), (2, 4));
+
+    let s = stats.stats("lifetime", now());
+    assert_eq!(s.spend_api, 0.0, "local models are free, even one named like a cloud model");
+    assert_eq!(s.spend_actual, None);
+    // 150 + (60 + 150 reused) + 15 + 2000
+    assert_eq!(s.tokens.total, 2375);
+    assert_eq!(s.tokens.cache, 150);
+    let models: Vec<(&str, u64)> = s.models.iter().map(|m| (m.name.as_str(), m.tokens)).collect();
+    assert_eq!(models, [("gpt-oss-20b", 2000), ("tiny-7b-coder", 375)]);
+    assert_eq!(s.projects.iter().map(|p| p.name.as_str()).collect::<Vec<_>>(), ["LM Studio"]);
+
+    let h = stats.harness("lifetime", now());
+    let row = h.harnesses.iter().find(|x| x.id == "lmstudio").expect("an LM Studio column");
+    assert_eq!(row.name, "LM Studio");
+    assert_eq!((row.cost, row.tokens, row.sessions), (0.0, 2375, 3));
+    assert_eq!(row.top_model, "gpt-oss-20b");
+
+    // The last request's release arrives later: its reused prefix is added, nothing new counted.
+    let p2 = logs.join("2026-10").join("2026-10-20.2.log");
+    let mut text = std::fs::read_to_string(&p2).unwrap();
+    text +=
+        "[2026-10-20 11:30:02][DEBUG] 0.30.000.004 I slot      release: id  0 | task 0 | stop processing: n_tokens = 2500, truncated = 0\n";
+    std::fs::write(&p2, text).unwrap();
+    let r = stats.ingest();
+    assert_eq!((r.files_read, r.events_added), (1, 0));
+    let s = stats.stats("lifetime", now());
+    assert_eq!((s.tokens.total, s.tokens.cache), (2875, 650));
+    assert_eq!(stats.ingest().files_read, 0, "nothing changed");
+
+    // The prompt in the log never reaches the store.
+    drop(stats);
+    let c = Connection::open(dir.join("activity.db")).unwrap();
+    let rows: Vec<String> = c
+        .prepare("SELECT key || model || session_id || project FROM events")
+        .unwrap()
+        .query_map([], |r| r.get(0))
+        .unwrap()
+        .flatten()
+        .collect();
+    assert!(rows.iter().all(|r| !r.contains("SYNTHETIC")));
+    std::fs::remove_dir_all(&dir).ok();
 }
