@@ -10,6 +10,7 @@ cask "tokenrunway" do
   depends_on :macos
 
   app "Tokenrunway.app"
+  binary "#{appdir}/Tokenrunway.app/Contents/MacOS/tokenrunway"
 
   uninstall quit: "io.github.slastrina.tokenrunway"
 

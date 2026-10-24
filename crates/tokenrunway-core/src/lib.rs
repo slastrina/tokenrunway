@@ -7,6 +7,7 @@
 
 pub mod allowance;
 pub mod categorise;
+pub mod cli;
 pub mod forecast;
 pub mod ingest;
 pub mod model;

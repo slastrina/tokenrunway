@@ -181,6 +181,24 @@ and the tray tooltip. In other words, it's in whatever opens when you click the 
 details. The menubar itself shows only the icon (and the optional usage label in §6.1), never the
 credit.
 
+### 6.6 Command line
+The app's own executable doubles as a command line: with a subcommand it prints and exits before
+any window, tray icon or single-instance check starts (src-tauri/src/cli.rs; formatting in
+`tokenrunway_core::cli`).
+- `tokenrunway status [--json]`: the shortest runway, every account's windows (% used, reset,
+  forecast) and today's spend.
+- `tokenrunway statusline`: one line for a shell prompt or Claude Code's `statusLine` command,
+  e.g. `▲ 1h 26m · Claude 5-hour 78% · $12.40 today`. It doesn't read stdin, so it never waits.
+- `tokenrunway today [--json]`: today's spend by harness, model and project.
+- Allowances come from `status.json`, which the running app writes to its data folder on every
+  state broadcast (accounts, windows, summary and today's spend; no settings, keys or cookies).
+  Older than 10 minutes counts as stale and says so. Spend comes from `activity.db` (WAL, so safe
+  beside the app); when the app isn't keeping it current, the command line reads the new log
+  lines itself first (inserts are idempotent).
+- Where it lives: Homebrew links it (`binary` in the cask); the `.deb` puts it in `/usr/bin`; on
+  Windows it's `tokenrunway.exe` in the install folder (it attaches to the calling console); the
+  AppImage takes the same arguments.
+
 ## 7. Architecture
 
 ```
@@ -492,4 +510,5 @@ Codex, opencode, …) is a first-class tab, not just a filter.
 2. LLM categorisation: allow it to run through the user's Claude Code/Codex CLI (`claude -p`), or
    only through an API key?
 3. Later: an E2E-encrypted export/import to merge stats from several machines?
-4. A `tokenrunway` CLI and a Rattleboard source plugin ("Claude 38% · resets 14:20" on the board)?
+4. ~~A `tokenrunway` CLI and a Rattleboard source plugin?~~ Both done: the command line is §6.6,
+   the board card is §8.4.

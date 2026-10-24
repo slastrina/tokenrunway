@@ -6,6 +6,12 @@ sentence or two each.
 
 ## [Unreleased]
 
+### Added
+- **A `tokenrunway` command**: `tokenrunway status` lists every account's windows, resets and
+  forecasts with today's spend; `tokenrunway statusline` prints one short line for your shell
+  prompt or Claude Code's status line; `tokenrunway today` breaks today's spend down by harness,
+  model and project. Add `--json` for scripts. Homebrew puts it on your PATH.
+
 ### Changed
 - Clicking the menubar icon opens Tokenrunway on the tab you left it on (Now, Stats or Harness),
   even after a restart.

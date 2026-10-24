@@ -159,6 +159,8 @@ pub fn broadcast(app: &AppHandle) {
     crate::board::card_tick(app, &view);
     let json = serde_json::to_string(&view).unwrap_or_default();
     let st = app.state::<AppState>();
+    // Every time, changed or not, so the command line can tell the app is running.
+    crate::cli::write_status(&st.data_dir, &view);
     {
         let mut last = st.last_json.lock().unwrap();
         if *last == json {

@@ -32,3 +32,7 @@ chrono = { version = "0.4", default-features = false, features = ["clock", "std"
 url = "2"
 # Re-reads harness logs when they change (SPEC.md §5.2)
 notify = { version = "8", default-features = false, features = ["macos_fsevent"] }
+
+# The command line borrows the parent's console (the release app is a GUI-subsystem program)
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_System_Console"] }

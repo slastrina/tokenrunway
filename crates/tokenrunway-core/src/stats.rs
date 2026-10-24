@@ -42,6 +42,11 @@ impl Stats {
         Ok(Self { store: Mutex::new(Store::open(db)?), roots })
     }
 
+    /// A throwaway database over this machine's logs (the command line, with no app data).
+    pub fn in_memory() -> Result<Self, String> {
+        Ok(Self { store: Mutex::new(Store::open_in_memory()?), roots: Roots::default_for_this_machine() })
+    }
+
     fn store(&self) -> std::sync::MutexGuard<'_, Store> {
         self.store.lock().unwrap_or_else(|e| e.into_inner())
     }
