@@ -96,6 +96,30 @@
 Tokenrunway checks GitHub for new versions once a day, shows what's new, and updates in place when
 you say so. Homebrew installs update with `brew upgrade --cask tokenrunway`.
 
+## Command line
+
+The app doubles as a `tokenrunway` command. Homebrew puts it on your PATH; the `.deb` installs it
+in `/usr/bin`; on Windows it's `tokenrunway.exe` in the install folder, and the AppImage takes the
+same arguments.
+
+```console
+$ tokenrunway status          # every account's windows, resets and forecasts, and today's spend
+$ tokenrunway statusline      # ▲ 1h 26m · Claude 5-hour 78% · $12.40 today
+$ tokenrunway today           # today's spend by harness, model and project
+$ tokenrunway status --json   # the same for scripts (also: today --json)
+```
+
+Allowances come from the running app (it shares them in its data folder), so start Tokenrunway
+first; spend comes straight from your agents' logs. Set `NO_COLOR=1` to turn colours off.
+
+**Claude Code status line**: add this to `~/.claude/settings.json`:
+
+```json
+{
+  "statusLine": { "type": "command", "command": "tokenrunway statusline" }
+}
+```
+
 ## Rattleboard
 
 Tokenrunway can show its alerts, and an "AI runway" card, on a [Rattleboard](https://github.com/slastrina/rattleboard)

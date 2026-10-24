@@ -8,6 +8,7 @@
 
 mod activity;
 mod board;
+mod cli;
 mod commands;
 mod login;
 mod notify;
@@ -170,6 +171,10 @@ pub fn open_view(app: &AppHandle, view: &str) {
 }
 
 pub fn run() {
+    // `tokenrunway status` and friends print and exit before anything else starts.
+    if let Some(code) = cli::run_from_args() {
+        std::process::exit(code);
+    }
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| open_view(app, "last")))
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, None))

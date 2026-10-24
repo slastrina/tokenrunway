@@ -10,6 +10,10 @@ sentence or two each.
 - **OpenRouter**: add an OpenRouter API key to see its spend limit or budget with the reset, what
   it has spent today, this week and this month, and free-model requests on the free tier. A
   management key also shows your account's credit balance.
+- **A `tokenrunway` command**: `tokenrunway status` lists every account's windows, resets and
+  forecasts with today's spend; `tokenrunway statusline` prints one short line for your shell
+  prompt or Claude Code's status line; `tokenrunway today` breaks today's spend down by harness,
+  model and project. Add `--json` for scripts. Homebrew puts it on your PATH.
 
 ### Changed
 - Clicking the menubar icon opens Tokenrunway on the tab you left it on (Now, Stats or Harness),
