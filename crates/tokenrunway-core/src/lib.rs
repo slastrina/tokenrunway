@@ -12,6 +12,7 @@ pub mod forecast;
 pub mod ingest;
 pub mod insights;
 pub mod live;
+pub mod local;
 pub mod model;
 pub mod pricing;
 pub mod rattleboard;

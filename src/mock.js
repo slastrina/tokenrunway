@@ -100,6 +100,17 @@
       { accountId: 'acct-1', windowId: '5h', text: 'ChatGPT — personal has room (Codex weekly at 31%): move your next task there.' },
     ],
   };
+  // ?local=stopped | off: LM Studio not running, or not installed.
+  app.local = {
+    name: 'LM Studio', running: true, port: 1234, knowsLoaded: true, todayRequests: 42, todayTokens: 130500, lastUsed: now - 6 * M,
+    models: [
+      { id: 'qwen3.5-27b-heretic', kind: 'vlm', loaded: true, quant: 'Q4_K_S', context: 32768 },
+      { id: 'qwen3.5-9b-claude-4.6-highiq-instruct', kind: 'vlm', loaded: false, quant: 'Q4_K_S', context: 262144 },
+      { id: 'text-embedding-nomic-embed-text-v1.5', kind: 'embeddings', loaded: false, quant: 'Q4_K_M', context: 2048 },
+    ],
+  };
+  if (q.get('local') === 'stopped') app.local = { ...app.local, running: false, models: [], todayRequests: 7, todayTokens: 18200, lastUsed: now - 2 * H };
+  if (q.get('local') === 'off') app.local = null;
   if (q.get('live') === 'none') { app.hot = []; app.tips = []; settings.budgetDaily = 0; settings.budgetMonthly = 0; }
   if (['local', 'local-key', 'network', 'vestaboard', 'error'].includes(rbq)) {
     const local = rbq.startsWith('local');

@@ -92,7 +92,7 @@
   const isoDay = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d).getTime(); };
 
   // ---------- colours ----------
-  const PROVIDER = {
+  const PROVIDER = { lmstudio: '--h-lmstudio',
     anthropic: '--p-claude', openai: '--p-openai', bedrock: '--p-bedrock', 'anthropic-api': '--p-api', 'openai-api': '--p-api',
     xai: '--p-grok', grok: '--p-grok', gemini: '--p-gemini', copilot: '--p-copilot', cursor: '--p-cursor', openrouter: '--p-openrouter',
   };

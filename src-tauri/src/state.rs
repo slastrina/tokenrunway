@@ -41,6 +41,15 @@ pub struct AppState {
     pub board: Mutex<crate::board::Runtime>,
     /// The last AppView pushed, to push only changes
     last_json: Mutex<String>,
+    /// LM Studio's server as last probed (poll.rs, every 15 s while it's installed)
+    pub local: Mutex<LocalProbe>,
+}
+
+#[derive(Default)]
+pub struct LocalProbe {
+    pub port: u16,
+    /// None while nothing answers
+    pub probe: Option<tokenrunway_core::local::Probe>,
 }
 
 impl AppState {
@@ -72,6 +81,7 @@ impl AppState {
             last_activity: AtomicI64::new(0),
             board: Mutex::new(Default::default()),
             last_json: Mutex::new(String::new()),
+            local: Mutex::new(LocalProbe::default()),
             data_dir,
         }
     }
@@ -151,7 +161,27 @@ pub fn app_view(app: &AppHandle) -> AppView {
         spend_today: st.stats.get().map(|s| s.spend_today(now)),
         spend_month: st.stats.get().map(|s| s.spend_month(now)),
         hot: st.stats.get().map(|s| s.hot_sessions(now)).unwrap_or_default(),
+        local: local_server(&st, now),
     }
+}
+
+/// The Now tab's LM Studio card: while its server answers, or when it ran today.
+fn local_server(st: &AppState, now: i64) -> Option<tokenrunway_core::view::LocalServer> {
+    let (today_requests, today_tokens, last_used) = st.stats.get().map(|s| s.local_today(now)).unwrap_or_default();
+    let l = st.local.lock().unwrap();
+    if l.probe.is_none() && today_requests == 0 {
+        return None;
+    }
+    Some(tokenrunway_core::view::LocalServer {
+        name: "LM Studio".into(),
+        running: l.probe.is_some(),
+        port: l.port,
+        models: l.probe.as_ref().map(|p| p.models.clone()).unwrap_or_default(),
+        knows_loaded: l.probe.as_ref().is_some_and(|p| p.knows_state),
+        today_requests,
+        today_tokens,
+        last_used,
+    })
 }
 
 /// Rebuilds the view and, if anything changed, pushes `tr://state` to every window, updates the

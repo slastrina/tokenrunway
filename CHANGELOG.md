@@ -9,6 +9,11 @@ sentence or two each.
 ### Added
 - **Shorter command names**: Homebrew installs `runway` and `trw` alongside `tokenrunway`, so
   `runway status` or `trw statusline` work too.
+- **LM Studio on the Now tab**: when LM Studio's server is running on this computer, a card shows
+  up by itself with the loaded model (quantisation and context), and today's requests and tokens,
+  marked Free. Nothing to set up: it reads the port from LM Studio's settings and only ever asks
+  127.0.0.1. When the server stops, the card stays for the rest of a day you used it, as *Not
+  running*.
 
 ## [0.2.0] - 2026-10-24
 

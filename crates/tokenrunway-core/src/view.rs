@@ -52,6 +52,40 @@ pub struct AppView {
     pub hot: Vec<HotSession>,
     /// "Switch to save": where there's room when a window is tight (allowance/tips.rs)
     pub tips: Vec<Tip>,
+    /// LM Studio on this computer, while its server answers or it ran today (local.rs)
+    pub local: Option<LocalServer>,
+}
+
+/// A local model server: the Now tab's LM Studio card.
+#[derive(Debug, Clone, Serialize, Default, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalServer {
+    /// "LM Studio"
+    pub name: String,
+    pub running: bool,
+    pub port: u16,
+    /// Every downloaded model it reported, loaded first
+    pub models: Vec<LocalModel>,
+    /// False when the server only says which models exist, not which are loaded
+    pub knows_loaded: bool,
+    /// Since local midnight, from its logs
+    pub today_requests: u32,
+    pub today_tokens: u64,
+    /// The last request in its logs (ms)
+    pub last_used: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Default, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalModel {
+    pub id: String,
+    /// "llm" | "vlm" | "embeddings"
+    pub kind: String,
+    pub loaded: bool,
+    /// "Q4_K_S"
+    pub quant: Option<String>,
+    /// The loaded context length, else the model's maximum
+    pub context: Option<u64>,
 }
 
 /// A session burning much faster than usual (the burn-rate warning).

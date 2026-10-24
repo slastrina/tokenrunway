@@ -108,7 +108,30 @@
       : `<button class="ib" data-act="copy-summary" data-k="copy-summary" aria-label="Copy a usage summary">${S.copied ? ICON.check(15, 1.8) : ICON.copy()}</button>`
         + (isWin() ? '' : `<button class="ib" data-act="add" data-k="add" aria-label="Add account">${ICON.plus()}</button>`) + refreshBtn('', 'Refresh all');
     return bar(right) + summary(a.summary)
-      + `<div class="scroll" id="panel" role="tabpanel" aria-labelledby="tab-now"><div class="list">${live(a)}${a.accounts.map(card).join('')}</div></div>`;
+      + `<div class="scroll" id="panel" role="tabpanel" aria-labelledby="tab-now"><div class="list">${live(a)}${a.accounts.map(card).join('')}${localCard(a.local)}</div></div>`;
+  }
+
+  // LM Studio on this computer (found by itself: its server on 127.0.0.1, and its logs).
+  function localCard(l) {
+    if (!l) return '';
+    const dot = `<span class="ldot ${l.running ? 'on' : ''}" aria-hidden="true"></span>`;
+    const sub = l.running
+      ? `<span class="sub">${dot}Running on port ${l.port}</span>`
+      : `<span class="sub">${dot}Not running${l.lastUsed ? ` · last used <span data-ago="${l.lastUsed}">${C.ago(l.lastUsed)}</span>` : ''}</span>`;
+    const ctx = (n) => (n >= 1024 ? `${Math.round(n / 1024)}k` : String(n));
+    const loaded = l.models.filter((m) => m.loaded);
+    const chats = l.models.filter((m) => m.kind !== 'embeddings');
+    let models = '';
+    if (l.running) {
+      models = loaded.length
+        ? loaded.map((m) => `<div class="lmodel"><span class="n" title="${esc(m.id)}">${esc(m.id)}</span><span class="m">${[m.quant, m.context ? `${ctx(m.context)} context` : ''].filter(Boolean).map(esc).join(' · ')}</span><span class="chip st-ok">Loaded</span></div>`).join('')
+        : `<p class="note">${l.knowsLoaded ? 'No model loaded' : 'Running'} · ${plural(chats.length, 'model')} downloaded${l.knowsLoaded ? ', loaded on the first request' : ''}</p>`;
+    }
+    const today = l.todayRequests
+      ? `<div class="ltoday"><span class="caps">Today</span><span>${plural(l.todayRequests, 'request')} · ${C.tokens(l.todayTokens)} tokens</span><span class="free">Free</span></div>`
+      : `<div class="ltoday"><span class="caps">Today</span><span>No requests yet</span><span class="free">Free</span></div>`;
+    return `<article class="card local" aria-label="LM Studio, ${l.running ? 'running' : 'not running'}"><div class="acct-h">${tile('lmstudio', 'LM')}`
+      + `${idBlock({ name: l.name, plan: 'Local' }, sub)}</div>${models}${today}</article>`;
   }
 
   // Fast sessions, budget goals and "switch to save" tips, above the cards.

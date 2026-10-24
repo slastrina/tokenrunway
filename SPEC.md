@@ -163,6 +163,13 @@ Three tabs, with a footer that never goes away:
 Footer (always shown, can't be turned off): `Tokenrunway v0.1.0 · iokig.com · ⚙︎`. When an update
 is available it becomes `Update available: v0.2.0 →` (§11).
 
+- **LM Studio card** (`local.rs`, polled every 15 s while `~/.lmstudio` exists): after the accounts,
+  while LM Studio's server answers on 127.0.0.1 (port from `.internal/http-server-config.json`,
+  default 1234; never through a proxy, 1.5 s timeout), or when it served requests today. It shows
+  running or not, the loaded models from `GET /api/v0/models` (quantisation, loaded context; older
+  servers answer only `/v1/models`, ids without load state), and today's requests and tokens from
+  its logs, marked Free. No account or setup.
+
 ### 6.3 Dashboard window (resizable)
 For deeper analysis: stacked area of tokens/cost per day by model, harness or category; a calendar
 heatmap; a table of sessions (date, harness, project, model, tokens, cost, category, duration);

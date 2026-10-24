@@ -94,7 +94,27 @@ pub fn hot_sessions(store: &Store, now: i64) -> Vec<HotSession> {
     out
 }
 
+/// LM Studio since `from`: requests, tokens, and its last request ever (ms).
+pub fn local_usage(store: &Store, from: i64) -> (u32, u64, Option<i64>) {
+    let (n, tokens) = store
+        .conn()
+        .query_row(
+            "SELECT COUNT(*), IFNULL(SUM(input + output + cache_read + cache_write_5m + cache_write_1h), 0) FROM events WHERE harness = 'lmstudio' AND ts >= ?1",
+            params![from],
+            |r| Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)?)),
+        )
+        .unwrap_or((0, 0));
+    let last =
+        store.conn().query_row("SELECT MAX(ts) FROM events WHERE harness = 'lmstudio'", [], |r| r.get::<_, Option<i64>>(0)).ok().flatten();
+    (n as u32, tokens as u64, last)
+}
+
 impl Stats {
+    /// LM Studio today: requests, tokens, and its last request ever.
+    pub fn local_today(&self, now: i64) -> (u32, u64, Option<i64>) {
+        local_usage(&self.store(), midnight(local_date(now)))
+    }
+
     /// API-equivalent spend since the first of this local month (the monthly budget goal).
     pub fn spend_month(&self, now: i64) -> f64 {
         spend_since(&self.store(), month_start(now))
@@ -149,6 +169,20 @@ mod tests {
         assert!(hot_sessions(&s, NOW).is_empty(), "$8 with nothing to compare");
         event(&s, "y", "first", NOW, 9.0);
         assert_eq!(hot_sessions(&s, NOW)[0].ratio, 0.0, "$17: hot, no ratio to show");
+    }
+
+    #[test]
+    fn local_usage_today() {
+        let s = Store::open_in_memory().unwrap();
+        s.conn()
+            .execute(
+                "INSERT INTO events (key, ts, harness, model, session_id, project, input, output) VALUES ('l1', ?1, 'lmstudio', 'lmstudio/gpt-oss-20b', 'x', 'LM Studio', 100, 25)",
+                params![NOW],
+            )
+            .unwrap();
+        event(&s, "paid", "a", NOW, 2.0);
+        assert_eq!(local_usage(&s, NOW - MIN), (1, 125, Some(NOW)));
+        assert_eq!(local_usage(&s, NOW + MIN), (0, 0, Some(NOW)), "nothing since, but still the last use");
     }
 
     #[test]

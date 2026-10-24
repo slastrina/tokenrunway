@@ -14,8 +14,12 @@ const SLOW_MS: i64 = 5 * 60_000;
 const MAX_BACKOFF_MS: i64 = 30 * 60_000;
 pub const REFRESH_DEBOUNCE_MS: i64 = 15_000;
 
+/// How often LM Studio's server is checked while it's installed.
+const LOCAL_MS: i64 = 15_000;
+
 pub async fn run(app: AppHandle) {
     let mut last_broadcast = 0;
+    let mut last_local = 0;
     loop {
         let now = now_ms();
         let due: Vec<String> = {
@@ -37,6 +41,11 @@ pub async fn run(app: AppHandle) {
         for id in due {
             let app = app.clone();
             tauri::async_runtime::spawn(async move { poll_one(&app, &id).await });
+        }
+        if now - last_local >= LOCAL_MS {
+            last_local = now;
+            let app = app.clone();
+            tauri::async_runtime::spawn(async move { probe_local(&app).await });
         }
         // The summary's runway and the tray label move with the clock.
         if now - last_broadcast >= 30_000 {
@@ -158,4 +167,25 @@ pub fn force(app: &AppHandle, id: Option<&str>) {
         }
     }
     st.wake.notify_one();
+}
+
+/// Checks LM Studio's server on this computer, and pushes the view when that changed.
+async fn probe_local(app: &AppHandle) {
+    let home = app.state::<AppState>().ctx.home.clone();
+    if !tokenrunway_core::local::lmstudio_installed(&home) {
+        return;
+    }
+    let port = tokenrunway_core::local::lmstudio_port(&home);
+    let probe = tokenrunway_core::local::probe_lmstudio(port).await;
+    let changed = {
+        let st = app.state::<AppState>();
+        let mut l = st.local.lock().unwrap();
+        let changed = l.port != port || l.probe != probe;
+        l.port = port;
+        l.probe = probe;
+        changed
+    };
+    if changed {
+        broadcast(app);
+    }
 }
