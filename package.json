@@ -1,6 +1,6 @@
 {
   "name": "tokenrunway",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "See every AI subscription's allowance, resets and spend from your menubar",
   "license": "MIT",
