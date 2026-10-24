@@ -176,8 +176,8 @@ fn harness_and_dashboard_views() {
     assert_eq!(cc.sessions, 1, "the subagent is part of its session");
     assert_eq!(cc.top_model, "Opus 5.5");
     assert_eq!(cc.daily.len(), 7);
-    // 2 hours from the first prompt's reply to the last reply
-    assert_eq!(cc.avg_session_ms, (10 * 3600 + 2 - (9 * 3600 + 5)) * 1000);
+    // 20 s of replies; the 55-minute pause before the last one is a break, not work
+    assert_eq!(cc.avg_session_ms, 20_000);
     assert!(close(cc.cache_hit, 13000.0 / (13000.0 + 118.0) * 100.0), "{}", cc.cache_hit);
     let oc = h.harnesses.iter().find(|r| r.id == "opencode").unwrap();
     assert_eq!(oc.sessions, 2, "ses1 with its subagent, and the old layout's session");

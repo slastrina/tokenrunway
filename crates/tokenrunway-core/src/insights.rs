@@ -248,7 +248,7 @@ impl Stats {
                     project: s.project,
                     model: s.model,
                     kind: s.kind,
-                    duration_ms: s.last - s.first,
+                    duration_ms: s.active,
                     tokens: s.tokens,
                     cost: s.cost,
                 })

@@ -316,6 +316,8 @@ pub struct StatsView {
     pub daily: Vec<DayCost>,
     /// Top 4, biggest first (w = % of the biggest, for the bar)
     pub models: Vec<Ranked>,
+    /// Local models (LM Studio), top 4 by tokens; empty when none ran in the period
+    pub local_models: Vec<Ranked>,
     pub projects: Vec<Ranked>,
     /// All ten categories, biggest first, share of tokens 0–100
     pub kinds: Vec<KindShare>,

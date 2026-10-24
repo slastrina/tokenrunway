@@ -374,6 +374,13 @@
       }).join('') : '<span class="fine">None yet</span>'}</div>`;
     };
     const two = `<div class="two">${ranked('Top models', st.models || [], 'model')}${ranked('Top projects', st.projects || [], 'project')}</div>`;
+    // Free local models (LM Studio), by tokens.
+    const lm = st.localModels || [];
+    const ltop = Math.max(0, ...lm.map((r) => r.tokens));
+    const local = lm.length ? `<div class="sec" style="gap:6px"><div class="sec-h"><span class="caps">Local models</span><span class="aside m">LM Studio · free</span></div><div class="rank">`
+      + lm.map((r) => `<button class="rank-r go" data-act="dash-target" data-kind="model" data-name="${esc(r.name)}" data-k="rank-local-${esc(r.name)}" aria-label="${esc(r.name)}, ${C.tokens(r.tokens)} tokens, free. Open in the dashboard">`
+        + `<span class="t"><span class="n" title="${esc(r.name)}">${esc(r.name)}</span><span class="v">${C.tokens(r.tokens)}</span></span>`
+        + `<span class="thin"><span style="width:${ltop ? Math.round((r.tokens / ltop) * 100) : 0}%"></span></span></button>`).join('') + '</div></div>' : '';
     // This month's subscription value, and the biggest cache tip.
     const value = (ins?.value || []).length ? `<div class="sec" style="gap:6px"><div class="sec-h"><span class="caps">Plan value</span><span class="aside m">this month, at API prices</span></div>`
       + ins.value.map((v) => `<div class="pv" title="${esc(v.line)}"><span class="dot" style="--c:var(${C.providerVar(v.provider)})"></span><span class="n">${esc(v.plan)}</span>`
@@ -390,7 +397,7 @@
     const kindSec = kinds.length ? `<div class="sec" style="gap:8px"><div class="sec-h"><span class="caps">Kind of work</span><span class="aside m">share of tokens</span></div>`
       + `<div class="kinds">${order.map((k) => `<div class="kind"><span class="n">${esc(k.kind)}</span><div class="b"><div style="width:${kmax ? Math.round((k.share / kmax) * 100) : 0}%"></div></div><span class="p">${Math.round(k.share)}%</span></div>`).join('')}</div></div>` : '';
     // One bar (Today) isn't a chart; the spend tile already says it.
-    return kpis + value + (daily.length > 1 ? dailySec : '') + two + kindSec + tipSec;
+    return kpis + value + (daily.length > 1 ? dailySec : '') + two + local + kindSec + tipSec;
   }
   const isoToday = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 

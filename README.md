@@ -55,8 +55,20 @@
   discovery, bug fixing…). Compare harnesses side by side.
 - **Local models too**: LM Studio's requests, models and tokens, read from its server logs and
   shown as free.
+- **Catch runaway sessions**: a warning when a session spends 3× your usual pace, so an agent
+  loop doesn't eat your window.
+- **Switch to save**: when a window is tight, it says where there's room (another model, or
+  another seat).
+- **Spend goals**: daily and monthly goals with rings on the Now tab and alerts at 80% and 100%.
+- **Insights**: cost per project and git branch, cache-efficiency tips, a Monday recap of last
+  week, and what your plan is worth at API prices ("your $200 plan did $874 of work, 4.4×").
 - **A full dashboard** with daily spend by model, harness or category, a burn-down for any window,
-  every session, upcoming resets and a contribution-style heatmap.
+  every session, upcoming resets and a contribution-style heatmap. Click a model or project in
+  Stats to open it there.
+- **Menubar your way**: runway, % left, or today's spend, for the most urgent window or one you
+  pin. A copy button puts a usage summary on the clipboard.
+- **`tokenrunway` on the command line**: `status`, `today`, and a one-line `statusline` for your
+  shell prompt or Claude Code.
 - **Sign in where there's no CLI**: Cursor and Grok can be signed in to inside Tokenrunway. Only
   the session cookie is kept, in your keychain.
 - **Rattleboard**: alerts and an "AI runway" card on a split-flap board.

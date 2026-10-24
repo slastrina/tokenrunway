@@ -48,6 +48,10 @@ sentence or two each.
   Enterprise and Business seats, add the price under the account in Settings.
 
 ### Changed
+- Stats has a *Local models* section listing your LM Studio models by tokens, since they're free
+  and would never make *Top models*.
+- Session lengths count working time only: a pause of more than 30 minutes isn't part of the
+  session, so a session you come back to days later no longer reads as days long.
 - The *% left* menubar label now shows what's left (it showed what was used).
 - Clicking the menubar icon opens Tokenrunway on the tab you left it on (Now, Stats or Harness),
   even after a restart.

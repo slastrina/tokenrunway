@@ -129,7 +129,14 @@ pub struct SessionPart {
     pub category: String,
     pub tokens: u64,
     pub cost: f64,
+    /// The whole session's working time in [from, to): the gaps between its events, leaving out
+    /// any longer than `IDLE_MS` (a session resumed days later isn't days long). The same on
+    /// every part of a session.
+    pub active_ms: i64,
 }
+
+/// A gap between two events longer than this is a break, not work.
+pub const IDLE_MS: i64 = 30 * 60 * 1000;
 
 impl Store {
     pub fn open(path: &Path) -> Result<Self, String> {
@@ -363,13 +370,19 @@ impl Store {
 
     /// Sessions with events in [from, to), split by model × project × category.
     pub fn session_parts(&self, from: i64, to: i64) -> Vec<SessionPart> {
-        let sql = "SELECT e.harness, e.session_id, MIN(e.ts), MAX(e.ts), e.model, e.project, IFNULL(t.category, 'chat'),
-                   SUM(e.input + e.output + e.cache_read + e.cache_write_5m + e.cache_write_1h), SUM(IFNULL(e.cost_usd, 0))
+        let sql = "WITH gaps AS (
+                       SELECT harness, session_id, ts - LAG(ts) OVER (PARTITION BY harness, session_id ORDER BY ts) AS gap
+                       FROM events WHERE ts >= ?1 AND ts < ?2),
+                   active AS (
+                       SELECT harness, session_id, SUM(CASE WHEN gap <= ?3 THEN gap ELSE 0 END) AS ms FROM gaps GROUP BY 1, 2)
+                   SELECT e.harness, e.session_id, MIN(e.ts), MAX(e.ts), e.model, e.project, IFNULL(t.category, 'chat'),
+                   SUM(e.input + e.output + e.cache_read + e.cache_write_5m + e.cache_write_1h), SUM(IFNULL(e.cost_usd, 0)), IFNULL(MAX(a.ms), 0)
                    FROM events e LEFT JOIN turns t ON t.id = e.turn_id
+                   LEFT JOIN active a ON a.harness = e.harness AND a.session_id = e.session_id
                    WHERE e.ts >= ?1 AND e.ts < ?2
                    GROUP BY 1, 2, 5, 6, 7";
         let Ok(mut q) = self.conn.prepare_cached(sql) else { return Vec::new() };
-        let rows = q.query_map(params![from, to], |r| {
+        let rows = q.query_map(params![from, to, IDLE_MS], |r| {
             Ok(SessionPart {
                 harness: r.get(0)?,
                 session_id: r.get(1)?,
@@ -380,6 +393,7 @@ impl Store {
                 category: r.get(6)?,
                 tokens: r.get::<_, i64>(7)? as u64,
                 cost: r.get(8)?,
+                active_ms: r.get(9)?,
             })
         });
         rows.map(|r| r.flatten().collect()).unwrap_or_default()

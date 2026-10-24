@@ -211,6 +211,7 @@ impl Stats {
         let mut v = StatsView { period: period.into(), ..Default::default() };
         let (mut actual, mut actual_n, mut actual_from) = (0.0, 0u64, Vec::<String>::new());
         let mut models: HashMap<String, (f64, u64)> = HashMap::new();
+        let mut local: HashMap<String, (f64, u64)> = HashMap::new();
         let mut projects: HashMap<String, (f64, u64)> = HashMap::new();
         let mut kinds: HashMap<String, u64> = HashMap::new();
         let mut daily: HashMap<NaiveDate, (f64, u64)> = HashMap::new();
@@ -227,7 +228,8 @@ impl Stats {
                     actual_from.push(h);
                 }
             }
-            add(&mut models, pricing::display_name(&r.model), r);
+            // Local models (free) get their own list, ranked by tokens.
+            add(if r.harness == "lmstudio" { &mut local } else { &mut models }, pricing::display_name(&r.model), r);
             add(&mut projects, r.project.clone(), r);
             *kinds.entry(r.category.clone()).or_default() += r.tokens();
             let d = daily.entry(days.of(r.bucket)).or_default();
@@ -242,6 +244,7 @@ impl Stats {
         }
         v.daily = p.days.iter().map(|d| day_cost(d, daily.get(d).copied().unwrap_or_default())).collect();
         v.models = top(models, 4);
+        v.local_models = top(local, 4);
         v.projects = top(projects, 4);
         v.kinds = kind_shares(&kinds);
         v
@@ -285,7 +288,7 @@ impl Stats {
             .into_iter()
             .map(|(id, h)| {
                 let mine: Vec<&Session> = sessions.iter().filter(|s| s.harness == id).collect();
-                let avg = if mine.is_empty() { 0 } else { mine.iter().map(|s| s.last - s.first).sum::<i64>() / mine.len() as i64 };
+                let avg = if mine.is_empty() { 0 } else { mine.iter().map(|s| s.active).sum::<i64>() / mine.len() as i64 };
                 // Share of spend; by tokens when nothing has a price (local models).
                 let share = if total_cost > 0.0 {
                     h.cost / total_cost * 100.0
@@ -394,7 +397,7 @@ impl Stats {
                 project: s.project,
                 model: s.model,
                 kind: s.kind,
-                duration_ms: s.last - s.first,
+                duration_ms: s.active,
                 tokens: s.tokens,
                 cost: s.cost,
             })
@@ -525,7 +528,8 @@ pub(crate) fn harness_name(id: &str) -> &str {
 pub(crate) struct Session {
     pub(crate) harness: String,
     pub(crate) first: i64,
-    pub(crate) last: i64,
+    /// Working time, without breaks over 30 minutes (store::IDLE_MS)
+    pub(crate) active: i64,
     pub(crate) model: String,
     pub(crate) project: String,
     pub(crate) kind: String,
@@ -537,7 +541,7 @@ pub(crate) fn sessions(parts: &[SessionPart]) -> Vec<Session> {
     #[derive(Default)]
     struct Acc {
         first: i64,
-        last: i64,
+        active: i64,
         tokens: u64,
         cost: f64,
         models: HashMap<String, (f64, u64)>,
@@ -546,9 +550,9 @@ pub(crate) fn sessions(parts: &[SessionPart]) -> Vec<Session> {
     }
     let mut m: HashMap<(&str, &str), Acc> = HashMap::new();
     for p in parts {
-        let a = m.entry((&p.harness, &p.session_id)).or_insert_with(|| Acc { first: i64::MAX, last: i64::MIN, ..Default::default() });
+        let a = m.entry((&p.harness, &p.session_id)).or_insert_with(|| Acc { first: i64::MAX, ..Default::default() });
         a.first = a.first.min(p.first);
-        a.last = a.last.max(p.last);
+        a.active = a.active.max(p.active_ms);
         a.tokens += p.tokens;
         a.cost += p.cost;
         let e = a.models.entry(pricing::display_name(&p.model)).or_default();
@@ -561,7 +565,7 @@ pub(crate) fn sessions(parts: &[SessionPart]) -> Vec<Session> {
         .map(|((h, _), a)| Session {
             harness: h.to_string(),
             first: a.first,
-            last: a.last,
+            active: a.active,
             model: top(a.models, 1).into_iter().next().map(|r| r.name).unwrap_or_default(),
             project: a.projects.into_iter().max_by(|x, y| x.1.cmp(&y.1).then(y.0.cmp(&x.0))).map(|x| x.0).unwrap_or_default(),
             kind: top_kind(&a.kinds),
