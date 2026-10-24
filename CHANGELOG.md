@@ -4,7 +4,7 @@ Each release's section becomes its GitHub release notes and the in-app "What's n
 `.github/workflows/release.yml`). Write for people using the app: what they can do now, in a
 sentence or two each.
 
-## [Unreleased]
+## [0.2.1] - 2026-10-24
 
 ### Added
 - **Shorter command names**: Homebrew installs `runway` and `trw` alongside `tokenrunway`, so
