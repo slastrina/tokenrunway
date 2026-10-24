@@ -123,6 +123,9 @@ $ tokenrunway today           # today's spend by harness, model and project
 $ tokenrunway status --json   # the same for scripts (also: today --json)
 ```
 
+Homebrew also adds two shorter names for the same command, `runway` and `trw` (not `tr`, which
+is the Unix tool): `runway status`, `trw today`.
+
 Allowances come from the running app (it shares them in its data folder), so start Tokenrunway
 first; spend comes straight from your agents' logs. Set `NO_COLOR=1` to turn colours off.
 
