@@ -10,6 +10,13 @@ sentence or two each.
 - **$ today in the menubar**: Settings → Menubar label → *$ today* shows what your agents have
   spent since midnight (API-equivalent, from their local logs), updated as they work. On Windows
   it's in the tray tooltip.
+- **ChatGPT Business and Enterprise credit limits**: seats with a per-person credit cap and no
+  rate limits now show a *Credit limit* window (`5,247 / 10,000 credits`) with its reset date.
+  Before, the card was empty.
+
+### Fixed
+- A window whose usage wasn't moving could show as critical, with a huge number like
+  `106751991167d 7h` under *Shortest runway* and in the menubar.
 
 ## [0.1.0] - 2026-10-23
 

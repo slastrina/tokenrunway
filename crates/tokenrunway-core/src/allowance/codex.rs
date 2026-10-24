@@ -103,9 +103,11 @@ pub fn parse_remote(v: &Value, now: i64) -> Result<(Vec<Reading>, Option<String>
         return Err(ProviderError::SchemaChanged("not an object".into()));
     }
     let plan = v.get("plan_type").and_then(Value::as_str).map(super::title_case);
-    let Some(rl) = v.get("rate_limit") else {
+    let spend = v.pointer("/spend_control/individual_limit").filter(|l| l.is_object());
+    if v.get("rate_limit").is_none() && spend.is_none() {
         return Err(ProviderError::SchemaChanged("no rate_limit".into()));
-    };
+    }
+    let rl = v.get("rate_limit").unwrap_or(&Value::Null);
     let mut out = Vec::new();
     for (key, fallback) in [("primary_window", "primary"), ("secondary_window", "secondary")] {
         let Some(w) = rl.get(key).filter(|w| w.is_object()) else { continue };
@@ -118,7 +120,43 @@ pub fn parse_remote(v: &Value, now: i64) -> Result<(Vec<Reading>, Option<String>
             .or_else(|| w.get("reset_after_seconds").and_then(Value::as_i64).map(|s| now + s * 1000));
         out.push(reading(pct, minutes, resets_at, fallback, now));
     }
+    // Business and Enterprise seats can have no rate limits, only a credit cap per person set by
+    // the admin (`spend_control.individual_limit`: limit and used as decimal strings, in credits).
+    if let Some(l) = spend {
+        let num = |k: &str| l.get(k).and_then(|x| x.as_f64().or_else(|| x.as_str()?.parse().ok()));
+        let used = match (num("used"), num("limit")) {
+            (Some(u), Some(lim)) if lim > 0.0 => Some(u / lim),
+            _ => num("used_percent").map(|p| p / 100.0),
+        };
+        if let Some(used) = used {
+            let resets_at = num("reset_at").map(|s| s as i64 * 1000).or_else(|| num("reset_after_seconds").map(|s| now + s as i64 * 1000));
+            let abs = num("used").zip(num("limit")).map(|(u, lim)| format!("{} / {} credits", grouped(u), grouped(lim)));
+            out.push(Reading {
+                id: "credits".into(),
+                label: "Credit limit".into(),
+                used,
+                abs,
+                resets_at,
+                length_ms: None,
+                money: None,
+                at: now,
+            });
+        }
+    }
     Ok((out, plan))
+}
+
+/// 5246.5 → "5,247".
+fn grouped(v: f64) -> String {
+    let s = (v.round() as i64).to_string();
+    let mut out = String::new();
+    for (i, c) in s.chars().enumerate() {
+        if i > 0 && (s.len() - i).is_multiple_of(3) {
+            out.push(',');
+        }
+        out.push(c);
+    }
+    out
 }
 
 /// The windows in one `rate_limits` object of a rollout event at `at` (ms). Windows that have
@@ -238,7 +276,10 @@ impl Provider for CodexCli {
             let plan_claim = auth.as_ref().and_then(|a| a.plan.clone());
             let who = auth.as_ref().and_then(|a| a.email.clone());
             match remote {
-                Ok((windows, plan)) => Ok(Fetched { plan: plan.or(plan_claim), who, windows, caveat: None, note: None }),
+                Ok((windows, plan)) => {
+                    let note = windows.is_empty().then(|| "ChatGPT reports no usage limits for this seat.".to_string());
+                    Ok(Fetched { plan: plan.or(plan_claim), who, windows, caveat: None, note })
+                }
                 Err(e) => {
                     let home = ctx.home.clone();
                     let local = tokio::task::spawn_blocking(move || local_limits(&home, now)).await.ok().flatten();
@@ -283,6 +324,25 @@ mod tests {
         assert_eq!(w[0].resets_at, Some(1_800_000_000_000));
         assert!((w[1].used - 0.31).abs() < 1e-9);
         assert!(parse_remote(&serde_json::json!({"x":1}), 0).is_err());
+    }
+
+    #[test]
+    fn business_credit_limit() {
+        // A Business seat: no rate limits, only the admin's credit cap.
+        let v: Value = serde_json::from_str(
+            r#"{"plan_type":"business","rate_limit":null,"credits":{"has_credits":true,"unlimited":false,"balance":null},
+                "spend_control":{"reached":false,"individual_limit":{"source":"account_user_spend_controls","unit":"credit",
+                "limit":"10000","used":"5246.507271051407","remaining":"4753.492728948593","used_percent":52,
+                "remaining_percent":48,"reset_after_seconds":683180,"reset_at":1793491200}}}"#,
+        )
+        .unwrap();
+        let (w, plan) = parse_remote(&v, 0).unwrap();
+        assert_eq!(plan.as_deref(), Some("Business"));
+        assert_eq!(w.len(), 1);
+        assert_eq!((w[0].id.as_str(), w[0].label.as_str()), ("credits", "Credit limit"));
+        assert!((w[0].used - 0.5246507).abs() < 1e-6);
+        assert_eq!(w[0].abs.as_deref(), Some("5,247 / 10,000 credits"));
+        assert_eq!(w[0].resets_at, Some(1_793_491_200_000));
     }
 
     #[test]

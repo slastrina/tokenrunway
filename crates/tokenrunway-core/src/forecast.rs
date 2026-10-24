@@ -37,6 +37,13 @@ pub fn rate(readings: &[WindowReading]) -> Option<f64> {
     if pts.len() < 2 {
         return None;
     }
+    // Relative to the first reading: raw epoch milliseconds (~1.8e12) lose enough precision that a
+    // flat series came out as a tiny positive rate.
+    let t0 = pts[0].0;
+    let pts: Vec<(f64, f64)> = pts.iter().map(|&(t, u)| (t - t0, u)).collect();
+    if pts.iter().all(|p| p.1 == pts[0].1) {
+        return Some(0.0);
+    }
     let n = pts.len() as f64;
     let (mx, my) = (pts.iter().map(|p| p.0).sum::<f64>() / n, pts.iter().map(|p| p.1).sum::<f64>() / n);
     let sxx: f64 = pts.iter().map(|p| (p.0 - mx).powi(2)).sum();
@@ -53,7 +60,7 @@ pub fn outlook(readings: &[WindowReading]) -> Outlook {
         return Outlook::Exhausted;
     }
     let Some(r) = rate(readings).filter(|r| *r > 0.0) else { return Outlook::Unknown };
-    let out_at = last.at + ((1.0 - last.used) / r) as i64;
+    let out_at = last.at.saturating_add(((1.0 - last.used) / r) as i64);
     match last.resets_at {
         Some(reset) if out_at < reset => Outlook::RunsOut { out_at, margin_ms: reset - out_at },
         Some(_) => Outlook::OnTrack { out_at: None },
@@ -157,7 +164,10 @@ where
             match r {
                 Some(r) => {
                     let proj = (w.used + r * left) * 100.0;
-                    let out = (w.used < 1.0 && r > 0.0).then(|| now + ((1.0 - w.used) / r).round() as i64).filter(|o| *o < reset);
+                    // Compared in f64 first: a near-zero rate puts the run-out time centuries
+                    // away, which overflowed i64 and wrapped round to "already out".
+                    let to_out = (1.0 - w.used) / r;
+                    let out = (w.used < 1.0 && r > 0.0 && to_out < left).then(|| now + to_out.round() as i64);
                     (Some(proj), out)
                 }
                 None => (None, None),
@@ -365,6 +375,28 @@ mod tests {
         assert!((v.out_at.unwrap() - at(13, 5)).abs() < MIN);
         assert!((v.pace.unwrap() - 46.33).abs() < 0.1, "{:?}", v.pace);
         assert!(v.proj.unwrap() > 100.0);
+    }
+
+    #[test]
+    fn flat_or_barely_moving_never_runs_out() {
+        // The reading behind "106751991167d 7h" in the menubar: Claude weekly flat at 4% for the
+        // last hour, three days from its reset, at real epoch times.
+        let (now, reset) = (1_792_807_612_967, 1_793_098_799_531);
+        let week = 7 * 24 * 60 * MIN;
+        let th = Thresholds::default();
+        let flat: Vec<(i64, f64)> = (0..=12).map(|i| (now - (60 - i * 5) * MIN, 0.04)).collect();
+        let v = window_view_in(&input(0.04, reset, week), &hist(&flat, reset), now, &th, &Utc);
+        assert_eq!((v.status, v.out_at, v.forecast.as_str()), (Status::Ok, None, "On track"));
+        // A rate so small its run-out time doesn't fit in an i64: still on track, not wrapped.
+        let creep: Vec<(i64, f64)> = (0..=12).map(|i| (now - (60 - i * 5) * MIN, 0.04 + i as f64 * 1e-18)).collect();
+        let v = window_view_in(&input(0.04, reset, week), &hist(&creep, reset), now, &th, &Utc);
+        assert_eq!((v.status, v.out_at), (Status::Ok, None));
+        let acct = AccountView { name: "Claude".into(), windows: vec![v], ..Default::default() };
+        assert_eq!(summary(&[acct], now).unwrap().label, "3d 8h", "time to the reset");
+        // And the reading-based outlook saturates rather than overflowing.
+        let rs: Vec<WindowReading> =
+            creep.iter().map(|&(t, u)| WindowReading { window: "w".into(), used: u, limit: None, resets_at: None, at: t }).collect();
+        assert!(matches!(outlook(&rs), Outlook::OnTrack { out_at: Some(o) } if o > now) || outlook(&rs) == Outlook::Unknown);
     }
 
     #[test]
