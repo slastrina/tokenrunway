@@ -27,6 +27,8 @@ pub enum Harness {
     GeminiCli,
     Cline,
     Cursor,
+    /// LM Studio's local server (its server logs)
+    Lmstudio,
     Web,
     Other,
 }

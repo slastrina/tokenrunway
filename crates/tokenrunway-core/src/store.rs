@@ -297,7 +297,7 @@ impl Store {
         let mut out = BTreeSet::new();
         if let Ok(mut q) = self.conn.prepare("SELECT DISTINCT model FROM events") {
             if let Ok(rows) = q.query_map([], |r| r.get::<_, String>(0)) {
-                out.extend(rows.flatten().filter(|m| pricing::lookup(m).is_none()));
+                out.extend(rows.flatten().filter(|m| !pricing::is_local(m) && pricing::lookup(m).is_none()));
             }
         }
         out.into_iter().collect()

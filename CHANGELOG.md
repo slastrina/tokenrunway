@@ -29,6 +29,10 @@ sentence or two each.
   *% left* or *Runway* label follows, instead of the most urgent one.
 - **Copy usage summary**: the copy button on the Now tab puts a short text summary of every
   account on the clipboard, ready to paste into Slack.
+- **LM Studio**: requests to LM Studio's local server now show up in Stats, Harness and the
+  dashboard, with each model's input, output and reused (cached) tokens. They're local, so they
+  read as *Free* and never count towards your spend. Models running on the MLX engine don't log
+  token counts, so they aren't included yet.
 
 ### Changed
 - The *% left* menubar label now shows what's left (it showed what was used).

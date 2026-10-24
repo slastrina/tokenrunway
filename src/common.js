@@ -97,7 +97,9 @@
     xai: '--p-grok', grok: '--p-grok', gemini: '--p-gemini', copilot: '--p-copilot', cursor: '--p-cursor', openrouter: '--p-openrouter',
   };
   const providerVar = (p) => PROVIDER[p] || '--p-api';
-  const HARNESS = { 'claude-code': '--p-claude', codex: '--p-openai', opencode: '--h-opencode', 'gemini-cli': '--p-gemini', cline: '--p-bedrock' };
+  const HARNESS = { 'claude-code': '--p-claude', codex: '--p-openai', opencode: '--h-opencode', 'gemini-cli': '--p-gemini', cline: '--p-bedrock', lmstudio: '--h-lmstudio', 'lm-studio': '--h-lmstudio' };
+  // Local models (LM Studio): their $0 reads as "Free", not as a cost.
+  const isLocal = (idOrName) => ['lmstudio', 'lm-studio'].includes(String(idOrName || '').toLowerCase().replace(/\s+/g, '-'));
   const harnessVar = (idOrName) => {
     const k = String(idOrName || '').toLowerCase().replace(/\s+/g, '-');
     return HARNESS[k] || (k.includes('claude') ? '--p-claude' : k.includes('codex') ? '--p-openai' : k.includes('gemini') ? '--p-gemini' : k.includes('opencode') ? '--h-opencode' : k.includes('cline') ? '--p-bedrock' : '--m-other');
@@ -233,6 +235,6 @@
 
   window.TRC = {
     q, mock, api, setOs, esc, clock, when, dur, ago, resetText, money, tokens, minutes, weekday, dayMonth, dayDiff, isoDay,
-    providerVar, harnessVar, status, ICON, tip, menu, closeMenu, tick,
+    providerVar, harnessVar, isLocal, status, ICON, tip, menu, closeMenu, tick,
   };
 })();

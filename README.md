@@ -53,6 +53,8 @@
 - **Local stats from your agents' logs**: Claude Code, Codex, opencode and others. Spend per day,
   week, month and lifetime; your most-used models and projects; and what the work was (building,
   discovery, bug fixing…). Compare harnesses side by side.
+- **Local models too**: LM Studio's requests, models and tokens, read from its server logs and
+  shown as free.
 - **A full dashboard** with daily spend by model, harness or category, a burn-down for any window,
   every session, upcoming resets and a contribution-style heatmap.
 - **Sign in where there's no CLI**: Cursor and Grok can be signed in to inside Tokenrunway. Only

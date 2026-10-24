@@ -400,15 +400,17 @@
     };
     const row = (label, vals, fmt, best, small) => {
       const li = best ? lead(vals, best) : -1;
-      return `<div class="cmp-r" style="${cols}"><span class="lab">${label}</span>${vals.map((v, i) => `<span class="cell ${small ? 'sm' : ''} ${i === li ? 'lead' : ''}" title="${esc(fmt(v))}">${esc(fmt(v))}</span>`).join('')}</div>`;
+      return `<div class="cmp-r" style="${cols}"><span class="lab">${label}</span>${vals.map((v, i) => `<span class="cell ${small ? 'sm' : ''} ${i === li ? 'lead' : ''}" title="${esc(fmt(v, i))}">${esc(fmt(v, i))}</span>`).join('')}</div>`;
     };
-    const perSession = hs.map((x) => (x.sessions ? x.cost / x.sessions : null));
+    // Local models (LM Studio) are free: "Free", and never the cheapest per session.
+    const free = (i) => C.isLocal(hs[i].id);
+    const perSession = hs.map((x, i) => (x.sessions && !free(i) ? x.cost / x.sessions : null));
     const rows = [
-      row('Spend', hs.map((x) => x.cost), (v) => C.money(v), 'max'),
+      row('Spend', hs.map((x) => x.cost), (v, i) => (free(i) ? 'Free' : C.money(v)), 'max'),
       row('Tokens', hs.map((x) => x.tokens), C.tokens, 'max'),
       row('Sessions', hs.map((x) => x.sessions), (v) => String(v), 'max'),
       row('Avg session', hs.map((x) => x.avgSessionMs), C.minutes, 'max'),
-      row('$ / session', perSession, (v) => (v == null ? '—' : C.money(v)), 'min'),
+      row('$ / session', perSession, (v, i) => (free(i) ? 'Free' : v == null ? '—' : C.money(v)), 'min'),
       row('Cache hit', hs.map((x) => x.cacheHit), (v) => Math.round(v) + '%', 'max'),
       row('Top model', hs.map((x) => x.topModel), (v) => v || '—', null, true),
       row('Top kind', hs.map((x) => x.topKind), (v) => v || '—', null, true),
