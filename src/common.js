@@ -132,6 +132,10 @@
     dots: (w = 16) => `<svg width="${w}" height="${w}" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="3.5" cy="8" r="1.1"/><circle cx="8" cy="8" r="1.1"/><circle cx="12.5" cy="8" r="1.1"/></svg>`,
     spinner: (w = 13) => `<svg class="spin" width="${w}" height="${w}" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="6" stroke="var(--track)" stroke-width="2"/><path d="M8 2a6 6 0 0 1 6 6" stroke="var(--fg2)" stroke-width="2" stroke-linecap="round"/></svg>`,
     trash: (w = 14, sw = 1.5) => svg(w, '<path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5"/>', sw),
+    copy: (w = 15, sw = 1.5) => svg(w, '<rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5V4a1.5 1.5 0 0 0-1.5-1.5H4A1.5 1.5 0 0 0 2.5 4v5A1.5 1.5 0 0 0 4 10.5h1.5"/>', sw),
+    bulb: (w = 13, sw = 1.6) => svg(w, '<path d="M6 12.5h4M6.5 14.5h3"/><path d="M8 1.8a4.2 4.2 0 0 0-2.6 7.5c.5.4.8 1 .8 1.6v.1h3.6v-.1c0-.6.3-1.2.8-1.6A4.2 4.2 0 0 0 8 1.8Z"/>', sw),
+    flame: (w = 14, sw = 1.6) => svg(w, '<path d="M8 14.2c2.6 0 4.4-1.8 4.4-4.3 0-2.9-2.3-4.4-2.8-7.4-1.6 1-2.4 2.6-2.4 4.1-.8-.5-1.3-1.3-1.4-2.2-1.4 1.3-2.2 3.1-2.2 5.1 0 2.7 1.8 4.7 4.4 4.7Z"/>', sw),
+    x: (w = 12, sw = 1.7) => svg(w, '<path d="m4 4 8 8M12 4l-8 8"/>', sw),
   };
   ICON.status = (s, w, sw) => (ICON[s] || ICON.est)(w, sw);
 

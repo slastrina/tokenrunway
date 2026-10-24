@@ -7,12 +7,18 @@
 //!   well before the reset (by at least the lead time).
 //! - Reset: a window that just started over (off by default).
 //! - Auth: an account that needs signing in again (always on, once per expiry).
+//! - Budget (`evaluate_live`): 80% and 100% of the daily and monthly spend goals, once per day
+//!   or month.
+//! - Burn (`evaluate_live`): a session spending much faster than usual, at most every 2 hours.
+//!
+//! A projection alert carries the "switch to save" tip for its window when there is one.
 //!
 //! Every rule that fires comes back with `desktop` saying whether its switch is on; the desktop
 //! shows only those, and Rattleboard (rattleboard.rs) picks by its own level. Pausing holds both.
 
 use crate::forecast;
-use crate::view::{AccountState, AccountView, Settings, WindowView};
+use crate::view::{AccountState, AccountView, HotSession, Settings, WindowView};
+use chrono::TimeZone;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -43,6 +49,10 @@ pub enum Kind {
     Reset,
     /// Needs signing in again
     Login,
+    /// A spend goal reached 80% or 100%
+    Budget,
+    /// A session spending much faster than usual
+    Burn,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -90,10 +100,74 @@ impl Memory {
         self.fired.insert(key, until).is_none()
     }
 
+    /// Like `fire`, but the key can fire again once `until` has passed.
+    fn fire_again_after(&mut self, key: String, until: i64, now: i64) -> bool {
+        if self.fired.get(&key).is_some_and(|u| *u > now) {
+            return false;
+        }
+        self.fired.insert(key, until);
+        true
+    }
+
+    /// Spend goals and fast sessions, from the agents' logs. Paused like `evaluate`.
+    pub fn evaluate_live(&mut self, today: Option<f64>, month: Option<f64>, hot: &[HotSession], s: &Settings, now: i64) -> Vec<Alert> {
+        let mut out = Vec::new();
+        let date = chrono::Local.timestamp_millis_opt(now).earliest().map(|d| d.format("%Y-%m-%d").to_string()).unwrap_or_default();
+        let goals = [("d", "today's", s.budget_daily, today, 2 * DAY), ("m", "this month's", s.budget_monthly, month, 32 * DAY)];
+        for (k, name, goal, spent, keep) in goals {
+            let (Some(spent), true) = (spent, goal > 0.0) else { continue };
+            let pct = spent / goal * 100.0;
+            let period = if k == "d" { date.clone() } else { date.get(..7).unwrap_or_default().to_string() };
+            let Some(level) = [100, 80].into_iter().find(|l| pct >= *l as f64) else { continue };
+            // Crossing 100% also counts as having passed 80%, so 80% doesn't follow it.
+            let mut new = false;
+            for l in [80, 100].into_iter().filter(|l| *l <= level) {
+                new |= self.fire(format!("budget/{k}/{period}/{l}"), now + keep) && l == level;
+            }
+            if new {
+                let (title, body) = if level == 100 {
+                    (
+                        format!("You've reached {name} {} goal", crate::allowance::usd(goal)),
+                        format!("Your agents have spent {} (API-equivalent).", crate::allowance::usd(spent)),
+                    )
+                } else {
+                    (
+                        format!("{pct:.0}% of {name} {} goal", crate::allowance::usd(goal)),
+                        format!("Your agents have spent {} so far (API-equivalent).", crate::allowance::usd(spent)),
+                    )
+                };
+                out.push(Alert { account_id: String::new(), window_id: None, kind: Kind::Budget, desktop: s.notify_budget, title, body });
+            }
+        }
+        for h in hot {
+            if self.fire_again_after(format!("burn/{}/{}", h.harness, h.session_id), now + 2 * 60 * MIN, now) {
+                let pace = if h.ratio > 0.0 { format!(", {:.0}× your usual pace", h.ratio) } else { String::new() };
+                out.push(Alert {
+                    account_id: String::new(),
+                    window_id: None,
+                    kind: Kind::Burn,
+                    desktop: s.notify_burn,
+                    title: format!("Fast session in {}", h.project),
+                    body: format!(
+                        "This {} session spent {} in the last {} minutes{pace}.",
+                        h.harness,
+                        crate::allowance::usd(h.cost),
+                        h.minutes
+                    ),
+                });
+            }
+        }
+        if now < s.paused_until {
+            return Vec::new();
+        }
+        out
+    }
+
     /// The notifications to show now. While paused, rules still count as fired, so resuming
     /// doesn't bring a backlog.
     pub fn evaluate(&mut self, accounts: &[AccountView], s: &Settings, now: i64) -> Vec<Alert> {
         let mut out = Vec::new();
+        let tips = super::tips::tips(accounts);
         for a in accounts {
             if a.state == AccountState::Login {
                 if self.auth.insert(a.id.clone()) {
@@ -165,7 +239,17 @@ impl Memory {
                             kind: Kind::Projection,
                             desktop: s.notify_projection,
                             title: format!("{} · {} at {:.0}%", a.name, w.label, w.pct),
-                            body: format!("At this pace you'll run out {}, {} before reset.", out_words(o, now), forecast::duration(r - o)),
+                            body: {
+                                let mut b = format!(
+                                    "At this pace you'll run out {}, {} before reset.",
+                                    out_words(o, now),
+                                    forecast::duration(r - o)
+                                );
+                                if let Some(t) = tips.iter().find(|t| t.account_id == a.id && t.window_id == w.id) {
+                                    b = format!("{b} {}", t.text);
+                                }
+                                b
+                            },
                         });
                     }
                 }
@@ -271,6 +355,73 @@ mod tests {
         ok.state = AccountState::Ok;
         m.evaluate(&[ok], &s, DAY);
         assert_eq!(m.evaluate(&[a], &s, DAY).len(), 1, "expired again");
+    }
+
+    #[test]
+    fn budget_goals_at_80_and_100() {
+        let s = Settings { budget_daily: 50.0, budget_monthly: 1000.0, ..Default::default() };
+        let mut m = Memory::default();
+        let now = 1_792_807_612_967;
+        assert!(m.evaluate_live(Some(30.0), Some(500.0), &[], &s, now).is_empty());
+        let a = m.evaluate_live(Some(41.0), Some(500.0), &[], &s, now);
+        assert_eq!(a.len(), 1);
+        assert_eq!((a[0].kind, a[0].title.as_str()), (Kind::Budget, "82% of today's $50 goal"));
+        assert_eq!(a[0].body, "Your agents have spent $41 so far (API-equivalent).");
+        assert!(m.evaluate_live(Some(45.0), Some(500.0), &[], &s, now).is_empty(), "once");
+        let a = m.evaluate_live(Some(52.5), Some(1200.0), &[], &s, now);
+        assert_eq!(
+            a.iter().map(|x| x.title.as_str()).collect::<Vec<_>>(),
+            ["You've reached today's $50 goal", "You've reached this month's $1,000 goal"]
+        );
+        // A new day starts over; off when the goal is 0.
+        assert_eq!(m.evaluate_live(Some(45.0), Some(1200.0), &[], &s, now + DAY).len(), 1);
+        assert!(Memory::default().evaluate_live(Some(999.0), Some(9999.0), &[], &Settings::default(), now).is_empty());
+    }
+
+    #[test]
+    fn burn_every_two_hours_at_most() {
+        let s = Settings::default();
+        let mut m = Memory::default();
+        let h = HotSession {
+            harness: "Claude Code".into(),
+            session_id: "s1".into(),
+            project: "third-eye".into(),
+            cost: 18.0,
+            minutes: 20,
+            ratio: 3.4,
+            started: 0,
+        };
+        let a = m.evaluate_live(None, None, std::slice::from_ref(&h), &s, DAY);
+        assert_eq!(a[0].title, "Fast session in third-eye");
+        assert_eq!(a[0].body, "This Claude Code session spent $18 in the last 20 minutes, 3× your usual pace.");
+        assert!(m.evaluate_live(None, None, std::slice::from_ref(&h), &s, DAY + 60 * MIN).is_empty());
+        assert_eq!(m.evaluate_live(None, None, &[h], &s, DAY + 121 * MIN).len(), 1);
+    }
+
+    #[test]
+    fn projection_carries_the_tip() {
+        let now = 1_000 * DAY;
+        let reset = now + 160 * MIN;
+        let mut tight = acct(60.0, Some(now + 86 * MIN), reset);
+        tight.provider = "anthropic".into();
+        tight.windows[0].status = Status::Crit;
+        let roomy = AccountView {
+            id: "b".into(),
+            provider: "openai".into(),
+            name: "ChatGPT".into(),
+            state: AccountState::Ok,
+            windows: vec![WindowView {
+                id: "weekly".into(),
+                label: "Codex weekly".into(),
+                pct: 12.0,
+                status: Status::Ok,
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        let a = Memory::default().evaluate(&[tight, roomy], &Settings::default(), now);
+        let p = a.iter().find(|x| x.kind == Kind::Projection).unwrap();
+        assert!(p.body.ends_with("before reset. ChatGPT has room (Codex weekly at 12%): move your next task there."), "{}", p.body);
     }
 
     #[test]

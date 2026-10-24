@@ -497,6 +497,8 @@ pub fn wanted(level: &str, kind: Kind) -> bool {
         Kind::Crit | Kind::Projection | Kind::Login => 1,
         Kind::Warn => 2,
         Kind::Reset => 3,
+        // About spend, not a window: the desktop's business.
+        Kind::Budget | Kind::Burn => return false,
     };
     rank >= need
 }
@@ -611,7 +613,7 @@ where
             (text, if alert.kind == Kind::Crit { RED } else { ORANGE })
         }
         Kind::Reset => (format!("{name} RESET\nBACK TO {}", pct(w.pct)), GREEN),
-        Kind::Login => unreachable!(),
+        Kind::Login | Kind::Budget | Kind::Burn => unreachable!(),
     };
     Some(Note { text: clean(&text), chip: Some(chip), alert: matches!(alert.kind, Kind::Crit | Kind::Projection), link })
 }

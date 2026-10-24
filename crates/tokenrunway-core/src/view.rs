@@ -46,6 +46,40 @@ pub struct AppView {
     pub rattleboard_key: bool,
     /// API-equivalent spend since local midnight from the agents' logs; None until they're read
     pub spend_today: Option<f64>,
+    /// The same since the first of the month (the monthly budget goal)
+    pub spend_month: Option<f64>,
+    /// Sessions spending much faster than usual right now (live.rs)
+    pub hot: Vec<HotSession>,
+    /// "Switch to save": where there's room when a window is tight (allowance/tips.rs)
+    pub tips: Vec<Tip>,
+}
+
+/// A session burning much faster than usual (the burn-rate warning).
+#[derive(Debug, Clone, Serialize, Default, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct HotSession {
+    /// "Claude Code"
+    pub harness: String,
+    pub session_id: String,
+    pub project: String,
+    /// API-equivalent spend in the last `minutes`
+    pub cost: f64,
+    pub minutes: u32,
+    /// Times the usual 20-minute spend; 0 when there's no history to compare with yet
+    pub ratio: f64,
+    /// The session's first event (ms)
+    pub started: i64,
+}
+
+/// A suggestion to move work where there's room.
+#[derive(Debug, Clone, Serialize, Default, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Tip {
+    /// The tight window it's about
+    pub account_id: String,
+    pub window_id: String,
+    /// "Codex weekly is at 12%: move your next task there."
+    pub text: String,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
@@ -150,8 +184,16 @@ pub struct Detected {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Settings {
-    /// Tray label: "none" | "percent" | "runway" | "spend" (today's spend so far)
+    /// Tray label: "none" | "percent" (% left) | "runway" | "spend" (today's spend so far)
     pub menubar_label: String,
+    /// The window the label shows, "account-id/window-id"; "" = the most urgent one
+    pub menubar_window: String,
+    /// Spend goals, API-equivalent dollars; 0 = off. Notified at 80% and 100%.
+    pub budget_daily: f64,
+    pub budget_monthly: f64,
+    pub notify_budget: bool,
+    /// Warn about a session spending much faster than usual
+    pub notify_burn: bool,
     /// "comfortable" | "compact"
     pub density: String,
     /// Warn at this % used (default 75), critical at (default 90)
@@ -217,6 +259,11 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             menubar_label: "runway".into(),
+            menubar_window: String::new(),
+            budget_daily: 0.0,
+            budget_monthly: 0.0,
+            notify_budget: true,
+            notify_burn: true,
             density: "comfortable".into(),
             warn_at: 75.0,
             crit_at: 90.0,

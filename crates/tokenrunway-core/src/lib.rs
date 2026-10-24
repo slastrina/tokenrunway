@@ -9,6 +9,7 @@ pub mod allowance;
 pub mod categorise;
 pub mod forecast;
 pub mod ingest;
+pub mod live;
 pub mod model;
 pub mod pricing;
 pub mod rattleboard;

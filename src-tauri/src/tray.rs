@@ -8,7 +8,7 @@ use tauri::image::Image;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{AppHandle, Manager, Wry};
 use tokenrunway_core::forecast;
-use tokenrunway_core::view::{AppView, Status};
+use tokenrunway_core::view::{AccountView, AppView, Status, WindowView};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Level {
@@ -30,28 +30,59 @@ pub fn image(level: Level) -> Option<Image<'static>> {
     Image::from_bytes(bytes).ok()
 }
 
+/// The window the label is about: the pinned one (Settings → Menubar label → Window) while it
+/// exists, otherwise the most urgent.
+pub fn target(view: &AppView) -> Option<(&AccountView, &WindowView)> {
+    let pinned = view.settings.menubar_window.split_once('/').and_then(|(a, w)| {
+        let acct = view.accounts.iter().find(|x| x.id == a)?;
+        Some((acct, acct.windows.iter().find(|x| x.id == w)?))
+    });
+    pinned.or_else(|| forecast::tightest(&view.accounts))
+}
+
 /// What the tray shows for a view: icon level, label and tooltip.
 pub fn describe(view: &AppView) -> (Level, Option<String>, String) {
-    let level = match view.summary.as_ref().map(|s| s.status) {
+    let now = tokenrunway_core::now_ms();
+    let mut level = match view.summary.as_ref().map(|s| s.status) {
         Some(Status::Crit) => Level::Crit,
         Some(Status::Warn) => Level::Warn,
         _ => Level::Normal,
     };
-    let tight = forecast::tightest(&view.accounts);
+    let pinned = !view.settings.menubar_window.is_empty();
+    let tight = target(view);
+    let spend = view.settings.menubar_label == "spend";
     let label = match (view.settings.menubar_label.as_str(), &view.summary, tight) {
-        ("percent", _, Some((_, w))) => Some(format!("{:.0}%", w.pct)),
+        ("percent", _, Some((_, w))) => Some(format!("{:.0}%", (100.0 - w.pct).max(0.0))),
+        ("runway", _, Some((_, w))) if pinned => Some(match (w.out_at, w.resets_at) {
+            (Some(o), _) => forecast::duration(o - now),
+            (None, Some(r)) => forecast::duration(r - now),
+            _ => format!("{:.0}%", (100.0 - w.pct).max(0.0)),
+        }),
         ("runway", Some(s), _) => Some(s.label.clone()),
         ("spend", _, _) => view.spend_today.map(money),
         _ => None,
     };
-    let now = tokenrunway_core::now_ms();
+    // With "$ today" showing, the icon also warns as the daily goal gets close.
+    let goal = view.settings.budget_daily;
+    if let (true, Some(d), true) = (spend, view.spend_today, goal > 0.0) {
+        let budget = if d >= goal {
+            Level::Crit
+        } else if d >= goal * 0.8 {
+            Level::Warn
+        } else {
+            Level::Normal
+        };
+        if budget == Level::Crit || (budget == Level::Warn && level == Level::Normal) {
+            level = budget;
+        }
+    }
     let mut parts = vec!["Tokenrunway".to_string()];
     if let Some(v) = &view.update {
         parts.push(format!("v{v} available"));
     }
-    if view.settings.menubar_label == "spend" {
+    if spend {
         if let Some(d) = view.spend_today {
-            parts.push(format!("Today {}", money(d)));
+            parts.push(if goal > 0.0 { format!("Today {} of {}", money(d), money(goal)) } else { format!("Today {}", money(d)) });
         }
     } else if cfg!(windows) {
         if let Some(l) = &label {
@@ -200,13 +231,22 @@ mod tests {
         assert!(tip.contains("Claude — work 5-hour: 78% used"));
         assert!(tip.ends_with(" · iokig.com"));
         view.settings.menubar_label = "percent".into();
-        assert_eq!(describe(&view).1.as_deref(), Some("78%"));
+        assert_eq!(describe(&view).1.as_deref(), Some("22%"), "% left");
         view.settings.menubar_label = "spend".into();
         assert_eq!(describe(&view).1, None, "nothing until the logs are read");
         view.spend_today = Some(12.4);
         let (_, label, tip) = describe(&view);
         assert_eq!(label.as_deref(), Some("$12.40"));
         assert!(tip.contains(" · Today $12.40 · "));
+        view.settings.budget_daily = 15.0;
+        let (level, _, tip) = describe(&view);
+        assert!(tip.contains(" · Today $12.40 of $15.00 · "), "{tip}");
+        assert_eq!(level, Level::Crit, "the window is critical anyway");
+        view.summary.as_mut().unwrap().status = Status::Ok;
+        assert_eq!(describe(&view).0, Level::Warn, "83% of the daily goal");
+        view.spend_today = Some(15.0);
+        assert_eq!(describe(&view).0, Level::Crit, "goal reached");
+        view.settings.budget_daily = 0.0;
         view.settings.menubar_label = "none".into();
         assert_eq!(describe(&view).1, None);
         assert_eq!(describe(&AppView::default()).2, "Tokenrunway · iokig.com");
@@ -216,5 +256,37 @@ mod tests {
         for l in [Level::Normal, Level::Warn, Level::Crit] {
             assert!(image(l).is_some());
         }
+    }
+
+    #[test]
+    fn pinned_window() {
+        let now = tokenrunway_core::now_ms();
+        let mut view = AppView {
+            summary: Some(Summary { label: "1h 26m".into(), status: Status::Crit, ..Default::default() }),
+            accounts: vec![AccountView {
+                id: "c".into(),
+                name: "Claude".into(),
+                windows: vec![
+                    WindowView { id: "5h".into(), label: "5-hour".into(), pct: 78.0, status: Status::Crit, ..Default::default() },
+                    WindowView {
+                        id: "weekly".into(),
+                        label: "Weekly".into(),
+                        pct: 40.0,
+                        resets_at: Some(now + (2 * 24 * 60 + 90) * 60_000 + 30_000),
+                        ..Default::default()
+                    },
+                ],
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        view.settings.menubar_window = "c/weekly".into();
+        assert_eq!(describe(&view).1.as_deref(), Some("2d 1h"), "time to its reset");
+        view.settings.menubar_label = "percent".into();
+        assert_eq!(describe(&view).1.as_deref(), Some("60%"));
+        assert!(describe(&view).2.contains("Claude Weekly: 40% used"));
+        // A pinned window that's gone falls back to the most urgent.
+        view.settings.menubar_window = "c/gone".into();
+        assert_eq!(describe(&view).1.as_deref(), Some("22%"));
     }
 }

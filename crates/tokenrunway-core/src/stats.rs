@@ -42,7 +42,7 @@ impl Stats {
         Ok(Self { store: Mutex::new(Store::open(db)?), roots })
     }
 
-    fn store(&self) -> std::sync::MutexGuard<'_, Store> {
+    pub(crate) fn store(&self) -> std::sync::MutexGuard<'_, Store> {
         self.store.lock().unwrap_or_else(|e| e.into_inner())
     }
 
@@ -389,13 +389,13 @@ impl Span {
     }
 }
 
-fn local_date(ms: i64) -> NaiveDate {
+pub(crate) fn local_date(ms: i64) -> NaiveDate {
     Local.timestamp_millis_opt(ms).earliest().map(|d| d.date_naive()).unwrap_or_default()
 }
 
 /// The first instant of a local day (the earliest one, if DST makes it ambiguous; an hour in if
 /// the day starts inside a DST gap).
-fn midnight(d: NaiveDate) -> i64 {
+pub(crate) fn midnight(d: NaiveDate) -> i64 {
     let t = d.and_hms_opt(0, 0, 0).unwrap_or_default();
     Local
         .from_local_datetime(&t)
@@ -461,7 +461,7 @@ fn category_label(id: &str) -> &'static str {
     categorise::from_id(id).map(categorise::label).unwrap_or("Chat")
 }
 
-fn harness_name(id: &str) -> &str {
+pub(crate) fn harness_name(id: &str) -> &str {
     match id {
         "claude-code" => "Claude Code",
         "codex" => "Codex",

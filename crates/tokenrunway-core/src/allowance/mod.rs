@@ -19,6 +19,7 @@ pub mod login;
 pub mod request;
 pub mod secrets;
 pub mod snapshots;
+pub mod tips;
 
 use crate::forecast::{self, Thresholds, WindowInput};
 use crate::model::WindowReading;

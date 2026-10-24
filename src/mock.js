@@ -21,7 +21,7 @@
 
   const rbDefault = { mode: 'off', url: '', name: '', rows: 6, cols: 22, kind: '', target: '', alerts: 'alerts', card: false };
   const settings = {
-    menubarLabel: 'runway', density: scenario === 'compact' ? 'compact' : 'comfortable', warnAt: 75, critAt: 90, leadMinutes: 60,
+    menubarLabel: 'runway', menubarWindow: '', budgetDaily: 75, budgetMonthly: 1500, notifyBudget: true, notifyBurn: true, density: scenario === 'compact' ? 'compact' : 'comfortable', warnAt: 75, critAt: 90, leadMinutes: 60,
     notifyThresholds: true, notifyProjection: true, notifyReset: false, pausedUntil: 0, requestAt: 85,
     admins: { 'acct-1': { name: 'Jordan Lee', email: 'jordan@iokig.com', slack: '@Jordan Lee', teams: '' } },
     myName: 'Sam', updateCheck: true, startAtLogin: false,
@@ -85,8 +85,14 @@
   let app = {
     version: '0.1.0', os: q.get('os') === 'windows' ? 'windows' : 'mac', update: null, updateHow: 'install', loading: false,
     summary: { label: '1h 26m', status: 'crit', window: 'Claude — work · 5-hour', crit: 1, warn: 1, ok: 4 },
-    accounts: [claude(), chatgpt(), bedrock()], detected: [], settings, rattleboardStatus: null, rattleboardKey: false, spendToday: 58.4,
+    accounts: [claude(), chatgpt(), bedrock()], detected: [], settings, rattleboardStatus: null, rattleboardKey: false, spendToday: 58.4, spendMonth: 1412.6,
+    hot: [{ harness: 'Claude Code', sessionId: 's-hot', project: 'third-eye', cost: 18.2, minutes: 20, ratio: 3.4, started: now - 52 * M }],
+    tips: [
+      { accountId: 'acct-1', windowId: 'weekly-opus', text: 'Weekly Opus is at 83% but Weekly is only at 64%: switch to Sonnet for routine work.' },
+      { accountId: 'acct-1', windowId: '5h', text: 'ChatGPT — personal has room (Codex weekly at 31%): move your next task there.' },
+    ],
   };
+  if (q.get('live') === 'none') { app.hot = []; app.tips = []; settings.budgetDaily = 0; settings.budgetMonthly = 0; }
   if (['local', 'local-key', 'network', 'vestaboard', 'error'].includes(rbq)) {
     const local = rbq.startsWith('local');
     app.settings.rattleboard = {
@@ -328,6 +334,7 @@
         body: "Hi Jordan, I'm close to my Claude limit on the Enterprise seat.\n\n• 5-hour: 78% used (412k / 530k tokens), resets 14:20\n• At this pace I run out at 13:05, 1h 15m before reset\n• Weekly 64% · Weekly Opus 83%, both reset Mon 09:00\n\nCould you raise my limit or add usage for today? I'm in the middle of [what you're working on].\n\nThanks, Sam",
       };
     },
+    test_notification: async () => { setTimeout(() => emit('tr://toast', [{ title: 'Tokenrunway notifications are on', body: 'This is how alerts look before you run out.', tone: 'info', accountId: '' }]), 50); },
     copy_text: async ({ text }) => { try { await navigator.clipboard.writeText(text); } catch { /* no clipboard in the preview */ } },
     send_request: async () => { await wait(400); },
     check_for_updates: async () => { await wait(300); return { current: app.version, latest: app.update || app.version, newer: !!app.update }; },

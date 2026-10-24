@@ -26,6 +26,12 @@ fn main() {
     let t = Instant::now();
     let today = stats.spend_today(now);
     println!("spend today: ${today:.2} ({:?}; the tray's \"$ today\" label)", t.elapsed());
+    let t = Instant::now();
+    let (month, hot) = (stats.spend_month(now), stats.hot_sessions(now));
+    println!("spend this month: ${month:.2}; fast sessions now: {} ({:?})", hot.len(), t.elapsed());
+    for h in &hot {
+        println!("  {} in {}: ${:.2} in {} min, {}× usual", h.harness, h.project, h.cost, h.minutes, h.ratio);
+    }
     for period in ["7d", "lifetime"] {
         let t = Instant::now();
         let s = stats.stats(period, now);

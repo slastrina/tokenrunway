@@ -110,6 +110,11 @@ impl Store {
         Self::init(conn)
     }
 
+    /// For queries that live next to the feature using them (live.rs).
+    pub(crate) fn conn(&self) -> &Connection {
+        &self.conn
+    }
+
     pub fn open_in_memory() -> Result<Self, String> {
         Self::init(Connection::open_in_memory().map_err(|e| e.to_string())?)
     }

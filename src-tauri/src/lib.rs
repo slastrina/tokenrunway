@@ -208,6 +208,7 @@ pub fn run() {
             board::rattleboard_connect,
             board::rattleboard_test,
             board::rattleboard_disconnect,
+            notify::test_notification,
         ])
         .setup(|app| {
             #[cfg(target_os = "macos")]

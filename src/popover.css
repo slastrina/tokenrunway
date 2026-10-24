@@ -368,3 +368,32 @@ textarea.field { scrollbar-width: thin; scrollbar-color: var(--line-strong) tran
 .srow.rb-note .hint { color: var(--fg2); }
 .btn.danger { color: var(--crit-text); }
 .switch:disabled { opacity: .45; }
+
+/* Now: fast sessions, spend goals and tips above the cards */
+.live { display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; border-radius: var(--r-card); font-size: 12px; line-height: 1.4; }
+.live svg { flex-shrink: 0; margin-top: 1px; }
+.live .msg { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.live .msg span { color: var(--fg2); }
+.live.hot { background: var(--crit-bg); color: var(--crit-text); }
+.live.hot .msg b { font-weight: 600; }
+.live.tip { background: var(--card); box-shadow: inset 0 0 0 .5px var(--line); color: var(--fg2); }
+.live.tip svg { color: var(--accent-text); }
+.goals { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 8px; }
+.goal { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: var(--r-card); background: var(--card); box-shadow: inset 0 0 0 .5px var(--line); --g: var(--f); }
+.goal .gt { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.goal .gv { font-size: var(--fs-md); font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.goal .gv span { font-size: var(--fs-sm); font-weight: 400; color: var(--fg3); }
+.goal.st-warn .gv, .goal.st-crit .gv { color: var(--t); }
+.unit.pre { margin: 0 -4px 0 0; }
+
+/* toasts (tr://toast) */
+.toasts { position: absolute; left: 10px; right: 10px; bottom: 44px; display: flex; flex-direction: column; gap: 6px; z-index: 20; pointer-events: none; }
+.toast { pointer-events: auto; display: flex; align-items: flex-start; gap: 8px; padding: 9px 6px 9px 11px; border-radius: var(--r-card); background: var(--pop-solid); color: var(--t);
+  box-shadow: 0 0 0 .5px var(--line-strong), 0 8px 24px rgba(0, 0, 0, .3); font-size: 12px; line-height: 1.4; animation: toast-in .18s ease-out; transition: opacity .2s, transform .2s; }
+.toast svg { flex-shrink: 0; margin-top: 2px; }
+.toast .msg { flex: 1; display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.toast .msg b { color: var(--fg1); font-weight: 600; }
+.toast .msg span { color: var(--fg2); }
+.toast.out { opacity: 0; transform: translateY(6px); }
+@keyframes toast-in { from { opacity: 0; transform: translateY(8px); } }
+@media (prefers-reduced-motion: reduce) { .toast { animation: none; transition: none; } }

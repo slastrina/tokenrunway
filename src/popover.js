@@ -105,9 +105,73 @@
     const problems = a.accounts.filter((x) => PROBLEM.has(x.state)).length;
     const right = problems
       ? `<span class="chip lg st-warn" role="status">${ICON.warn()}${problems} need${problems === 1 ? 's' : ''} attention</span>`
-      : (isWin() ? '' : `<button class="ib" data-act="add" data-k="add" aria-label="Add account">${ICON.plus()}</button>`) + refreshBtn('', 'Refresh all');
+      : `<button class="ib" data-act="copy-summary" data-k="copy-summary" aria-label="Copy a usage summary">${S.copied ? ICON.check(15, 1.8) : ICON.copy()}</button>`
+        + (isWin() ? '' : `<button class="ib" data-act="add" data-k="add" aria-label="Add account">${ICON.plus()}</button>`) + refreshBtn('', 'Refresh all');
     return bar(right) + summary(a.summary)
-      + `<div class="scroll" id="panel" role="tabpanel" aria-labelledby="tab-now"><div class="list">${a.accounts.map(card).join('')}</div></div>`;
+      + `<div class="scroll" id="panel" role="tabpanel" aria-labelledby="tab-now"><div class="list">${live(a)}${a.accounts.map(card).join('')}</div></div>`;
+  }
+
+  // Fast sessions, budget goals and "switch to save" tips, above the cards.
+  function live(a) {
+    const st = a.settings || {};
+    let out = (a.hot || []).slice(0, 2).map((h) => `<div class="live hot" role="status">${ICON.flame()}<span class="msg"><b>Fast session in ${esc(h.project)}</b>`
+      + `<span>${esc(h.harness)} · ${C.money(h.cost)} in ${h.minutes} min${h.ratio ? ` · ${h.ratio < 10 ? h.ratio.toFixed(1) : Math.round(h.ratio)}× your usual pace` : ''}</span></span></div>`).join('');
+    const goals = [['Today', st.budgetDaily, a.spendToday], ['This month', st.budgetMonthly, a.spendMonth]].filter(([, g, v]) => g > 0 && v != null);
+    if (goals.length) {
+      out += `<div class="goals">${goals.map(([label, g, v]) => {
+        const pct = (v / g) * 100;
+        const tone = pct >= 100 ? 'crit' : pct >= 80 ? 'warn' : 'ok';
+        // Whole dollars from $100, so two goals fit side by side.
+        const m = (x) => (x >= 100 ? '$' + Math.round(x).toLocaleString('en-US') : C.money(x));
+        return `<div class="goal st-${tone}" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(Math.min(pct, 100))}" aria-label="${esc(`${label}: ${C.money(v)} of the ${C.money(g)} goal`)}">${ring(pct)}`
+          + `<span class="gt"><span class="caps">${label}</span><span class="gv">${m(v)} <span>of ${m(g)}</span></span></span></div>`;
+      }).join('')}</div>`;
+    }
+    // The most urgent tip only; the rest ride along in their notifications.
+    out += (a.tips || []).slice(0, 1).map((t) => `<div class="live tip">${ICON.bulb()}<span class="msg">${esc(t.text)}</span></div>`).join('');
+    return out;
+  }
+  function ring(pct) {
+    const r = 11, c = 2 * Math.PI * r, f = Math.max(0, Math.min(1, pct / 100));
+    return `<svg class="ring" width="28" height="28" viewBox="0 0 28 28" aria-hidden="true"><circle cx="14" cy="14" r="${r}" fill="none" stroke="var(--track)" stroke-width="3.5"/>`
+      + `<circle cx="14" cy="14" r="${r}" fill="none" stroke="var(--g)" stroke-width="3.5" stroke-linecap="round" stroke-dasharray="${(c * f).toFixed(2)} ${c.toFixed(2)}" transform="rotate(-90 14 14)"/></svg>`;
+  }
+
+  // The usage summary that Copy puts on the clipboard, to paste into a chat.
+  function summaryText(a) {
+    const lines = [`AI usage · ${new Date().toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}`];
+    for (const acc of a.accounts) {
+      lines.push('', `${acc.name}${acc.plan ? ` (${acc.plan})` : ''}`);
+      if (!acc.windows.length) lines.push(`  ${acc.problem || acc.note || 'No usage windows'}`);
+      for (const w of acc.windows) {
+        const bits = [`${Math.round(w.pct)}% used`];
+        if (w.abs) bits.push(w.abs);
+        if (w.resetsAt) bits.push(`resets ${C.when(w.resetsAt)}`);
+        if (w.status === 'crit' || w.status === 'warn') bits.push(w.forecast);
+        lines.push(`  ${w.label}: ${bits.join(', ')}`);
+      }
+    }
+    if (a.spendToday != null) lines.push('', `Today: ${C.money(a.spendToday)} API-equivalent${a.spendMonth != null ? ` · this month ${C.money(a.spendMonth)}` : ''}`);
+    lines.push('', 'via Tokenrunway · iokig.com/tokenrunway');
+    return lines.join('\n');
+  }
+
+  // ---------- toasts (alerts while the popover is open; tr://toast) ----------
+  function toasts(list) {
+    let box = $('#toasts');
+    if (!box) { box = document.createElement('div'); box.id = 'toasts'; box.className = 'toasts'; box.setAttribute('aria-live', 'polite'); $('#pop').appendChild(box); }
+    for (const t of list) {
+      const el = document.createElement('div');
+      el.className = `toast st-${t.tone === 'info' ? 'ok' : t.tone}`;
+      el.setAttribute('role', 'status');
+      el.innerHTML = `${t.tone === 'crit' ? ICON.crit() : t.tone === 'warn' ? ICON.warn(13, 1.7) : ICON.ok(13, 1.7)}<span class="msg"><b>${esc(t.title)}</b><span>${esc(t.body)}</span></span>`
+        + `<button class="ib sm" aria-label="Dismiss">${ICON.x()}</button>`;
+      const close = () => { el.classList.add('out'); setTimeout(() => el.remove(), 200); };
+      el.querySelector('button').addEventListener('click', close);
+      box.appendChild(el);
+      while (box.children.length > 3) box.firstChild.remove();
+      setTimeout(close, 8000);
+    }
   }
 
   function summary(s) {
@@ -583,7 +647,7 @@
 
   // ---------- Settings ----------
   const sw = (name, on, label) => `<button class="switch" role="switch" aria-checked="${!!on}" aria-label="${esc(label)}" data-act="toggle" data-name="${name}" data-k="sw-${name}"></button>`;
-  const numField = (name, value, label, min, max, unit) => `<input class="field num" type="number" inputmode="numeric" min="${min}" max="${max}" value="${esc(value)}" aria-label="${esc(label)}" data-k="n-${name}" data-num="${name}"><span class="unit">${unit}</span>`;
+  const numField = (name, value, label, min, max, unit) => `<input class="field num" type="number" inputmode="numeric" min="${min}" max="${max}" value="${esc(value)}" aria-label="${esc(label)}" data-k="n-${name}" data-num="${name}">${unit ? `<span class="unit">${unit}</span>` : ''}`;
 
   function viewSettings() {
     const st = S.settings || S.app?.settings || {};
@@ -611,7 +675,12 @@
       + `<div class="srow"><button class="btn icon s24" data-act="add" data-k="set-add">${ICON.plus(12, 1.8)}Add account</button></div></div></div>`
       + '<div class="group"><span class="caps">Menubar and popover</span><div class="box">'
       + `<div class="srow"><span class="t"><b>Menubar label</b><span>${st.menubarLabel === 'spend' ? 'Since midnight' : 'Most urgent window'}</span></span>${seg('Menubar label', 'menubarLabel', [['none', 'None'], ['percent', '% left'], ['runway', 'Runway'], ['spend', '$ today']], st.menubarLabel)}</div>`
+      + (['percent', 'runway'].includes(st.menubarLabel) ? `<div class="srow"><span class="t"><b>Window</b><span>The one the label shows</span></span>${windowPicker(st.menubarWindow)}</div>` : '')
       + `<div class="srow"><span class="t"><b>Density</b></span>${seg('Density', 'density', [['comfortable', 'Comfortable'], ['compact', 'Compact']], st.density)}</div></div></div>`
+      + '<div class="group"><span class="caps">Spend goals</span><div class="box">'
+      + `<div class="srow"><span class="t"><b>Daily</b><span>API-equivalent, from your agents' logs. 0 is off.</span></span><span class="unit pre">$</span>${numField('budgetDaily', st.budgetDaily || 0, 'Daily spend goal in dollars', 0, 100000, '')}</div>`
+      + `<div class="srow"><span class="t"><b>Monthly</b></span><span class="unit pre">$</span>${numField('budgetMonthly', st.budgetMonthly || 0, 'Monthly spend goal in dollars', 0, 1000000, '')}</div>`
+      + `<div class="srow"><span class="t"><b>Notify at 80% and 100%</b></span>${sw('notifyBudget', st.notifyBudget, 'Notify when a spend goal is close or reached')}</div></div></div>`
       + '<div class="group"><span class="caps">Notifications</span><div class="box">'
       + (paused ? `<div class="srow"><span class="t"><b>Paused</b><span>${st.pausedUntil > 8e15 ? 'Until you resume' : 'Until ' + esc(C.when(st.pausedUntil))}</span></span><button class="btn s24" data-act="resume" data-k="resume">Resume</button></div>` : '')
       + `<div class="srow"><span class="t"><b>Thresholds</b><span>When a window passes the warning or critical level</span></span>${sw('notifyThresholds', st.notifyThresholds, 'Notify at thresholds')}</div>`
@@ -620,6 +689,8 @@
       + `<div class="srow"><span class="t"><b>Projected to run out</b><span>When the pace runs out before the reset</span></span>${sw('notifyProjection', st.notifyProjection, 'Notify when projected to run out')}</div>`
       + `<div class="srow"><span class="t"><b>Lead time</b><span>Warn if running out this long before reset</span></span>${numField('leadMinutes', st.leadMinutes, 'Lead time in minutes', 5, 1440, 'min')}</div>`
       + `<div class="srow"><span class="t"><b>Window resets</b></span>${sw('notifyReset', st.notifyReset, 'Notify when a window resets')}</div>`
+      + `<div class="srow"><span class="t"><b>Fast sessions</b><span>When a session spends 3× your usual pace</span></span>${sw('notifyBurn', st.notifyBurn, 'Notify about fast sessions')}</div>`
+      + `<div class="srow"><span class="t"><b>Try it</b><span>Shows a test notification</span></span><button class="btn s24" data-act="test-notification" data-k="test-notification">Send a test</button></div>`
       + `<div class="srow"><span class="t"><b>Offer Request more at</b></span>${numField('requestAt', st.requestAt, 'Offer request more at percent used', 1, 100, '%')}</div></div></div>`
       + rbGroup()
       + '<div class="group"><span class="caps">Request messages</span><div class="box">'
@@ -630,6 +701,13 @@
       + `<div class="srow"><span class="t"><b>Tokenrunway v${esc(S.app?.version || '')}</b><span>${S.app?.update ? `v${esc(S.app.update)} is available` : 'MIT licence · made by iokig'}</span></span><button class="btn s24" data-act="view" data-v="update" data-k="set-upd">${S.app?.update ? 'Update' : 'Check now'}</button></div>`
       + `<div class="srow"><span class="t"><b>iokig.com</b><span>More tools and the changelog</span></span><button class="btn s24" data-act="site" data-k="set-site">Open</button></div>`
       + '</div></div></div></div>';
+  }
+
+  function windowPicker(value) {
+    const opts = [['', 'Most urgent']];
+    for (const a of S.app?.accounts || []) for (const w of a.windows || []) opts.push([`${a.id}/${w.id}`, `${a.name} · ${w.label}`]);
+    if (value && !opts.some(([v]) => v === value)) opts.push([value, 'A window that’s gone (most urgent for now)']);
+    return `<select class="field" style="max-width:170px" aria-label="Window the menubar label shows" data-k="menubarWindow" data-choose="menubarWindow">${opts.map(([v, l]) => `<option value="${esc(v)}"${v === (value || '') ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
   }
 
   // ---------- Settings → Rattleboard ----------
@@ -857,6 +935,11 @@
       case 'connect': connect(); break;
       case 'done': go('now'); break;
       case 'channel': S.req.channel = v; S.req.status = ''; render(); break;
+      case 'copy-summary':
+        invoke('copy_text', { text: summaryText(S.app) }).then(() => { S.copied = true; render(); announce('Usage summary copied'); setTimeout(() => { S.copied = false; softRender(); }, 1500); })
+          .catch((err) => announce(String(err)));
+        break;
+      case 'test-notification': invoke('test_notification').catch((err) => announce(String(err))); break;
       case 'copy':
         invoke('copy_text', { text: S.req.body }).then(() => { S.req.status = 'copied'; render(); announce('Copied'); setTimeout(() => { if (S.req?.status === 'copied') { S.req.status = ''; softRender(); } }, 1500); })
           .catch((err) => { S.req.error = String(err); render(); });
@@ -918,6 +1001,7 @@
       if (Number.isFinite(n)) setSettings({ [t.dataset.num]: n });
     }
     if (t.dataset.text) setSettings({ [t.dataset.text]: t.value.trim() });
+    if (t.dataset.choose) setSettings({ [t.dataset.choose]: t.value });
     if (t.dataset.admin) {
       const id = t.dataset.admin;
       const admins = { ...((S.settings || S.app.settings).admins || {}) };
@@ -959,6 +1043,7 @@
     if (S.view !== 'harness') S.harness = null;
   });
   listen('tr://show', ({ payload }) => show(payload));
+  listen('tr://toast', ({ payload }) => toasts(payload || []));
   listen('tr://update-progress', ({ payload: p }) => {
     S.upd.progress = p.total ? Math.round((p.got / p.total) * 100) : null;
     S.upd.msg = p.total ? `Downloading… ${S.upd.progress}%` : 'Downloading…';

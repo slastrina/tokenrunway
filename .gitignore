@@ -31,3 +31,4 @@ src/.fixture/
 
 # Terminal recordings (`script`); they can hold whatever was typed.
 typescript
+.claude/

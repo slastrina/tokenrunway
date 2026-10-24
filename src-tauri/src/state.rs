@@ -142,12 +142,15 @@ pub fn app_view(app: &AppHandle) -> AppView {
         update_how: crate::updates::how().into(),
         loading,
         summary: forecast::summary(&accounts, now),
+        tips: tokenrunway_core::allowance::tips::tips(&accounts),
         accounts,
         detected,
         settings,
         rattleboard_status: crate::board::status(app),
         rattleboard_key,
         spend_today: st.stats.get().map(|s| s.spend_today(now)),
+        spend_month: st.stats.get().map(|s| s.spend_month(now)),
+        hot: st.stats.get().map(|s| s.hot_sessions(now)).unwrap_or_default(),
     }
 }
 
@@ -173,7 +176,12 @@ pub fn broadcast(app: &AppHandle) {
     let _ = app.emit("tr://state", &view);
     crate::tray::update(app, &view);
     let now = tokenrunway_core::now_ms();
-    let fired = st.alerts.lock().unwrap().evaluate(&view.accounts, &view.settings, now);
+    let fired = {
+        let mut m = st.alerts.lock().unwrap();
+        let mut f = m.evaluate(&view.accounts, &view.settings, now);
+        f.extend(m.evaluate_live(view.spend_today, view.spend_month, &view.hot, &view.settings, now));
+        f
+    };
     st.save_alerts();
     crate::notify::show(app, &fired);
     crate::board::on_alerts(app, &fired, &view.accounts);
