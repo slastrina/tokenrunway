@@ -48,7 +48,7 @@
   --warn: #f5a524; --warn-text: #f7b84a; --warn-bg: rgba(245, 165, 36, .15);
   --crit: #ff6b75; --crit-text: #ff8f97; --crit-bg: rgba(255, 107, 117, .15);
   --p-claude: #e5865f; --p-openai: #45c9a0; --p-bedrock: #b59cff; --p-gemini: #6aa8ff; --p-grok: #c3c9d4;
-  --p-copilot: #f08bcf; --p-cursor: #e6cf62; --p-api: #aab3c4; --h-opencode: #c9b48a;
+  --p-copilot: #f08bcf; --p-cursor: #e6cf62; --p-openrouter: #5fd4e0; --p-api: #aab3c4; --h-opencode: #c9b48a;
   --shadow-pop: 0 0 0 .5px rgba(0, 0, 0, .6), inset 0 0 0 .5px rgba(255, 255, 255, .14), 0 18px 48px rgba(0, 0, 0, .5);
   /* Dashboard */
   --win: #0d1321; --titlebar: #111829; --grid: rgba(255, 255, 255, .07); --cone: rgba(255, 107, 117, .18);
@@ -74,7 +74,7 @@
   --warn: #f0a020; --warn-text: #94570a; --warn-bg: rgba(245, 165, 36, .17);
   --crit: #e0384a; --crit-text: #bd2536; --crit-bg: rgba(224, 56, 74, .10);
   --p-claude: #b8572f; --p-openai: #0b7d5c; --p-bedrock: #6d4fd6; --p-gemini: #2f6fd8; --p-grok: #4b5262;
-  --p-copilot: #b0388c; --p-cursor: #7d6800; --p-api: #5d6779; --h-opencode: #7a6740;
+  --p-copilot: #b0388c; --p-cursor: #7d6800; --p-openrouter: #0e7c86; --p-api: #5d6779; --h-opencode: #7a6740;
   --shadow-pop: 0 0 0 .5px rgba(0, 0, 0, .18), 0 18px 48px rgba(13, 19, 33, .22);
   /* Dashboard */
   --win: #f4f5f8; --titlebar: #eceef2; --grid: rgba(13, 19, 33, .07); --cone: rgba(224, 56, 74, .14);

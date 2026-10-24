@@ -6,6 +6,11 @@ sentence or two each.
 
 ## [Unreleased]
 
+### Added
+- **OpenRouter**: add an OpenRouter API key to see its spend limit or budget with the reset, what
+  it has spent today, this week and this month, and free-model requests on the free tier. A
+  management key also shows your account's credit balance.
+
 ### Changed
 - Clicking the menubar icon opens Tokenrunway on the tab you left it on (Now, Stats or Harness),
   even after a restart.

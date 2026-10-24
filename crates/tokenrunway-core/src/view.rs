@@ -115,7 +115,7 @@ pub enum AccountState {
 #[serde(rename_all = "camelCase")]
 pub struct AccountView {
     pub id: String,
-    /// "anthropic" | "openai" | "bedrock" | "anthropic-api" | "openai-api" | "xai" | "gemini" | "copilot" | "cursor"
+    /// "anthropic" | "openai" | "bedrock" | "anthropic-api" | "openai-api" | "xai" | "gemini" | "copilot" | "cursor" | "openrouter"
     /// The UI maps it to the provider colour (--p-claude, --p-openai, --p-bedrock, --p-api…)
     pub provider: String,
     /// "Claude — work"

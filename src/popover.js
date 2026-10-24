@@ -10,7 +10,7 @@
   const TABS = [['now', 'Now'], ['stats', 'Stats'], ['harness', 'Harness']];
   const PERIODS = [['today', 'Today'], ['7d', '7 d'], ['30d', '30 d'], ['lifetime', 'Lifetime']];
   const PROBLEM = new Set(['stale', 'login', 'broken']);
-  const SHORT = { anthropic: 'Claude', openai: 'ChatGPT', bedrock: 'AWS Bedrock', 'anthropic-api': 'Anthropic API', 'openai-api': 'OpenAI API', gemini: 'Gemini', xai: 'Grok', copilot: 'Copilot', cursor: 'Cursor' };
+  const SHORT = { anthropic: 'Claude', openai: 'ChatGPT', bedrock: 'AWS Bedrock', 'anthropic-api': 'Anthropic API', 'openai-api': 'OpenAI API', gemini: 'Gemini', xai: 'Grok', copilot: 'Copilot', cursor: 'Cursor', openrouter: 'OpenRouter' };
 
   // Remembered across restarts too; storage can be missing (private mode, previews).
   function savedTab() {
@@ -432,11 +432,12 @@
     { id: 'cursor', m: 'Cu', n: 'Cursor', d: 'Monthly plan usage, on-demand spend', site: 'cursor.com', kind: 'cursor-app' },
     { id: 'gemini', m: 'G', n: 'Gemini', d: 'Gemini CLI daily quotas', kind: 'gemini-cli' },
     { id: 'xai', m: 'X', n: 'Grok / xAI', d: 'SuperGrok query limits, xAI API keys', site: 'grok.com' },
+    { id: 'openrouter', m: 'R', n: 'OpenRouter', d: 'Key limits, budgets and credits' },
   ];
   const SOON = [];
   // The key field per provider: its label and placeholder.
   const KEYFIELD = {
-    copilot: ['GitHub token', 'gho_… or ghp_…'], cursor: ['Session cookie', 'WorkosCursorSessionToken value'], xai: ['xAI API key', 'xai-…'],
+    copilot: ['GitHub token', 'gho_… or ghp_…'], cursor: ['Session cookie', 'WorkosCursorSessionToken value'], xai: ['xAI API key', 'xai-…'], openrouter: ['OpenRouter API key', 'sk-or-v1-…'],
     'openai-api': ['API key', 'sk-admin-…'], openai: ['API key', 'sk-admin-…'],
   };
 
@@ -468,6 +469,7 @@
       case 'anthropic': return [cli(), login(), key('For Console orgs. Stored in the keychain, never shown again.'), aws('Only for Claude through Bedrock. Pick AWS Bedrock instead.', true)];
       case 'openai': return [cli(), login(), { ...key('For API projects. Pick OpenAI API instead.'), disabled: true }];
       case 'bedrock': return [aws(det ? `Found ${det.detail || 'profiles'}. Reads Budgets and Cost Explorer, nothing else.` : 'Uses a profile from ~/.aws. Reads Budgets and Cost Explorer, nothing else.')];
+      case 'openrouter': return [key('An OpenRouter API key. Shows its limit or budget and spend; a management key also shows your credit balance. Stored in the keychain.')];
       case 'anthropic-api': return [key('An Admin API key from console.anthropic.com. Stored in the keychain, never shown again.')];
       default: return [key('An admin key from platform.openai.com. Stored in the keychain, never shown again.')];
     }
@@ -546,7 +548,7 @@
     const A = S.add;
     const acc = A.result || {};
     const how = A.method === 'cli' ? (A.detected.find((d) => d.provider === acc.provider)?.label || 'CLI login')
-      : A.method === 'aws' ? `AWS profile ${A.profile || 'default'}` : A.method === 'key' ? ({ copilot: 'GitHub token', cursor: 'session cookie', xai: 'xAI API key' }[A.provider] || 'API key') : 'Tokenrunway login';
+      : A.method === 'aws' ? `AWS profile ${A.profile || 'default'}` : A.method === 'key' ? ({ copilot: 'GitHub token', cursor: 'session cookie', xai: 'xAI API key', openrouter: 'OpenRouter API key' }[A.provider] || 'API key') : 'Tokenrunway login';
     const wins = acc.windows || [];
     const sub = [acc.plan, wins.length ? `${plural(wins.length, 'usage window')} found` : 'No usage windows yet', `via ${how}`].filter(Boolean).join(' · ');
     const rows = wins.map((w) => `<div class="win st-${esc(w.status)}"><div class="win-h"><span class="wl">${esc(w.label)}</span><span class="wp">${Math.round(w.pct)}%</span></div>`

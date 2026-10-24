@@ -68,6 +68,14 @@
       win('gemini-2.5-flash-daily', 'Gemini 2.5 Flash · daily', null, 8, 9 * H, 62, 13, 'ok', 'On track'),
     ],
   });
+  const openrouter = () => ({
+    id: 'acct-9', provider: 'openrouter', name: 'OpenRouter', plan: 'Credits', mono: 'R', updatedAt: at(-25000), state: 'ok', problem: null, method: 'key',
+    note: 'This key: $1.25 today · $8.60 this week · $12.50 this month',
+    windows: [
+      win('monthly', 'Monthly limit', '$12.50 / $50', 25, 8 * D + 12 * H, 72, 35, 'ok', 'On track'),
+      win('credits', 'Credits', '$42.50 / $100', 43, null, null, null, 'ok', 'On track'),
+    ],
+  });
   const grok = (method) => (method === 'key'
     ? { id: 'acct-8', provider: 'xai', name: 'xAI API', plan: 'API', mono: 'X', updatedAt: at(-10000), state: 'ok', problem: null, method,
       note: 'Key “laptop” is active. xAI has no spend endpoint Tokenrunway can read yet, so there’s no usage bar.', windows: [] }
@@ -305,7 +313,7 @@
       if (method === 'login') { await wait(2500); if (q.get('login') === 'cancel') throw new Error('The login window was closed before signing in finished.'); }
       await wait(500);
       if (method === 'key' && provider === 'cursor' && (key || '').length < 20) throw new Error('Paste the value of the WorkosCursorSessionToken cookie from cursor.com.');
-      const extra = { copilot, cursor, gemini, xai: () => grok(method) }[provider];
+      const extra = { copilot, cursor, gemini, openrouter, xai: () => grok(method) }[provider];
       const base = extra ? extra() : provider === 'openai' ? chatgpt() : provider === 'bedrock' ? bedrock() : claude();
       const acct = { ...base, id: 'acct-' + Math.round(Math.random() * 1e6), name: label || base.name, method, updatedAt: Date.now() };
       acct.windows = acct.windows.map((w) => ({ ...w, status: w.status === 'est' ? 'est' : w.status, proj: null, pace: w.pace }));

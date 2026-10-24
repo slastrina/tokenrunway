@@ -16,6 +16,7 @@ pub mod cursor;
 pub mod gemini;
 pub mod grok;
 pub mod login;
+pub mod openrouter;
 pub mod request;
 pub mod secrets;
 pub mod snapshots;
@@ -217,6 +218,7 @@ pub fn provider_for(acct: &AccountRecord) -> Option<Box<dyn Provider>> {
         ("cursor", "login" | "cli" | "key") => Some(Box::new(cursor::Cursor)),
         ("xai", "login") => Some(Box::new(grok::GrokWeb)),
         ("xai", "key") => Some(Box::new(grok::XaiApi)),
+        ("openrouter", "key") => Some(Box::new(openrouter::OpenRouter)),
         _ => None,
     }
 }
@@ -233,6 +235,7 @@ pub fn provider_name(provider: &str) -> &'static str {
         "gemini" => "Gemini",
         "copilot" => "Copilot",
         "cursor" => "Cursor",
+        "openrouter" => "OpenRouter",
         _ => "Provider",
     }
 }
@@ -247,6 +250,7 @@ pub fn mono(provider: &str) -> &'static str {
         "gemini" => "G",
         "copilot" => "P",
         "cursor" => "Cu",
+        "openrouter" => "R",
         _ => "?",
     }
 }
@@ -539,10 +543,13 @@ mod tests {
             ("cursor", "key", "cursor"),
             ("xai", "login", "grok-web"),
             ("xai", "key", "xai-api"),
+            ("openrouter", "key", "openrouter"),
         ] {
             assert_eq!(provider_for(&rec(p, m)).map(|x| x.id()), Some(id), "{p}/{m}");
         }
         assert!(provider_for(&rec("gemini", "key")).is_none());
+        assert!(provider_for(&rec("openrouter", "cli")).is_none());
+        assert_eq!((provider_name("openrouter"), mono("openrouter")), ("OpenRouter", "R"));
         assert_eq!((mono("copilot"), mono("gemini"), mono("cursor"), mono("xai")), ("P", "G", "Cu", "X"));
     }
 
