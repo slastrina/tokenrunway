@@ -4,7 +4,7 @@ Each release's section becomes its GitHub release notes and the in-app "What's n
 `.github/workflows/release.yml`). Write for people using the app: what they can do now, in a
 sentence or two each.
 
-## [Unreleased]
+## [0.2.0] - 2026-10-24
 
 ### Added
 - **OpenRouter**: add an OpenRouter API key to see its spend limit or budget with the reset, what
