@@ -289,7 +289,9 @@ fn lm_studio_is_free_and_counted() {
     // 150 + (60 + 150 reused) + 15 + 2000
     assert_eq!(s.tokens.total, 2375);
     assert_eq!(s.tokens.cache, 150);
-    let models: Vec<(&str, u64)> = s.models.iter().map(|m| (m.name.as_str(), m.tokens)).collect();
+    // In their own list, by tokens, not in Top models.
+    assert!(s.models.is_empty());
+    let models: Vec<(&str, u64)> = s.local_models.iter().map(|m| (m.name.as_str(), m.tokens)).collect();
     assert_eq!(models, [("gpt-oss-20b", 2000), ("tiny-7b-coder", 375)]);
     assert_eq!(s.projects.iter().map(|p| p.name.as_str()).collect::<Vec<_>>(), ["LM Studio"]);
 
