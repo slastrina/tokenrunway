@@ -7,6 +7,7 @@
 //! get_dashboard-7d-model.json…), which the UI's mock mode can show: popover.html?fixture=<dir>.
 
 use std::time::Instant;
+use tokenrunway_core::insights::Subscription;
 use tokenrunway_core::stats::Stats;
 
 fn main() {
@@ -43,12 +44,41 @@ fn main() {
             d.heatmap.len()
         );
     }
+    // Insights, with a Claude Max 20x and a ChatGPT Plus subscription to compare against.
+    let subs = [("anthropic", "Max 20x"), ("openai", "Plus")].map(|(provider, plan)| Subscription {
+        account_id: provider.into(),
+        provider: provider.into(),
+        name: provider.into(),
+        plan: plan.into(),
+    });
+    let t = Instant::now();
+    let ins = stats.insights("30d", None, &subs, &Default::default(), now);
+    println!("\n== insights 30d (in {:?})", t.elapsed());
+    for p in ins.projects.iter().take(5) {
+        let br: Vec<String> =
+            p.branches.iter().map(|b| format!("{} ${:.2}", if b.name.is_empty() { "(none)" } else { &b.name }, b.cost)).collect();
+        println!("  {} ${:.2}, {} sessions, cache {:?}%: {}", p.name, p.cost, p.sessions, p.cache_hit.map(|c| c.round()), br.join(", "));
+    }
+    println!("  usual cache hit {:?}%", ins.usual_cache_hit.map(|c| c.round()));
+    for t in &ins.tips {
+        println!("  tip: {} [{}] {}", t.title, t.cause, t.detail);
+    }
+    if let Some(r) = &ins.recap {
+        println!("  recap {}..{}: {} / {}", r.from, r.to, r.title, r.body);
+    }
+    for v in &ins.value {
+        println!("  value: {}", v.line);
+    }
     if let Some(out) = std::env::var_os("TR_DUMP_DIR").map(std::path::PathBuf::from) {
         std::fs::create_dir_all(&out).expect("dump dir");
         let put = |name: String, v: String| std::fs::write(out.join(format!("{name}.json")), v).expect("write");
         for period in ["today", "7d", "30d", "90d", "lifetime"] {
             put(format!("get_stats-{period}"), serde_json::to_string(&stats.stats(period, now)).unwrap());
             put(format!("get_harness-{period}"), serde_json::to_string(&stats.harness(period, now)).unwrap());
+            put(
+                format!("get_insights-{period}"),
+                serde_json::to_string(&stats.insights(period, None, &subs, &Default::default(), now)).unwrap(),
+            );
             for group in ["model", "harness", "category"] {
                 put(format!("get_dashboard-{period}-{group}"), serde_json::to_string(&stats.dashboard(period, group, now)).unwrap());
             }

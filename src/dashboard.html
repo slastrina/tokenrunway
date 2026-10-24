@@ -14,6 +14,7 @@
   <header class="tbar" data-tauri-drag-region>
     <div class="lights" aria-hidden="true"><span></span><span></span><span></span></div>
     <h1 data-tauri-drag-region>Tokenrunway</h1>
+    <div class="filters" id="filters" aria-live="polite"></div>
     <span class="flex" data-tauri-drag-region></span>
     <div class="seg" role="radiogroup" aria-label="Range" id="period"></div>
     <div class="seg" role="radiogroup" aria-label="Group by" id="group"></div>
@@ -52,6 +53,23 @@
           <div id="heat"></div>
           <div class="hl"><span>Less</span><i style="background:var(--heat0)"></i><i style="background:var(--heat1)"></i><i style="background:var(--heat2)"></i><i style="background:var(--heat3)"></i><i style="background:var(--heat4)"></i><span>More</span></div>
         </section>
+      </div>
+    </div>
+
+    <div class="row ins">
+      <section class="panel projects" id="projects-p">
+        <div class="ph pad"><h2 id="proj-t">Projects</h2><span class="muted" id="proj-s"></span><span class="flex"></span><button class="link" id="proj-back" hidden>All projects</button></div>
+        <div class="tablewrap">
+          <table>
+            <thead id="proj-head"></thead>
+            <tbody id="projects"></tbody>
+          </table>
+        </div>
+      </section>
+      <div class="col">
+        <section class="panel recap" aria-labelledby="recap-t"><div class="ph"><h2 id="recap-t" class="flex">Last week</h2><span class="muted sm" id="recap-d"></span></div><div id="recap"></div></section>
+        <section class="panel value" aria-labelledby="value-t"><div class="ph"><h2 id="value-t" class="flex">Subscription value</h2><span class="muted sm">this month</span></div><div id="value"></div></section>
+        <section class="panel tips" aria-labelledby="tips-t"><div class="ph"><h2 id="tips-t" class="flex">Insights</h2><span class="muted sm" id="tips-s"></span></div><div id="tips"></div></section>
       </div>
     </div>
   </div>

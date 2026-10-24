@@ -182,7 +182,24 @@ code { font-family: var(--mono); font-size: 11px; color: var(--fg1); }
 .rank-r .t .n.mono { font-family: var(--mono); font-size: var(--fs-sm); }
 .rank-r .t .v { color: var(--fg2); }
 .thin { height: 3px; border-radius: 2px; background: var(--track); }
-.thin > div { height: 3px; border-radius: 2px; background: var(--bar); }
+.thin > div, .thin > span { display: block; height: 3px; border-radius: 2px; background: var(--bar); }
+/* Top models / Top projects rows open the dashboard filtered to them. */
+.rank-r.go { border: 0; background: transparent; color: inherit; font: inherit; text-align: left; width: calc(100% + 12px); margin: -4px -6px; padding: 4px 6px; border-radius: var(--r-ctl); }
+.rank-r.go:hover { background: var(--card-hover); }
+.rank-r.go:hover .thin > span { background: var(--accent); }
+.rank-r.go:focus-visible { outline: 2px solid var(--focus); outline-offset: 0; }
+.rank-r .br { font-size: 10.5px; color: var(--fg3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: -2px; }
+.rank-r .br::before { content: '⎇ '; font-family: var(--font); }
+.pv { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 8px; font-size: 12px; }
+.pv .dot { width: 7px; height: 7px; border-radius: 2px; background: var(--c); }
+.pv .n { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pv .w { color: var(--fg2); white-space: nowrap; }
+.pv b { font-weight: 600; color: var(--accent-text); min-width: 34px; text-align: right; }
+.ptip .fine { line-height: 1.45; }
+.ptip .fine b { color: var(--fg1); font-weight: 600; }
+.ptip .link { border: 0; background: transparent; padding: 0; color: var(--accent-text); font-size: 11px; }
+.ptip .link:hover { text-decoration: underline; }
+.ptip .link:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; border-radius: 3px; }
 .kinds { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 18px; row-gap: 7px; }
 .kind { display: grid; grid-template-columns: 62px 1fr 30px; align-items: center; gap: 8px; }
 .kind .n { font-size: 12px; white-space: nowrap; }

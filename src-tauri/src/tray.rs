@@ -158,7 +158,7 @@ pub fn on_menu(app: &AppHandle, id: &str) {
     match id {
         "site" => crate::open_site(app.clone()),
         "open" => crate::open_view(app, "last"),
-        "dashboard" => crate::commands::open_dashboard(app.clone()),
+        "dashboard" => crate::commands::open_dashboard(app.clone(), None),
         "refresh" => crate::poll::force(app, None),
         "settings" => crate::open_view(app, "settings"),
         "update" | "check_updates" => crate::open_view(app, "update"),

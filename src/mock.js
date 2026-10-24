@@ -25,7 +25,7 @@
     notifyThresholds: true, notifyProjection: true, notifyReset: false, pausedUntil: 0, requestAt: 85,
     admins: { 'acct-1': { name: 'Jordan Lee', email: 'jordan@iokig.com', slack: '@Jordan Lee', teams: '' } },
     myName: 'Sam', updateCheck: true, startAtLogin: false,
-    rattleboard: { ...rbDefault },
+    rattleboard: { ...rbDefault }, insights: { weeklyRecap: true, planPrices: { 'acct-1': 60 } },
   };
   const rbq = q.get('rb') || '';
   const hhmm = () => new Date().toTimeString().slice(0, 5);
@@ -235,6 +235,44 @@
     };
   };
 
+  // ---------- insights ----------
+  const insights = (period, project) => {
+    const f = { today: 0.13, '7d': 1, '30d': 3.9, '90d': 10.5, lifetime: 14.2 }[period] || 1;
+    const B = (name, cost, sessions, lastH) => ({ name, cost: cost * f, tokens: Math.round(cost * f * 1.1e5), sessions: Math.max(1, Math.round(sessions * f)), last: at(-lastH * H) });
+    const P = (name, cost, sessions, cache, branches) => ({
+      name, cost: cost * f, tokens: Math.round(cost * f * 1.1e5), sessions: Math.round(sessions * f), cacheHit: cache, last: branches[0].last, branches, branchesTotal: branches.length,
+    });
+    let projects = [
+      P('third-eye', 151.2, 22, 74, [B('main', 88.4, 11, 1), B('feat/vision-v2', 41.9, 7, 3), B('fix/upload-retry', 14.7, 3, 26), B('spike/onnx', 6.2, 1, 50)]),
+      P('tokenrunway', 122.6, 19, 71, [B('feat/insights', 97.1, 15, 0.5), B('main', 25.5, 4, 2)]),
+      P('intake-classifier', 88.3, 13, 12, [B('main', 51.0, 8, 5), B('exp/prompt-cache', 37.3, 5, 29)]),
+      P('dotfiles', 21.4, 9, 63, [B('', 21.4, 9, 30)]),
+      P('rattleboard', 18.9, 4, 77, [B('main', 18.9, 4, 72)]),
+    ];
+    const total = projects.length;
+    if (project) projects = projects.filter((p) => p.name === project);
+    else projects = projects.map((p) => ({ ...p, branches: p.branches.slice(0, 3) }));
+    return {
+      period, projects, projectsTotal: total, usualCacheHit: 68,
+      tips: [{
+        project: 'intake-classifier', hit: 12, usual: 68, cost: 88.3 * f, cause: 'idle',
+        title: 'Sessions in intake-classifier get 12% cache hits vs your usual 68%',
+        detail: '41 calls came back after a pause of more than 5 minutes and found the cache expired, so 6.2M tokens were sent again at full price. Breaks mid-task cost the most; a fresh session after a long break is cheaper.',
+      }],
+      recap: {
+        from: dayIso(-9), to: dayIso(-3), spend: 412.8, tokens: 48.2e6, sessions: 94, prevSpend: 349.5, changePct: 18.1,
+        topProject: { name: 'third-eye', cost: 151.2, tokens: 16.6e6 }, topModel: { name: 'Opus 5.5', cost: 248.1, tokens: 27e6 },
+        biggest: { started: at(-6 * D), harness: 'Claude Code', project: 'third-eye', model: 'Opus 5.5', kind: 'Build', durationMs: 48 * M, tokens: 3.6e6, cost: 22.1 },
+        title: 'Last week: $413 of AI work', body: 'Up 18% on the week before. Most went to third-eye ($151). Biggest session: $22.10 in Claude Code, mostly on third-eye.',
+      },
+      value: [
+        { provider: 'anthropic', accounts: ['Claude — work'], plan: 'Enterprise', price: 60, spend: 1318.4, multiple: 21.97, harnesses: ['Claude Code'], line: 'Your $60 Enterprise plan did $1,318 of API-equivalent work this month (22×)' },
+        { provider: 'openai', accounts: ['ChatGPT — personal'], plan: 'Pro', price: 200, spend: 241.4, multiple: 1.21, harnesses: ['Codex'], line: 'Your $200 Pro plan did $241 of API-equivalent work this month (1.2×)' },
+      ],
+    };
+  };
+  let dashTarget = ['project', 'model'].some((k) => q.get(k)) ? { period: q.get('period'), project: q.get('project'), model: q.get('model') } : null;
+
   const notes = [
     { version: '0.2.0', date: '2026-10-30', notes: '### Fixed\n- The **Gemini** reader follows Google\'s new usage endpoint.\n- Countdowns no longer skip a minute after sleep.\n\n### New\n- Compact density for people with many accounts.\n- `Request more` remembers the channel you used last.' },
   ];
@@ -291,7 +329,21 @@
     },
     get_stats: ({ period }) => stats(period),
     get_harness: ({ period }) => harness(period),
-    get_dashboard: ({ period, group, account }) => dashboard(period, group, account),
+    get_dashboard: ({ period, group, account, project, model }) => {
+      const d = dashboard(period, group, account);
+      if (!project && !model) return d;
+      // Filtered: that project's / model's share of the sample.
+      const keep = (s) => (!project || s.project === project) && (!model || s.model === model);
+      const share = project ? 0.3 : 0.55;
+      return {
+        ...d,
+        series: d.series.map((s) => ({ ...s, values: s.values.map((v) => +(v * share).toFixed(2)) })),
+        heatmap: d.heatmap.map((h) => ({ ...h, tokens: Math.round(h.tokens * share), cost: h.cost * share })),
+        sessions: d.sessions.filter(keep), sessionsTotal: Math.round(d.sessionsTotal * share), billed: d.billed * share,
+      };
+    },
+    get_insights: ({ period, project }) => insights(period, project),
+    take_dashboard_target: () => { const t = dashTarget; dashTarget = null; return t; },
     list_detected: () => detected,
     list_aws_profiles: () => ['iokig-prod', 'default'],
     add_account: async ({ provider, method, label, key }) => {
@@ -317,7 +369,12 @@
     },
     login_account: () => null,
     open_provider: () => null,
-    open_dashboard: () => { window.open('dashboard.html' + location.search, '_blank'); },
+    open_dashboard: ({ target } = {}) => {
+      const p = new URLSearchParams(location.search);
+      for (const k of ['view', 'project', 'model']) p.delete(k);
+      if (target) for (const [k, v] of Object.entries(target)) if (v) p.set(k, v);
+      window.open('dashboard.html?' + p, '_blank');
+    },
     open_site: () => { window.open('https://www.iokig.com/tokenrunway', '_blank'); },
     request_draft: ({ accountId, windowId }) => {
       const a = app.accounts.find((x) => x.id === accountId) || claude();

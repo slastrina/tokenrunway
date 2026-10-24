@@ -11,7 +11,9 @@
 
   const PERIODS = [['7d', '7 d'], ['30d', '30 d'], ['90d', '90 d'], ['lifetime', 'Lifetime']];
   const GROUPS = [['model', 'Model'], ['harness', 'Harness'], ['category', 'Category']];
-  const S = { period: '30d', group: 'model', account: null, data: null, app: null };
+  // project / model: the dashboard narrowed to one (from the Projects card, or the popover's
+  // Top models and Top projects rows). ins: the insight cards' data.
+  const S = { period: '30d', group: 'model', account: null, data: null, app: null, project: null, model: null, ins: null };
 
   // ---------- colour follows the entity, never its rank ----------
   const FALLBACK = ['--p-gemini', '--h-opencode', '--p-copilot', '--p-cursor', '--p-grok'];
@@ -54,9 +56,13 @@
     const my = ++seq;
     $('#body').classList.add('loading');
     try {
-      const d = await invoke('get_dashboard', { period: S.period, group: S.group, account: S.account });
+      const [d, ins] = await Promise.all([
+        invoke('get_dashboard', { period: S.period, group: S.group, account: S.account, project: S.project, model: S.model }),
+        invoke('get_insights', { period: S.period, project: S.project }).catch(() => null),
+      ]);
       if (my !== seq) return;
       S.data = d;
+      S.ins = ins;
       draw();
     } catch (e) {
       if (my !== seq) return;
@@ -66,7 +72,8 @@
   }
 
   function draw() {
-    kpis(); stacked(); burndown(); sessions(); resets(); heatmap();
+    filters(); kpis(); stacked(); burndown(); sessions(); resets(); heatmap();
+    projects(); recap(); value(); tips();
     C.tick();
   }
 
@@ -82,7 +89,7 @@
     const acc = (S.app?.accounts || []).find((a) => a.id === S.account);
     const next = (d.resets || [])[0];
     const tiles = [
-      ['Spend · API-equivalent', C.money(spend, 0), `${periodWords()} · ${acc ? esc(acc.name) : 'all harnesses'}`, ''],
+      ['Spend · API-equivalent', C.money(spend, 0), `${periodWords()} · ${S.project || S.model ? esc(S.project || S.model) : acc ? esc(acc.name) : 'all harnesses'}`, ''],
       ['Actually billed', d.billed != null ? C.money(d.billed, 2) : '—', d.billed != null ? esc(d.billedNote || 'where a source reports it') : 'No source reports billing', ''],
       ['Tokens', C.tokens(tokens), d.cacheShare != null ? `${Math.round(d.cacheShare)}% cache reads` : 'in range', ''],
       ['Sessions', String(d.sessionsTotal ?? sess.length), sess.length ? `avg ${C.minutes(avg)} · ${harnesses} harness${harnesses === 1 ? '' : 'es'}` : 'none in range', ''],
@@ -276,6 +283,96 @@
     });
   }
 
+  // ---------- filter chips (project / model) ----------
+  const X = '<svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m4 4 8 8M12 4l-8 8"/></svg>';
+  function filters() {
+    const chip = (k, kind, v) => `<span class="chip"><span class="k">${k}</span><span class="n" title="${esc(v)}">${esc(v)}</span><button data-clear="${kind}" aria-label="Show all ${kind === 'project' ? 'projects' : 'models'}">${X}</button></span>`;
+    $('#filters').innerHTML = (S.project ? chip('Project', 'project', S.project) : '') + (S.model ? chip('Model', 'model', S.model) : '');
+  }
+  $('#filters').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-clear]');
+    if (!b) return;
+    S[b.dataset.clear] = null;
+    load();
+  });
+  function setTarget(t) {
+    if (!t) return;
+    // The dashboard has no Today: a day's worth reads best within the week.
+    if (t.period) S.period = PERIODS.some(([v]) => v === t.period) ? t.period : '7d';
+    S.project = t.project || null;
+    S.model = t.model || null;
+    controls();
+    load().then(() => { if (S.project) $('#projects-p').scrollIntoView({ block: 'start' }); });
+  }
+
+  // ---------- projects and branches ----------
+  const branchName = (b) => (b ? `<span class="mono">${esc(b)}</span>` : '<span>No branch</span>');
+  function projects() {
+    const ins = S.ins;
+    const rows = ins?.projects || [];
+    const one = S.project ? rows.find((p) => p.name === S.project) : null;
+    $('#proj-back').hidden = !S.project;
+    const usual = ins?.usualCacheHit;
+    const cache = (c) => (c == null ? '<span class="dim">—</span>' : `<span class="${usual != null && c < usual / 2 && usual - c >= 20 ? 'low' : ''}">${Math.round(c)}%</span>`);
+    if (S.project) {
+      $('#proj-t').textContent = S.project;
+      $('#proj-s').textContent = one ? `${one.branchesTotal} branch${one.branchesTotal === 1 ? '' : 'es'} · ${C.money(one.cost)} · cache ${one.cacheHit == null ? '—' : Math.round(one.cacheHit) + '%'}` : 'nothing in range';
+      $('#proj-head').innerHTML = '<tr><th scope="col">Branch</th><th scope="col" class="r">Sessions</th><th scope="col" class="r">Tokens</th><th scope="col">Last active</th><th scope="col" class="r">Cost</th></tr>';
+      const top = Math.max(0, ...(one?.branches || []).map((b) => b.cost));
+      $('#projects').innerHTML = one?.branches?.length ? one.branches.map((b) => `<tr><td>${branchName(b.name)}</td><td class="r dim">${b.sessions}</td><td class="r">${esc(C.tokens(b.tokens))}</td>`
+        + `<td class="dim">${esc(startedText(b.last))}</td><td class="r cost">${esc(C.money(b.cost))}<span class="bar-in" aria-hidden="true"><i style="width:${top ? Math.round((b.cost / top) * 100) : 0}%"></i></span></td></tr>`).join('')
+        : '<tr><td colspan="5" class="dim" style="text-align:center;padding:24px">No activity for this project in this range.</td></tr>';
+      return;
+    }
+    $('#proj-t').textContent = 'Projects';
+    $('#proj-s').textContent = ins ? `${ins.projectsTotal} in range · by cost${ins.projectsTotal > rows.length ? `, top ${rows.length}` : ''}${S.model ? ' · all models' : ''}` : '';
+    $('#proj-head').innerHTML = '<tr><th scope="col">Project</th><th scope="col">Top branches</th><th scope="col" class="r">Sessions</th><th scope="col" class="r">Cache</th><th scope="col" class="r">Tokens</th><th scope="col" class="r">Cost</th></tr>';
+    $('#projects').innerHTML = rows.length ? rows.map((p) => `<tr class="go" tabindex="0" data-project="${esc(p.name)}" aria-label="${esc(p.name)}: ${esc(C.money(p.cost))}. Show its branches and sessions">`
+      + `<td class="mono">${esc(p.name)}</td>`
+      + `<td class="br">${p.branches.map((b) => `<span>${branchName(b.name)} ${esc(C.money(b.cost, 0))}</span>`).join('')}${p.branchesTotal > p.branches.length ? `<span>+${p.branchesTotal - p.branches.length} more</span>` : ''}</td>`
+      + `<td class="r dim">${p.sessions}</td><td class="r">${cache(p.cacheHit)}</td><td class="r">${esc(C.tokens(p.tokens))}</td><td class="r cost">${esc(C.money(p.cost))}</td></tr>`).join('')
+      : '<tr><td colspan="6" class="dim" style="text-align:center;padding:24px">No projects in this range.</td></tr>';
+  }
+  const openProject = (tr) => { if (tr?.dataset.project) { S.project = tr.dataset.project; load(); } };
+  $('#projects').addEventListener('click', (e) => openProject(e.target.closest('tr.go')));
+  $('#projects').addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openProject(e.target.closest('tr.go')); } });
+  $('#proj-back').addEventListener('click', () => { S.project = null; load(); });
+
+  // ---------- last week ----------
+  function recap() {
+    const r = S.ins?.recap;
+    const box = $('#recap');
+    if (!r) { $('#recap-d').textContent = ''; box.innerHTML = '<div class="empty" style="padding:8px 0">Nothing last week.</div>'; return; }
+    $('#recap-d').textContent = `${C.dayMonth(C.isoDay(r.from))} – ${C.dayMonth(C.isoDay(r.to))}`;
+    const delta = r.changePct == null ? 'nothing the week before' : Math.abs(r.changePct) < 3 ? 'about the same as the week before' : `${r.changePct > 0 ? '▲' : '▼'} ${Math.abs(Math.round(r.changePct))}% on the week before`;
+    const fact = (k, v) => (v ? `<dt>${k}</dt><dd title="${esc(v)}">${esc(v)}</dd>` : '');
+    const b = r.biggest;
+    box.innerHTML = `<div class="big"><b>${esc(C.money(r.spend, 0))}</b><span class="delta">${esc(delta)}</span></div>`
+      + `<dl class="facts">${fact('Tokens', `${C.tokens(r.tokens)} in ${r.sessions} session${r.sessions === 1 ? '' : 's'}`)}`
+      + fact('Top project', r.topProject && `${r.topProject.name} · ${C.money(r.topProject.cost, 0)}`)
+      + fact('Top model', r.topModel && `${r.topModel.name} · ${C.money(r.topModel.cost, 0)}`)
+      + fact('Biggest session', b && `${C.money(b.cost)} · ${b.project} · ${b.harness}`) + '</dl>';
+  }
+
+  // ---------- subscription value ----------
+  function value() {
+    const rows = S.ins?.value || [];
+    // The big number says the multiple, so the line drops its "(16×)".
+    $('#value').innerHTML = rows.length ? rows.map((v) => `<div class="vr"><p>${esc(v.multiple != null ? v.line.replace(/ \([\d.]+×\)$/, '.') : v.line)}</p>`
+      + (v.multiple != null ? `<span class="x" aria-hidden="true">${esc(v.multiple >= 10 ? Math.round(v.multiple) : v.multiple.toFixed(1))}×</span>` : '<span class="x dim" aria-hidden="true">—</span>') + '</div>').join('')
+      : '<div class="empty" style="padding:8px 0">No subscription work this month yet. Claude Code, Codex and Gemini CLI count towards their plans.</div>';
+  }
+
+  // ---------- cache tips ----------
+  function tips() {
+    const list = S.ins?.tips || [];
+    const usual = S.ins?.usualCacheHit;
+    $('#tips-s').textContent = usual != null ? `usual cache hit ${Math.round(usual)}%` : '';
+    $('#tips').innerHTML = list.length ? list.map((t) => `<div class="tip"><b>${esc(t.title)}</b><p>${esc(t.detail)}</p></div>`).join('')
+      : usual != null ? `<div class="tip good"><b>Your prompt cache is working well</b><p>${Math.round(usual)}% of prompt tokens were read from the cache in this range, and no project with real volume falls far behind.</p></div>`
+        : '<div class="empty" style="padding:8px 0">Nothing cached in this range.</div>';
+  }
+
   // ---------- live ----------
   let rz;
   new ResizeObserver(() => { clearTimeout(rz); rz = setTimeout(() => { if (S.data) stacked(); }, 60); }).observe($('#chart'));
@@ -286,6 +383,9 @@
   try { S.app = await invoke('get_state'); C.setOs(S.app.os); controls(); } catch { /* accounts menu stays empty */ }
   if (C.q.get('period')) S.period = C.q.get('period');
   if (C.q.get('group')) S.group = C.q.get('group');
+  listen('tr://dash-target', ({ payload }) => setTarget(payload));
+  const target = await invoke('take_dashboard_target').catch(() => null);
+  if (target) { setTarget(target); return; }
   controls();
   load();
 })();

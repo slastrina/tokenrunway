@@ -174,6 +174,8 @@ pub struct Settings {
     pub start_at_login: bool,
     /// Alerts and the AI runway card on a Rattleboard (SPEC.md §8.4); its key is in the keychain
     pub rattleboard: RattleboardSettings,
+    /// The weekly recap and plan prices (insights.rs)
+    pub insights: InsightSettings,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -231,6 +233,7 @@ impl Default for Settings {
             update_check: true,
             start_at_login: false,
             rattleboard: RattleboardSettings::default(),
+            insights: InsightSettings::default(),
         }
     }
 }
@@ -433,4 +436,125 @@ pub struct RequestDraft {
     pub to: AdminContact,
     /// The message, plain text with "• " bullets
     pub body: String,
+}
+
+// ---------- Insights (insights.rs; SPEC.md §10.5): `get_insights { period, project }` ----------
+
+#[derive(Debug, Clone, Serialize, Default, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct InsightsView {
+    pub period: Period,
+    /// Biggest first: at most 12, or just `project` when one was asked for
+    pub projects: Vec<ProjectRow>,
+    pub projects_total: u32,
+    /// Projects whose prompt cache works far worse than usual, biggest cost first (at most 3)
+    pub tips: Vec<CacheTip>,
+    /// Cache hit rate across everything in the period, 0–100; None when nothing was cacheable
+    pub usual_cache_hit: Option<f64>,
+    /// The last full week (Monday to Sunday, local)
+    pub recap: Option<Recap>,
+    /// This calendar month's API-equivalent work per subscription
+    pub value: Vec<PlanValue>,
+}
+
+#[derive(Debug, Clone, Serialize, Default, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectRow {
+    pub name: String,
+    pub cost: f64,
+    pub tokens: u64,
+    pub sessions: u32,
+    /// cache read / (input + cache read + cache write), 0–100; None when nothing was cacheable
+    pub cache_hit: Option<f64>,
+    /// Its newest event (ms)
+    pub last: i64,
+    /// Biggest first: the top 3, or all of them for the project asked for
+    pub branches: Vec<BranchRow>,
+    pub branches_total: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Default, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct BranchRow {
+    /// "feat/insights"; "" where the harness didn't record one
+    pub name: String,
+    pub cost: f64,
+    pub tokens: u64,
+    pub sessions: u32,
+    /// Its newest event (ms)
+    pub last: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Default, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CacheTip {
+    pub project: String,
+    /// Its hit rate and the usual one, 0–100
+    pub hit: f64,
+    pub usual: f64,
+    pub cost: f64,
+    /// "Sessions in third-eye get 12% cache hits vs your usual 70%"
+    pub title: String,
+    /// What the logs show about why, and what to do
+    pub detail: String,
+    /// "idle" | "model-switch" | "short-sessions" | "" (no cause found)
+    pub cause: String,
+}
+
+#[derive(Debug, Clone, Serialize, Default, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Recap {
+    /// Monday and Sunday, "2026-10-12"
+    pub from: String,
+    pub to: String,
+    pub spend: f64,
+    pub tokens: u64,
+    pub sessions: u32,
+    /// The week before
+    pub prev_spend: f64,
+    /// Change from the week before, %; None when that week had nothing
+    pub change_pct: Option<f64>,
+    pub top_project: Option<Ranked>,
+    pub top_model: Option<Ranked>,
+    pub biggest: Option<SessionRow>,
+    /// The notification: "Last week: $412 of AI work" and its body
+    pub title: String,
+    pub body: String,
+}
+
+#[derive(Debug, Clone, Serialize, Default, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct PlanValue {
+    /// "anthropic" | "openai" | "gemini"
+    pub provider: String,
+    /// The subscription accounts it covers (the logs don't say which account a session used)
+    pub accounts: Vec<String>,
+    /// "Max 20x", or "2 Claude plans"
+    pub plan: String,
+    /// Monthly price in USD: built in, or set in Settings; None when unknown
+    pub price: Option<f64>,
+    /// API-equivalent spend this calendar month from the harnesses that use it
+    pub spend: f64,
+    /// spend / price
+    pub multiple: Option<f64>,
+    /// "Claude Code"
+    pub harnesses: Vec<String>,
+    /// "Your $200 Max 20x plan did $3,199 of API-equivalent work this month (16×)"
+    pub line: String,
+}
+
+/// Settings → Notifications → Weekly recap, and the plan prices for subscription value.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct InsightSettings {
+    pub weekly_recap: bool,
+    /// Monthly price (USD) per account id, for plans the built-in table doesn't know (Team,
+    /// Enterprise, Business) or that cost something else
+    pub plan_prices: std::collections::BTreeMap<String, f64>,
+}
+
+impl Default for InsightSettings {
+    fn default() -> Self {
+        Self { weekly_recap: true, plan_prices: Default::default() }
+    }
 }

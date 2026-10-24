@@ -12,6 +12,7 @@ mod commands;
 mod login;
 mod notify;
 mod poll;
+mod recap;
 mod state;
 mod tray;
 mod updates;
@@ -188,6 +189,8 @@ pub fn run() {
             commands::get_stats,
             commands::get_harness,
             commands::get_dashboard,
+            commands::get_insights,
+            commands::take_dashboard_target,
             commands::list_detected,
             commands::list_aws_profiles,
             commands::login_account,

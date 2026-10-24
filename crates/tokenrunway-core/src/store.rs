@@ -87,6 +87,36 @@ impl Agg {
     }
 }
 
+/// One session's events in one project and branch (`Store::branch_parts`).
+#[derive(Debug, Clone, Default)]
+pub struct BranchPart {
+    pub project: String,
+    pub branch: String,
+    pub harness: String,
+    pub session_id: String,
+    pub first: i64,
+    pub last: i64,
+    pub calls: u64,
+    pub input: u64,
+    pub output: u64,
+    pub cache_read: u64,
+    pub cache_write: u64,
+    pub cost: f64,
+}
+
+/// One model call, for the cache analysis (`Store::project_calls`).
+#[derive(Debug, Clone, Default)]
+pub struct Call {
+    pub session_id: String,
+    pub ts: i64,
+    pub model: String,
+    pub input: u64,
+    pub cache_read: u64,
+    /// All cache writes; `cache_write_1h` is the part written with the one-hour lifetime
+    pub cache_write: u64,
+    pub cache_write_1h: u64,
+}
+
 /// One session × model × project × category slice, for the session list and averages.
 #[derive(Debug, Clone, Default)]
 pub struct SessionPart {
@@ -345,6 +375,55 @@ impl Store {
                 category: r.get(6)?,
                 tokens: r.get::<_, i64>(7)? as u64,
                 cost: r.get(8)?,
+            })
+        });
+        rows.map(|r| r.flatten().collect()).unwrap_or_default()
+    }
+
+    /// Events in [from, to) added up per project × branch × harness × session (insights.rs: cost
+    /// per project and branch, cache hit rates). `branch` is "" where the harness didn't say, or
+    /// said "HEAD" (a detached checkout, or not a git repo).
+    pub fn branch_parts(&self, from: i64, to: i64) -> Vec<BranchPart> {
+        let sql = "SELECT e.project, CASE WHEN e.branch IS NULL OR e.branch = 'HEAD' THEN '' ELSE e.branch END, e.harness, e.session_id, MIN(e.ts), MAX(e.ts), COUNT(*),
+                   SUM(e.input), SUM(e.output), SUM(e.cache_read), SUM(e.cache_write_5m + e.cache_write_1h), SUM(IFNULL(e.cost_usd, 0))
+                   FROM events e WHERE e.ts >= ?1 AND e.ts < ?2
+                   GROUP BY 1, 2, 3, 4";
+        let Ok(mut q) = self.conn.prepare_cached(sql) else { return Vec::new() };
+        let rows = q.query_map(params![from, to], |r| {
+            Ok(BranchPart {
+                project: r.get(0)?,
+                branch: r.get(1)?,
+                harness: r.get(2)?,
+                session_id: r.get(3)?,
+                first: r.get(4)?,
+                last: r.get(5)?,
+                calls: r.get::<_, i64>(6)? as u64,
+                input: r.get::<_, i64>(7)? as u64,
+                output: r.get::<_, i64>(8)? as u64,
+                cache_read: r.get::<_, i64>(9)? as u64,
+                cache_write: r.get::<_, i64>(10)? as u64,
+                cost: r.get(11)?,
+            })
+        });
+        rows.map(|r| r.flatten().collect()).unwrap_or_default()
+    }
+
+    /// One project's main-thread model calls in [from, to), per session in time order
+    /// (insights.rs looks for what breaks the prompt cache: idle gaps and model switches).
+    pub fn project_calls(&self, project: &str, from: i64, to: i64) -> Vec<Call> {
+        let sql = "SELECT e.session_id, e.ts, e.model, e.input, e.cache_read, e.cache_write_5m + e.cache_write_1h, e.cache_write_1h
+                   FROM events e WHERE e.project = ?1 AND e.ts >= ?2 AND e.ts < ?3 AND e.sidechain = 0
+                   ORDER BY e.session_id, e.ts";
+        let Ok(mut q) = self.conn.prepare_cached(sql) else { return Vec::new() };
+        let rows = q.query_map(params![project, from, to], |r| {
+            Ok(Call {
+                session_id: r.get(0)?,
+                ts: r.get(1)?,
+                model: r.get(2)?,
+                input: r.get::<_, i64>(3)? as u64,
+                cache_read: r.get::<_, i64>(4)? as u64,
+                cache_write: r.get::<_, i64>(5)? as u64,
+                cache_write_1h: r.get::<_, i64>(6)? as u64,
             })
         });
         rows.map(|r| r.flatten().collect()).unwrap_or_default()
