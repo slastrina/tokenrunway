@@ -20,6 +20,26 @@ pub struct Stats {
     roots: Roots,
 }
 
+/// Narrows the Stats and Dashboard views to one project and/or one model (the popover's Top
+/// models and Top projects rows open the dashboard this way). `model` is the display name
+/// ("Opus 5.5"), as those rows show it.
+#[derive(Debug, Clone, Default, PartialEq, serde::Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Filter {
+    pub project: Option<String>,
+    pub model: Option<String>,
+}
+
+impl Filter {
+    pub fn is_empty(&self) -> bool {
+        self.project.is_none() && self.model.is_none()
+    }
+
+    fn keeps(&self, project: &str, model: &str) -> bool {
+        self.project.as_deref().is_none_or(|p| p == project) && self.model.as_deref().is_none_or(|m| m == pricing::display_name(model))
+    }
+}
+
 /// What one ingest pass did.
 #[derive(Debug, Clone, Default, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -179,8 +199,14 @@ impl Stats {
 
     /// `period`: "today" | "7d" | "30d" | "90d" | "lifetime"; `now` in ms, local time zone.
     pub fn stats(&self, period: &str, now: i64) -> StatsView {
+        self.stats_filtered(period, &Filter::default(), now)
+    }
+
+    /// `stats` for one project and/or model only.
+    pub fn stats_filtered(&self, period: &str, f: &Filter, now: i64) -> StatsView {
         let p = Span::of(period, now);
-        let rows = self.store().agg(p.start, i64::MAX);
+        let mut rows = self.store().agg(p.start, i64::MAX);
+        rows.retain(|r| f.keeps(&r.project, &r.model));
         let mut days = Days::new();
         let mut v = StatsView { period: period.into(), ..Default::default() };
         let (mut actual, mut actual_n, mut actual_from) = (0.0, 0u64, Vec::<String>::new());
@@ -291,6 +317,11 @@ impl Stats {
     /// fills them from allowance data). Lifetime charts run from the first event's day, at most
     /// a year back.
     pub fn dashboard(&self, period: &str, group: &str, now: i64) -> DashboardView {
+        self.dashboard_filtered(period, group, &Filter::default(), now)
+    }
+
+    /// `dashboard` for one project and/or model only: the chart, heatmap and sessions.
+    pub fn dashboard_filtered(&self, period: &str, group: &str, f: &Filter, now: i64) -> DashboardView {
         let mut p = Span::of(period, now);
         let today = local_date(now);
         if period == "lifetime" {
@@ -300,10 +331,15 @@ impl Stats {
             p.start = i64::MIN;
         }
         let heat_from = today - Duration::days(181);
-        let (rows, heat_rows, parts) = {
+        let (mut rows, mut heat_rows, mut parts) = {
             let s = self.store();
             (s.agg(p.start, i64::MAX), s.agg(midnight(heat_from), i64::MAX), s.session_parts(p.start, i64::MAX))
         };
+        if !f.is_empty() {
+            rows.retain(|r| f.keeps(&r.project, &r.model));
+            heat_rows.retain(|r| f.keeps(&r.project, &r.model));
+            parts.retain(|r| f.keeps(&r.project, &r.model));
+        }
         let mut days = Days::new();
         let key = |r: &Agg| match group {
             "harness" => harness_name(&r.harness).to_string(),
@@ -377,13 +413,13 @@ impl Stats {
 }
 
 /// A period: where it starts (ms) and its local days, oldest first.
-struct Span {
-    start: i64,
-    days: Vec<NaiveDate>,
+pub(crate) struct Span {
+    pub(crate) start: i64,
+    pub(crate) days: Vec<NaiveDate>,
 }
 
 impl Span {
-    fn of(period: &str, now: i64) -> Self {
+    pub(crate) fn of(period: &str, now: i64) -> Self {
         let today = local_date(now);
         let back = match period {
             "today" => 0,
@@ -486,18 +522,18 @@ pub(crate) fn harness_name(id: &str) -> &str {
 
 /// A session added up from its parts: the model with the most cost, the project and kind with
 /// the most tokens.
-struct Session {
-    harness: String,
-    first: i64,
-    last: i64,
-    model: String,
-    project: String,
-    kind: String,
-    tokens: u64,
-    cost: f64,
+pub(crate) struct Session {
+    pub(crate) harness: String,
+    pub(crate) first: i64,
+    pub(crate) last: i64,
+    pub(crate) model: String,
+    pub(crate) project: String,
+    pub(crate) kind: String,
+    pub(crate) tokens: u64,
+    pub(crate) cost: f64,
 }
 
-fn sessions(parts: &[SessionPart]) -> Vec<Session> {
+pub(crate) fn sessions(parts: &[SessionPart]) -> Vec<Session> {
     #[derive(Default)]
     struct Acc {
         first: i64,

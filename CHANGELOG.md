@@ -33,6 +33,19 @@ sentence or two each.
   dashboard, with each model's input, output and reused (cached) tokens. They're local, so they
   read as *Free* and never count towards your spend. Models running on the MLX engine don't log
   token counts, so they aren't included yet.
+- **Projects and branches**: the dashboard lists what each project cost, its sessions, cache hit
+  rate and top git branches. Click one to see all its branches, with the charts and sessions
+  narrowed to it.
+- **Open the dashboard from Stats**: click a model or project under Top models / Top projects to
+  see it in the dashboard.
+- **Cache tips**: when a project's prompt cache works far worse than your usual, Insights says so
+  and what the logs show about why: long pauses, switching models mid-session, or short sessions.
+- **Weekly recap**: on Mondays, a notification with last week's spend, the change from the week
+  before, your top project and biggest session. The dashboard has it as a card. Turn it off in
+  Settings → Notifications.
+- **Plan value**: what your Claude, ChatGPT or Gemini subscription did this month at API prices,
+  like "Your $200 Max 20x plan did $3,199 of API-equivalent work this month (16×)". For Team,
+  Enterprise and Business seats, add the price under the account in Settings.
 
 ### Changed
 - The *% left* menubar label now shows what's left (it showed what was used).

@@ -7,9 +7,12 @@ use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_opener::OpenerExt;
 use tokenrunway_core::allowance::{self, request, secrets, AccountRecord, ProviderError};
 use tokenrunway_core::forecast;
+use tokenrunway_core::insights::{self, Subscription};
 use tokenrunway_core::now_ms;
+use tokenrunway_core::stats::Filter;
 use tokenrunway_core::view::{
-    AccountView, AdminContact, AppView, Burndown, DashboardView, Detected, HarnessView, RequestDraft, ResetRow, Settings, StatsView,
+    AccountView, AdminContact, AppView, Burndown, DashboardView, Detected, HarnessView, InsightsView, RequestDraft, ResetRow, Settings,
+    StatsView,
 };
 
 #[tauri::command]
@@ -29,14 +32,47 @@ pub async fn get_harness(app: AppHandle, period: String) -> HarnessView {
     tauri::async_runtime::spawn_blocking(move || s.harness(&period, now_ms())).await.unwrap_or_default()
 }
 
+/// The subscription accounts whose work the local logs show (insights.rs: subscription value).
+pub fn subscriptions(accounts: &[AccountView]) -> Vec<Subscription> {
+    accounts
+        .iter()
+        .filter(|a| !insights::subscription_harnesses(&a.provider).is_empty() && matches!(a.method.as_str(), "cli" | "login"))
+        .map(|a| Subscription { account_id: a.id.clone(), provider: a.provider.clone(), name: a.name.clone(), plan: a.plan.clone() })
+        .collect()
+}
+
+/// The dashboard's insight cards and the popover's extras. `project`: that project only, with
+/// all its branches.
 #[tauri::command]
-pub async fn get_dashboard(app: AppHandle, period: String, group: String, account: Option<String>) -> DashboardView {
+pub async fn get_insights(app: AppHandle, period: String, project: Option<String>) -> InsightsView {
+    let Some(s) = activity::stats(&app) else { return InsightsView { period, ..Default::default() } };
     let now = now_ms();
+    let st = app.state::<AppState>();
+    let subs = subscriptions(&st.account_views(now));
+    let prices = st.settings.lock().unwrap().insights.plan_prices.clone();
+    tauri::async_runtime::spawn_blocking(move || s.insights(&period, project.as_deref(), &subs, &prices, now)).await.unwrap_or_default()
+}
+
+/// `project` / `model` (a display name, "Opus 5.5") narrow the activity parts to that one.
+#[tauri::command]
+pub async fn get_dashboard(
+    app: AppHandle,
+    period: String,
+    group: String,
+    account: Option<String>,
+    project: Option<String>,
+    model: Option<String>,
+) -> DashboardView {
+    let now = now_ms();
+    let filter = Filter { project, model };
     let mut d = match activity::stats(&app) {
         Some(s) => {
             let (p, g) = (period.clone(), group.clone());
-            let (mut d, sv) =
-                tauri::async_runtime::spawn_blocking(move || (s.dashboard(&p, &g, now), s.stats(&p, now))).await.unwrap_or_default();
+            let (mut d, sv) = tauri::async_runtime::spawn_blocking(move || {
+                (s.dashboard_filtered(&p, &g, &filter, now), s.stats_filtered(&p, &filter, now))
+            })
+            .await
+            .unwrap_or_default();
             d.billed = sv.spend_actual;
             d.billed_note = sv.actual_note;
             d.cache_share = (sv.tokens.total > 0).then(|| sv.tokens.cache as f64 / sv.tokens.total as f64 * 100.0);
@@ -472,6 +508,7 @@ pub fn merge(s: &Settings, patch: &serde_json::Value) -> Result<Settings, String
     let mut out: Settings = serde_json::from_value(v).map_err(|e| format!("Invalid settings: {e}"))?;
     out.warn_at = out.warn_at.clamp(1.0, 100.0);
     out.crit_at = out.crit_at.clamp(out.warn_at, 100.0);
+    out.insights.plan_prices.retain(|_, p| p.is_finite() && *p >= 0.0);
     if !matches!(out.rattleboard.alerts.as_str(), "off" | "alerts" | "warnings" | "all") {
         return Err(format!("Unknown alert level {}", out.rattleboard.alerts));
     }
@@ -519,14 +556,41 @@ pub fn snooze(app: AppHandle, minutes: Option<i64>) {
     let _ = set_settings(app, serde_json::json!({ "pausedUntil": until }));
 }
 
+/// What the dashboard should show when it opens: the popover's Top models and Top projects rows
+/// open it filtered to that model or project.
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct DashTarget {
+    pub period: Option<String>,
+    pub project: Option<String>,
+    pub model: Option<String>,
+}
+
+/// The target for a dashboard window that's still loading; it asks with `take_dashboard_target`.
+static DASH_TARGET: std::sync::Mutex<Option<DashTarget>> = std::sync::Mutex::new(None);
+
 #[tauri::command]
-pub fn open_dashboard(app: AppHandle) {
+pub fn take_dashboard_target() -> Option<DashTarget> {
+    DASH_TARGET.lock().unwrap_or_else(|e| e.into_inner()).take()
+}
+
+/// Opens (or brings forward) the dashboard; with a `target`, switched to it (`tr://dash-target`
+/// for an open one).
+#[tauri::command]
+pub fn open_dashboard(app: AppHandle, target: Option<DashTarget>) {
     if let Some(w) = app.get_webview_window("dashboard") {
+        if let Some(t) = target {
+            let _ = app.emit_to("dashboard", "tr://dash-target", t);
+            if let Some(p) = app.get_webview_window("popover") {
+                let _ = p.hide();
+            }
+        }
         let _ = w.show();
         let _ = w.unminimize();
         let _ = w.set_focus();
         return;
     }
+    *DASH_TARGET.lock().unwrap_or_else(|e| e.into_inner()) = target;
     if let Some(p) = app.get_webview_window("popover") {
         let _ = p.hide();
     }
@@ -564,6 +628,16 @@ mod tests {
         assert_eq!(out.crit_at, 90.0);
         assert!(merge(&s, &serde_json::json!({"warnAt": "x"})).is_err());
         assert!(merge(&s, &serde_json::json!([1])).is_err());
+    }
+
+    #[test]
+    fn insights_patch() {
+        let s = Settings::default();
+        assert!(s.insights.weekly_recap);
+        let out = merge(&s, &serde_json::json!({"insights": {"weeklyRecap": false, "planPrices": {"a": 60, "b": -5}}})).unwrap();
+        assert!(!out.insights.weekly_recap);
+        assert_eq!(out.insights.plan_prices.get("a"), Some(&60.0));
+        assert!(!out.insights.plan_prices.contains_key("b"), "negative prices are dropped");
     }
 
     #[test]

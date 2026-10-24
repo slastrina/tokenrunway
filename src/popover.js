@@ -355,12 +355,32 @@
     const dailySec = `<div class="sec"><div class="sec-h"><span class="caps">Daily spend</span><span class="aside">${peak}</span></div>`
       + `<div class="days ${dense ? 'dense' : ''}" style="${cols}" role="img" aria-label="${esc(chartLabel)}">${bars}</div>${labels}</div>`;
 
-    const ranked = (title, rows, mono) => {
-      const top = Math.max(0, ...rows.map((r) => r.cost));
-      return `<div class="rank"><span class="caps">${title}</span>${rows.length ? rows.slice(0, 4).map((r) => `<div class="rank-r"><div class="t"><span class="n ${mono ? 'mono' : ''}" title="${esc(r.name)}">${esc(r.name)}</span><span class="v">${C.money(r.cost)}</span></div>`
-        + `<div class="thin"><div style="width:${top ? Math.round((r.cost / top) * 100) : 0}%"></div></div></div>`).join('') : '<span class="fine">None yet</span>'}</div>`;
+    // Each row opens the dashboard narrowed to that model or project. Projects show their top
+    // branch (from get_insights) when it's a feature branch, not main.
+    const ins = S.ins?.period === st.period ? S.ins : null;
+    const topBranch = (name) => {
+      const b = ins?.projects?.find((p) => p.name === name)?.branches?.[0]?.name;
+      return b && !/^(main|master|trunk|develop)$/.test(b) ? b : null;
     };
-    const two = `<div class="two">${ranked('Top models', st.models || [], false)}${ranked('Top projects', st.projects || [], true)}</div>`;
+    const ranked = (title, rows, kind) => {
+      const top = Math.max(0, ...rows.map((r) => r.cost));
+      const mono = kind === 'project';
+      return `<div class="rank"><span class="caps">${title}</span>${rows.length ? rows.slice(0, 4).map((r) => {
+        const br = mono ? topBranch(r.name) : null;
+        return `<button class="rank-r go" data-act="dash-target" data-kind="${kind}" data-name="${esc(r.name)}" data-k="rank-${kind}-${esc(r.name)}" aria-label="${esc(r.name)}, ${C.money(r.cost)}${br ? `, mostly on ${esc(br)}` : ''}. Open in the dashboard">`
+          + `<span class="t"><span class="n ${mono ? 'mono' : ''}" title="${esc(r.name)}">${esc(r.name)}</span><span class="v">${C.money(r.cost)}</span></span>`
+          + (br ? `<span class="br mono" title="Top branch: ${esc(br)}">${esc(br)}</span>` : '')
+          + `<span class="thin"><span style="width:${top ? Math.round((r.cost / top) * 100) : 0}%"></span></span></button>`;
+      }).join('') : '<span class="fine">None yet</span>'}</div>`;
+    };
+    const two = `<div class="two">${ranked('Top models', st.models || [], 'model')}${ranked('Top projects', st.projects || [], 'project')}</div>`;
+    // This month's subscription value, and the biggest cache tip.
+    const value = (ins?.value || []).length ? `<div class="sec" style="gap:6px"><div class="sec-h"><span class="caps">Plan value</span><span class="aside m">this month, at API prices</span></div>`
+      + ins.value.map((v) => `<div class="pv" title="${esc(v.line)}"><span class="dot" style="--c:var(${C.providerVar(v.provider)})"></span><span class="n">${esc(v.plan)}</span>`
+        + `<span class="w">${C.money(v.spend, 0)} of work</span><b>${v.multiple != null ? esc(v.multiple >= 10 ? String(Math.round(v.multiple)) : v.multiple.toFixed(1)) + '×' : '—'}</b></div>`).join('') + '</div>' : '';
+    const tip = ins?.tips?.[0];
+    const tipSec = tip ? `<div class="sec ptip"><div class="sec-h"><span class="caps">Cache tip</span><button class="aside link" data-act="dash-target" data-kind="project" data-name="${esc(tip.project)}" data-k="tip-open">Details</button></div>`
+      + `<p class="fine"><b>${esc(tip.title)}.</b> ${esc(tip.detail)}</p></div>` : '';
 
     const kinds = st.kinds || [];
     const kmax = Math.max(0, ...kinds.map((k) => k.share));
@@ -370,7 +390,7 @@
     const kindSec = kinds.length ? `<div class="sec" style="gap:8px"><div class="sec-h"><span class="caps">Kind of work</span><span class="aside m">share of tokens</span></div>`
       + `<div class="kinds">${order.map((k) => `<div class="kind"><span class="n">${esc(k.kind)}</span><div class="b"><div style="width:${kmax ? Math.round((k.share / kmax) * 100) : 0}%"></div></div><span class="p">${Math.round(k.share)}%</span></div>`).join('')}</div></div>` : '';
     // One bar (Today) isn't a chart; the spend tile already says it.
-    return kpis + (daily.length > 1 ? dailySec : '') + two + kindSec;
+    return kpis + value + (daily.length > 1 ? dailySec : '') + two + kindSec + tipSec;
   }
   const isoToday = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 
@@ -665,12 +685,16 @@
       return `<div class="acc"><div class="acc-h">${tile(a.provider, a.mono, 's20')}`
         + `<input class="field" value="${esc(S.renames[id] ?? a.name)}" aria-label="Name of ${esc(a.name)}" data-k="ren-${esc(id)}" data-rename="${esc(id)}" spellcheck="false">`
         + (a.plan ? `<span class="plan">${esc(a.plan)}</span>` : '')
-        + `<button class="ib sm" data-act="admin" data-id="${esc(id)}" data-k="adm-${esc(id)}" aria-expanded="${open}" aria-label="Admin contact for ${esc(a.name)}" title="Admin contact">${open ? ICON.down() : ICON.chevron(11)}</button>`
+        + `<button class="ib sm" data-act="admin" data-id="${esc(id)}" data-k="adm-${esc(id)}" aria-expanded="${open}" aria-label="Admin contact and plan price for ${esc(a.name)}" title="Admin contact and plan price">${open ? ICON.down() : ICON.chevron(11)}</button>`
         + `<button class="ib sm" data-act="remove" data-id="${esc(id)}" data-k="rm-${esc(id)}" aria-label="Remove ${esc(a.name)}">${ICON.trash()}</button></div>`
         + (confirm ? `<div style="display:flex;align-items:center;gap:6px;padding-left:28px"><span style="flex:1;font-size:12px;color:var(--fg2)">Remove ${esc(a.name)}? Its key leaves the keychain.</span>`
           + `<button class="btn s24" data-act="remove-no" data-k="rmno-${esc(id)}">Cancel</button><button class="btn s24" style="background:var(--crit);color:#fff;font-weight:600" data-act="remove-yes" data-id="${esc(id)}" data-k="rmyes-${esc(id)}">Remove</button></div>` : '')
         + (open ? `<div class="admin"><span class="caps" style="grid-column:1/-1">Admin contact, for Request more</span>${['name', 'email', 'slack', 'teams'].map((f) => `<label for="ad-${esc(id)}-${f}">${f[0].toUpperCase() + f.slice(1)}</label>`
-          + `<input id="ad-${esc(id)}-${f}" class="field" value="${esc(ad[f] || '')}" placeholder="${{ name: 'Jordan Lee', email: 'jordan@company.com', slack: '@jordan or a link', teams: 'Teams chat link or email' }[f]}" data-k="ad-${esc(id)}-${f}" data-admin="${esc(id)}" data-field="${f}" spellcheck="false">`).join('')}</div>` : '')
+          + `<input id="ad-${esc(id)}-${f}" class="field" value="${esc(ad[f] || '')}" placeholder="${{ name: 'Jordan Lee', email: 'jordan@company.com', slack: '@jordan or a link', teams: 'Teams chat link or email' }[f]}" data-k="ad-${esc(id)}-${f}" data-admin="${esc(id)}" data-field="${f}" spellcheck="false">`).join('')}`
+          + (['anthropic', 'openai', 'gemini'].includes(a.provider) && ['cli', 'login'].includes(a.method)
+            ? `<span class="caps" style="grid-column:1/-1;margin-top:4px">Plan price, for Plan value</span><label for="pp-${esc(id)}">$/month</label>`
+              + `<input id="pp-${esc(id)}" class="field" type="number" inputmode="decimal" min="0" step="1" value="${esc(st.insights?.planPrices?.[id] ?? '')}" placeholder="${/^(team|enterprise|business)/i.test(a.plan || '') ? 'Your seat’s price, in $' : 'List price'}" data-k="pp-${esc(id)}" data-price="${esc(id)}" aria-label="Plan price per month for ${esc(a.name)}, in dollars">`
+            : '') + '</div>' : '')
         + '</div>';
     }).join('');
     const paused = st.pausedUntil && st.pausedUntil > Date.now();
@@ -695,6 +719,7 @@
       + `<div class="srow"><span class="t"><b>Window resets</b></span>${sw('notifyReset', st.notifyReset, 'Notify when a window resets')}</div>`
       + `<div class="srow"><span class="t"><b>Fast sessions</b><span>When a session spends 3× your usual pace</span></span>${sw('notifyBurn', st.notifyBurn, 'Notify about fast sessions')}</div>`
       + `<div class="srow"><span class="t"><b>Try it</b><span>Shows a test notification</span></span><button class="btn s24" data-act="test-notification" data-k="test-notification">Send a test</button></div>`
+      + `<div class="srow"><span class="t"><b>Weekly recap</b><span>Mondays: last week's spend, top project and biggest session</span></span><button class="switch" role="switch" aria-checked="${st.insights?.weeklyRecap !== false}" aria-label="Weekly recap on Mondays" data-act="toggle-recap" data-k="sw-recap"></button></div>`
       + `<div class="srow"><span class="t"><b>Offer Request more at</b></span>${numField('requestAt', st.requestAt, 'Offer request more at percent used', 1, 100, '%')}</div></div></div>`
       + rbGroup()
       + '<div class="group"><span class="caps">Request messages</span><div class="box">'
@@ -877,9 +902,14 @@
     if (S.view === which) render();
     const period = S.period[which];
     try {
-      const r = await invoke(which === 'stats' ? 'get_stats' : 'get_harness', { period });
+      // Stats also shows insights (top branches, plan value, a cache tip); they're optional.
+      const [r, ins] = await Promise.all([
+        invoke(which === 'stats' ? 'get_stats' : 'get_harness', { period }),
+        which === 'stats' ? invoke('get_insights', { period, project: null }).catch(() => null) : null,
+      ]);
       if (period !== S.period[which]) return;
       S[which] = r; S[which + 'Err'] = '';
+      if (which === 'stats') S.ins = ins;
     } catch (e) { S[which + 'Err'] = String(e?.message || e); }
     S.loadingData = false;
     if (S.view === which) softRender();
@@ -914,6 +944,7 @@
       case 'settings': go(S.view === 'settings' ? S.tab : 'settings'); break;
       case 'site': invoke('open_site'); break;
       case 'dashboard': invoke('open_dashboard'); break;
+      case 'dash-target': invoke('open_dashboard', { target: { period: S.period.stats, [t.dataset.kind]: t.dataset.name } }); break;
       case 'add': startAdd(); break;
       case 'add-detected': addDetected(t.dataset.kind); break;
       case 'refresh': refresh(id); break;
@@ -959,6 +990,10 @@
       case 'set': setSettings({ [t.dataset.name]: v }); render(); break;
       case 'toggle': setSettings({ [t.dataset.name]: t.getAttribute('aria-checked') !== 'true' }); render(); break;
       case 'resume': setSettings({ pausedUntil: 0 }); render(); break;
+      case 'toggle-recap': {
+        const ins = (S.settings || S.app.settings).insights || { weeklyRecap: true, planPrices: {} };
+        setSettings({ insights: { ...ins, weeklyRecap: t.getAttribute('aria-checked') !== 'true' } }); render(); break;
+      }
       case 'admin': S.openAdmin.has(id) ? S.openAdmin.delete(id) : S.openAdmin.add(id); render(); break;
       case 'remove': S.confirmRemove = id; render(); break;
       case 'remove-no': S.confirmRemove = null; render(); break;
@@ -1006,6 +1041,14 @@
     }
     if (t.dataset.text) setSettings({ [t.dataset.text]: t.value.trim() });
     if (t.dataset.choose) setSettings({ [t.dataset.choose]: t.value });
+    if (t.dataset.price) {
+      const ins = (S.settings || S.app.settings).insights || { weeklyRecap: true, planPrices: {} };
+      const planPrices = { ...(ins.planPrices || {}) };
+      const n = Number(t.value);
+      if (t.value.trim() === '' || !Number.isFinite(n) || n < 0) delete planPrices[t.dataset.price];
+      else planPrices[t.dataset.price] = n;
+      setSettings({ insights: { ...ins, planPrices } });
+    }
     if (t.dataset.admin) {
       const id = t.dataset.admin;
       const admins = { ...((S.settings || S.app.settings).admins || {}) };

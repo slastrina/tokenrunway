@@ -42,6 +42,7 @@ pub async fn run(app: AppHandle) {
         if now - last_broadcast >= 30_000 {
             broadcast(&app);
             last_broadcast = now;
+            crate::recap::tick(&app);
         }
         let st = app.state::<AppState>();
         tokio::select! {

@@ -10,6 +10,7 @@ pub mod categorise;
 pub mod cli;
 pub mod forecast;
 pub mod ingest;
+pub mod insights;
 pub mod live;
 pub mod model;
 pub mod pricing;

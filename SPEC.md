@@ -457,6 +457,33 @@ Any metric (tokens, cost, events, sessions, active time) by any dimension (accou
 harness, model, project, branch, category, hour of day/week). The harness view (Claude Code,
 Codex, opencode, …) is a first-class tab, not just a filter.
 
+The popover's Top models and Top projects rows open the dashboard narrowed to that model or
+project (`open_dashboard { target }`; an open dashboard switches via `tr://dash-target`). The
+dashboard's filter chips clear it. Today maps to the dashboard's 7 d.
+
+### 10.6 Insights (`insights.rs`, `get_insights { period, project }`)
+- **Projects and branches**: cost, tokens, sessions and cache hit rate per project, with its top
+  branches (all of them in the drill-down, which also filters the dashboard's chart, heatmap and
+  sessions). The branch comes from the harness (Claude Code `gitBranch`, Codex `git.branch`);
+  `HEAD` and none read as "No branch".
+- **Cache tips**: hit rate = cache read / (input + cache read + cache write), counting only
+  harnesses that report caching. A project with ≥ $5 or ≥ 1M tokens in the period whose rate is
+  under half the usual and ≥ 20 points below gets a tip (top 3 by cost). The cause is the biggest
+  share of uncached tokens among: calls after an idle gap longer than the cache lifetime (5 min, or
+  1 h when the session writes 1-hour cache), calls that switched model mid-session, and sessions of
+  3 calls or fewer. Under 25% for all of them: no cause is claimed.
+- **Weekly recap**: last Monday–Sunday (local): spend, tokens, sessions, change from the week
+  before, top project and model, biggest session. Notified once a week from Monday 09:00 when
+  that week had work (`recap.rs`, remembered in recap.json); Settings → Notifications → Weekly
+  recap, held by Pause.
+- **Plan value**: API-equivalent spend this calendar month from the harnesses that run on a
+  subscription (Claude Code → Claude, Codex → ChatGPT, Gemini CLI → Gemini; opencode and others
+  can use either a subscription or a key, so they don't count), against the plan's monthly price.
+  List prices are built in (Claude Pro $20, Max 5x $100, Max 20x $200; ChatGPT Plus $20, Pro $200;
+  Google AI Pro/Ultra); Team, Enterprise and Business seats need one in Settings (account →
+  Plan price). Several accounts of one provider are added together, since the logs don't say
+  which account a session used.
+
 ## 11. Updates and changelog (same as Rattleboard)
 - `tokenrunway-core::update` checks `api.github.com/repos/slastrina/tokenrunway/releases/latest` about
   30 s after launch and then daily (at most every 12 h across restarts). When there's a newer
