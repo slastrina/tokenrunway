@@ -12,10 +12,15 @@
   const PROBLEM = new Set(['stale', 'login', 'broken']);
   const SHORT = { anthropic: 'Claude', openai: 'ChatGPT', bedrock: 'AWS Bedrock', 'anthropic-api': 'Anthropic API', 'openai-api': 'OpenAI API', gemini: 'Gemini', xai: 'Grok', copilot: 'Copilot', cursor: 'Cursor' };
 
+  // Remembered across restarts too; storage can be missing (private mode, previews).
+  function savedTab() {
+    try { const t = localStorage.getItem('tr.tab'); if (TABS.some(([id]) => id === t)) return t; } catch {}
+    return 'now';
+  }
   const S = {
     app: null,
     view: 'now',
-    tab: 'now', // last tab, where sub-views return to
+    tab: savedTab(), // last tab: where sub-views return to, and what the tray icon reopens
     period: { stats: '7d', harness: '7d' },
     stats: null, harness: null, statsErr: '', harnessErr: '', loadingData: false,
     busy: new Set(),
@@ -300,7 +305,8 @@
     for (let i = 0; i < half; i++) { order.push(kinds[i]); if (kinds[i + half]) order.push(kinds[i + half]); }
     const kindSec = kinds.length ? `<div class="sec" style="gap:8px"><div class="sec-h"><span class="caps">Kind of work</span><span class="aside m">share of tokens</span></div>`
       + `<div class="kinds">${order.map((k) => `<div class="kind"><span class="n">${esc(k.kind)}</span><div class="b"><div style="width:${kmax ? Math.round((k.share / kmax) * 100) : 0}%"></div></div><span class="p">${Math.round(k.share)}%</span></div>`).join('')}</div></div>` : '';
-    return kpis + dailySec + two + kindSec;
+    // One bar (Today) isn't a chart; the spend tile already says it.
+    return kpis + (daily.length > 1 ? dailySec : '') + two + kindSec;
   }
   const isoToday = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 
@@ -767,7 +773,10 @@
   // ---------- navigation ----------
   const tabLabel = () => TABS.find(([id]) => id === S.tab)?.[1] || 'Now';
   function go(view) {
-    if (TABS.some(([id]) => id === view)) S.tab = view;
+    if (TABS.some(([id]) => id === view) && S.tab !== view) {
+      S.tab = view;
+      try { localStorage.setItem('tr.tab', view); } catch {}
+    }
     S.view = view;
     C.closeMenu(); C.tip.hide();
     render();
@@ -804,6 +813,7 @@
   function show(view) {
     const v = String(view || 'now');
     if (v === 'current') return; // shown again after a login window: stay where it was
+    if (v === 'last') { go(S.tab); return; } // the tray icon: back to the tab it was left on
     if (v === 'add') startAdd();
     else if (v === 'request') { const a = S.app?.accounts.find((x) => x.windows?.some(wantsRequest)); if (a) openRequest(a.id, a.windows.find(wantsRequest).id); else go('now'); }
     else if (['now', 'stats', 'harness', 'settings', 'update'].includes(v)) go(v);
@@ -963,4 +973,5 @@
   try { applyState(await invoke('get_state')); } catch (e) { $('#view').innerHTML = bar() + `<div class="msgbox"><h2>Couldn't read the state</h2>${esc(e?.message || e)}</div>`; }
   const initial = C.q.get('view');
   if (initial) show(initial);
+  else if (S.tab !== 'now') go(S.tab);
 })();

@@ -157,7 +157,7 @@ pub fn refresh_menu(app: &AppHandle) {
 pub fn on_menu(app: &AppHandle, id: &str) {
     match id {
         "site" => crate::open_site(app.clone()),
-        "open" => crate::open_view(app, "now"),
+        "open" => crate::open_view(app, "last"),
         "dashboard" => crate::commands::open_dashboard(app.clone()),
         "refresh" => crate::poll::force(app, None),
         "settings" => crate::open_view(app, "settings"),

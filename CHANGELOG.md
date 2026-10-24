@@ -4,6 +4,13 @@ Each release's section becomes its GitHub release notes and the in-app "What's n
 `.github/workflows/release.yml`). Write for people using the app: what they can do now, in a
 sentence or two each.
 
+## [Unreleased]
+
+### Changed
+- Clicking the menubar icon opens Tokenrunway on the tab you left it on (Now, Stats or Harness),
+  even after a restart.
+- Stats → Today no longer shows a daily spend chart with a single bar.
+
 ## [0.1.1] - 2026-10-24
 
 ### Added

@@ -3,8 +3,8 @@
 //! tokenrunway-core (see SPEC.md §7).
 //!
 //! Events the windows get: `tr://state` (the AppView, whenever it changes), `tr://stats-changed`
-//! (an ingest added events), `tr://show` (the popover view to show: "now", "settings",
-//! "update"), `tr://info` and `tr://update-progress` (updates).
+//! (an ingest added events), `tr://show` (the popover view to show: "last" for the tab it was
+//! left on, "now", "settings", "update"), `tr://info` and `tr://update-progress` (updates).
 
 mod activity;
 mod board;
@@ -171,7 +171,7 @@ pub fn open_view(app: &AppHandle, view: &str) {
 
 pub fn run() {
     let app = tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| open_view(app, "now")))
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| open_view(app, "last")))
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, None))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -233,7 +233,7 @@ pub fn run() {
                         _ => {}
                     }
                     if let TrayIconEvent::Click { rect, button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event {
-                        toggle_popover(tray.app_handle(), Some(rect), "now");
+                        toggle_popover(tray.app_handle(), Some(rect), "last");
                     }
                 })
                 .build(app)?;
