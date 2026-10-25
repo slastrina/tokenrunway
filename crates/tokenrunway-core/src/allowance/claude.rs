@@ -262,6 +262,12 @@ impl Provider for ClaudeCode {
         let p = acct.plan.to_ascii_lowercase();
         (p.contains("enterprise") || p.contains("team")).then(|| "https://claude.ai/settings/usage".into())
     }
+
+    /// The usage endpoint rate-limits hard, per login, and Claude Code (on every computer
+    /// signed in) uses it too: every 5 minutes at most.
+    fn min_interval_ms(&self) -> i64 {
+        5 * 60_000
+    }
 }
 
 #[cfg(test)]

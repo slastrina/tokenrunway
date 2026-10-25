@@ -1,7 +1,8 @@
 //! Remote polling (SPEC.md §7.3): per account, every 60 s while a window is at 70% or more or a
 //! harness wrote to its logs in the last 5 minutes, every 5 minutes otherwise (never faster than
-//! the provider allows). Errors back off exponentially, and a Retry-After is honoured. "Refresh
-//! now" polls straight away, at most once per 15 s per account.
+//! the provider allows; Claude every 5 minutes at most). Errors back off exponentially, and a
+//! Retry-After is honoured. "Refresh now" polls straight away, at most once per 15 s per account,
+//! and not while the provider has asked us to slow down.
 
 use crate::state::{broadcast, AppState};
 use std::time::Duration;
@@ -143,12 +144,13 @@ pub async fn poll_one(app: &AppHandle, id: &str) {
             }
         };
         s.next_due = now + wait;
+        s.limited_until = if matches!(error, Some(ProviderError::RateLimited(_))) { s.next_due } else { 0 };
     }
     broadcast(app);
 }
 
 /// "Refresh now": polls the account (or every account) at once, unless it was forced within
-/// the last 15 s.
+/// the last 15 s or the provider is rate-limiting it.
 pub fn force(app: &AppHandle, id: Option<&str>) {
     let st = app.state::<AppState>();
     let now = now_ms();
@@ -160,7 +162,7 @@ pub fn force(app: &AppHandle, id: Option<&str>) {
         let mut sched = st.sched.lock().unwrap();
         for i in ids {
             let s = sched.entry(i).or_default();
-            if now - s.last_forced >= REFRESH_DEBOUNCE_MS {
+            if now - s.last_forced >= REFRESH_DEBOUNCE_MS && now >= s.limited_until {
                 s.last_forced = now;
                 s.next_due = 0;
             }

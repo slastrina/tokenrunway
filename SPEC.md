@@ -274,8 +274,11 @@ SQLite in the app data dir (`io.github.slastrina.tokenrunway`), WAL mode.
 ### 7.3 Polling
 Remote polling is adaptive per account: every 60 s while a window is above 70% or a harness is
 active (a local event in the last 5 min), 5 min otherwise, and 15 min when idle or on battery saver.
-On 429 we back off exponentially and honour `Retry-After`. "Refresh now" polls straight away
-(debounced to once per 15 s). Codex readings found in local logs update the window without a remote
+Claude's usage endpoint rate-limits hard per login (Claude Code on every signed-in computer uses
+it too), so Claude is read every 5 min at most. On 429 we back off exponentially and honour
+`Retry-After`; while the last good reading is under 30 min old the card carries on with it instead
+of turning stale. "Refresh now" polls straight away (debounced to once per 15 s), but not during a
+rate-limit wait. Codex readings found in local logs update the window without a remote
 call.
 
 ### 7.4 Matching local events to accounts

@@ -18,6 +18,8 @@ pub struct Sched {
     pub failures: u32,
     pub last_forced: i64,
     pub in_flight: bool,
+    /// The provider asked us to slow down: "Refresh now" waits until then too.
+    pub limited_until: i64,
 }
 
 pub struct AppState {

@@ -312,6 +312,10 @@ pub struct Live {
     pub tried: bool,
 }
 
+/// A rate limit is only shown once the last good reading is this old; until then the card
+/// carries on with that reading while polling backs off.
+pub const QUIET_LIMIT_MS: i64 = 30 * 60_000;
+
 /// The card for one account: its windows with forecasts, and its state.
 pub fn account_view(
     acct: &AccountRecord,
@@ -321,7 +325,11 @@ pub fn account_view(
     now: i64,
 ) -> AccountView {
     let problem_of = |e: &ProviderError| e.problem(&acct.provider);
-    let (state, problem, cause) = match (&live.error, live.last.as_ref().and_then(|f| f.caveat.as_ref())) {
+    let quiet = matches!(live.error, Some(ProviderError::RateLimited(_)))
+        && live.last.is_some()
+        && live.updated_at.is_some_and(|t| now - t < QUIET_LIMIT_MS);
+    let error = live.error.as_ref().filter(|_| !quiet);
+    let (state, problem, cause) = match (error, live.last.as_ref().and_then(|f| f.caveat.as_ref())) {
         (Some(e), _) => (e.state(), Some(problem_of(e)), Some(e.cause().to_string())),
         (None, Some(c)) => (c.state(), Some(problem_of(c)), Some(c.cause().to_string())),
         (None, None) if !live.tried => (AccountState::Loading, None, None),
@@ -529,6 +537,37 @@ mod tests {
         assert_eq!(ProviderError::RateLimited(Some(120)).problem("openai"), "ChatGPT asked Tokenrunway to slow down; trying again in 2m.");
         assert_eq!(ProviderError::Unavailable("x".into()).cause(), "setup");
         assert_eq!(ProviderError::SchemaChanged("x".into()).cause(), "schema");
+    }
+
+    #[test]
+    fn a_short_rate_limit_keeps_the_last_reading() {
+        let now = 10 * HOUR_MS;
+        let acct = AccountRecord { provider: "anthropic".into(), method: "cli".into(), ..Default::default() };
+        let reading = Reading {
+            id: "5h".into(),
+            label: "5-hour".into(),
+            used: 0.4,
+            abs: None,
+            resets_at: Some(now + HOUR_MS),
+            length_ms: Some(5 * HOUR_MS),
+            money: None,
+            at: now - 60_000,
+        };
+        let live = |age: i64, error: ProviderError| Live {
+            last: Some(Fetched { windows: vec![reading.clone()], ..Default::default() }),
+            updated_at: Some(now - age),
+            error: Some(error),
+            tried: true,
+        };
+        let view = |l: &Live| account_view(&acct, l, &|_| Vec::new(), &Thresholds::default(), now);
+        let v = view(&live(6 * 60_000, ProviderError::RateLimited(None)));
+        assert_eq!((v.state, v.problem), (AccountState::Ok, None), "quiet while the reading is recent");
+        let v = view(&live(QUIET_LIMIT_MS + 60_000, ProviderError::RateLimited(None)));
+        assert_eq!(v.state, AccountState::Stale, "shown once the reading is old");
+        let v = view(&live(60_000, ProviderError::Network("api.anthropic.com".into())));
+        assert_eq!(v.state, AccountState::Stale, "other errors aren't hidden");
+        let v = view(&Live { last: None, updated_at: None, error: Some(ProviderError::RateLimited(None)), tried: true });
+        assert_eq!(v.state, AccountState::Stale, "nothing to show instead");
     }
 
     #[test]

@@ -4,6 +4,14 @@ Each release's section becomes its GitHub release notes and the in-app "What's n
 `.github/workflows/release.yml`). Write for people using the app: what they can do now, in a
 sentence or two each.
 
+## [Unreleased]
+
+### Fixed
+- **"Claude asked Tokenrunway to slow down"**: Claude's usage is now read every 5 minutes at most
+  (it was every minute while you were coding), which matters most with several Macs on the same
+  login. A short rate limit no longer turns the card into a warning: it keeps the last reading
+  until it's 30 minutes old, and Refresh waits out the limit instead of asking again.
+
 ## [0.2.1] - 2026-10-24
 
 ### Added
