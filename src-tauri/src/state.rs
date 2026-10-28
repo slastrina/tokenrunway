@@ -119,11 +119,15 @@ impl AppState {
     /// Every account's card, most urgent first.
     pub fn account_views(&self, now: i64) -> Vec<tokenrunway_core::view::AccountView> {
         let th = Thresholds::from(&*self.settings.lock().unwrap());
-        let list = self.accounts.lock().unwrap().list.clone();
+        let (list, shared): (Vec<_>, Vec<bool>) = {
+            let accts = self.accounts.lock().unwrap();
+            (accts.list.clone(), accts.list.iter().map(|a| !accts.peers(&a.id).is_empty()).collect())
+        };
         let live = self.live.lock().unwrap().clone();
         let mut views: Vec<_> = list
             .iter()
-            .map(|a| {
+            .zip(shared)
+            .map(|(a, shared)| {
                 let l = live.get(&a.id).cloned().unwrap_or_default();
                 let history = |w: &str| self.snaps.history(&a.id, w, now - forecast::LOOKBACK_MS - 60_000);
                 let mut v = allowance::account_view(a, &l, &history, &th, now);
@@ -133,7 +137,9 @@ impl AppState {
                     for w in &mut v.windows {
                         // A model's own window (Claude's "weekly-opus") counts that model's work.
                         let model = w.id.strip_prefix("weekly-").filter(|_| a.provider == "anthropic");
-                        w.cycle_spend = w.cycle_start.filter(|s| *s <= now).map(|s| stats.spend_since(s, harnesses, model));
+                        // Sharing the agent with another account of the provider: its own logins only.
+                        let logins = shared.then_some(&a.logins[..]);
+                        w.cycle_spend = w.cycle_start.filter(|s| *s <= now).map(|s| stats.spend_since(s, harnesses, model, logins));
                         if w.left_usd.is_none() {
                             w.left_usd = left_estimate(w.cycle_spend, w.pct);
                             w.left_estimate = w.left_usd.is_some();

@@ -35,11 +35,18 @@ pub fn spend_since(store: &Store, from: i64) -> f64 {
 }
 
 /// API-equivalent spend in [from, ∞) by these harnesses only, and only models whose id contains
-/// `model` when given ("opus" for a Weekly Opus window).
-pub fn spend_since_by(store: &Store, from: i64, harnesses: &[&str], model: Option<&str>) -> f64 {
-    let sql = "SELECT IFNULL(SUM(cost_usd), 0) FROM events WHERE ts >= ?1 AND harness = ?2 AND instr(lower(model), ?3) > 0";
-    let Ok(mut q) = store.conn().prepare_cached(sql) else { return 0.0 };
+/// `model` when given ("opus" for a Weekly Opus window), and only calls made under these CLI
+/// logins when given (an account that shares its agent with another).
+pub fn spend_since_by(store: &Store, from: i64, harnesses: &[&str], model: Option<&str>, logins: Option<&[String]>) -> f64 {
     let m = model.unwrap_or("").to_ascii_lowercase();
+    let by_login = match logins {
+        Some([]) => return 0.0,
+        Some(l) => format!(" AND account IN ({})", l.iter().map(|x| format!("'{}'", x.replace('\'', "''"))).collect::<Vec<_>>().join(",")),
+        None => String::new(),
+    };
+    let sql =
+        format!("SELECT IFNULL(SUM(cost_usd), 0) FROM events WHERE ts >= ?1 AND harness = ?2 AND instr(lower(model), ?3) > 0{by_login}");
+    let Ok(mut q) = store.conn().prepare(&sql) else { return 0.0 };
     harnesses.iter().map(|h| q.query_row(params![from, h, m], |r| r.get::<_, f64>(0)).unwrap_or(0.0)).sum()
 }
 
@@ -120,8 +127,8 @@ pub fn local_usage(store: &Store, from: i64) -> (u32, u64, Option<i64>) {
 
 impl Stats {
     /// API-equivalent work since `from` by these harnesses (an allowance window's cycle).
-    pub fn spend_since(&self, from: i64, harnesses: &[&str], model: Option<&str>) -> f64 {
-        spend_since_by(&self.store(), from, harnesses, model)
+    pub fn spend_since(&self, from: i64, harnesses: &[&str], model: Option<&str>, logins: Option<&[String]>) -> f64 {
+        spend_since_by(&self.store(), from, harnesses, model, logins)
     }
 
     /// LM Studio today: requests, tokens, and its last request ever.
@@ -197,11 +204,17 @@ mod tests {
             )
             .unwrap();
         let since = NOW - 60 * MIN;
-        assert_eq!(spend_since_by(&s, since, &["claude-code"], None), 2.0);
-        assert_eq!(spend_since_by(&s, since, &["claude-code"], Some("opus")), 2.0);
-        assert_eq!(spend_since_by(&s, since, &["claude-code"], Some("fable")), 0.0, "a Weekly Fable window");
-        assert_eq!(spend_since_by(&s, since, &["codex"], None), 1.25);
-        assert_eq!(spend_since_by(&s, since, &[], None), 0.0);
+        assert_eq!(spend_since_by(&s, since, &["claude-code"], None, None), 2.0);
+        assert_eq!(spend_since_by(&s, since, &["claude-code"], Some("opus"), None), 2.0);
+        assert_eq!(spend_since_by(&s, since, &["claude-code"], Some("fable"), None), 0.0, "a Weekly Fable window");
+        assert_eq!(spend_since_by(&s, since, &["codex"], None, None), 1.25);
+        assert_eq!(spend_since_by(&s, since, &[], None, None), 0.0);
+        // Two Claude logins: each account counts its own.
+        s.conn().execute("UPDATE events SET account = 'me' WHERE key = 'opus'", []).unwrap();
+        let me = ["me".to_string()];
+        assert_eq!(spend_since_by(&s, since, &["claude-code"], None, Some(&me)), 2.0);
+        assert_eq!(spend_since_by(&s, since, &["claude-code"], None, Some(&["o'ther".to_string()])), 0.0);
+        assert_eq!(spend_since_by(&s, since, &["claude-code"], None, Some(&[])), 0.0, "a login not seen yet");
     }
 
     #[test]
