@@ -197,6 +197,15 @@ pub struct WindowView {
     pub forecast: String,
     /// When it's projected to run out, if before the reset
     pub out_at: Option<i64>,
+    /// When this cycle started (reset time minus the window's length); None without a fixed length
+    pub cycle_start: Option<i64>,
+    /// Filled in by the app: API-equivalent work this cycle by the account's own agent (Claude Code
+    /// for a Claude login), from the local logs
+    pub cycle_spend: Option<f64>,
+    /// Dollars left: limit minus spent for a money window; for a seat window, filled in by the app
+    /// as an estimate from this cycle's work (`left_estimate`)
+    pub left_usd: Option<f64>,
+    pub left_estimate: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
@@ -218,9 +227,10 @@ pub struct Detected {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Settings {
-    /// Tray label: "none" | "percent" (% left) | "runway" | "spend" (today's spend so far)
+    /// Tray label: "none" | "percent" (% left) | "left" ($ left) | "runway" | "spend" (today's spend so far)
     pub menubar_label: String,
-    /// The window the label shows, "account-id/window-id"; "" = the most urgent one
+    /// What the label follows: a window "account-id/window-id", one account's lowest window
+    /// "account-id/", or "" for the lowest of all (auto)
     pub menubar_window: String,
     /// Spend goals, API-equivalent dollars; 0 = off. Notified at 80% and 100%.
     pub budget_daily: f64,

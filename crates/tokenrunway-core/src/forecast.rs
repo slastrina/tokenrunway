@@ -215,6 +215,10 @@ where
         status,
         forecast,
         out_at,
+        cycle_start: start.map(|(s, _)| s),
+        cycle_spend: None,
+        left_usd: w.money.and_then(|m| Some((m.limit? - m.used).max(0.0))),
+        left_estimate: false,
     }
 }
 

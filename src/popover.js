@@ -254,12 +254,17 @@
       + '</div>';
   }
 
+  // Whole dollars from $100, so the line stays short next to a window's label.
+  const cycleMoney = (n) => C.money(n, n >= 100 ? 0 : 2);
+
   function windowRow(acc, w) {
     const banner = wantsRequest(w);
     const chip = w.status !== 'crit' && w.forecast ? `<span class="chip">${ICON.status(w.status)}${esc(w.forecast)}</span>` : '';
     const reset = w.resetsAt ? `<span class="reset" data-reset="${w.resetsAt}">${C.resetText(w.resetsAt)}</span>` : '<span class="reset">No fixed reset</span>';
     return `<div class="win st-${esc(w.status)}">`
-      + `<div class="win-h"><span class="wl">${esc(w.label)}</span>${w.abs ? `<span class="wa">${esc(w.abs)}</span>` : ''}<span class="wp">${Math.round(w.pct)}%</span></div>`
+      + `<div class="win-h"><span class="wl">${esc(w.label)}</span>${w.abs ? `<span class="wa">${esc(w.abs)}</span>` : ''}`
+      + (w.cycleSpend != null ? `<span class="wa cyc"${tipAttrs('This cycle', C.money(w.cycleSpend), 'API-equivalent, from your agent\'s logs since the last reset')}>${cycleMoney(w.cycleSpend)} this cycle</span>` : '')
+      + `<span class="wp">${Math.round(w.pct)}%</span></div>`
       + ubar(w)
       + `<div class="win-f">${reset}${chip}</div>`
       + (banner ? requestBanner(acc, w) : '')
@@ -740,8 +745,8 @@
       + `<div class="group"><span class="caps">Accounts</span><div class="box">${accRows}`
       + `<div class="srow"><button class="btn icon s24" data-act="add" data-k="set-add">${ICON.plus(12, 1.8)}Add account</button></div></div></div>`
       + '<div class="group"><span class="caps">Menubar and popover</span><div class="box">'
-      + `<div class="srow"><span class="t"><b>Menubar label</b><span>${st.menubarLabel === 'spend' ? 'Since midnight' : 'Most urgent window'}</span></span>${seg('Menubar label', 'menubarLabel', [['none', 'None'], ['percent', '% left'], ['runway', 'Runway'], ['spend', '$ today']], st.menubarLabel)}</div>`
-      + (['percent', 'runway'].includes(st.menubarLabel) ? `<div class="srow"><span class="t"><b>Window</b><span>The one the label shows</span></span>${windowPicker(st.menubarWindow)}</div>` : '')
+      + `<div class="srow"><span class="t"><b>Menubar label</b><span>${({ spend: 'Since midnight', left: 'API-equivalent where there’s no $ limit' })[st.menubarLabel] || 'Most urgent window'}</span></span>${choose('Menubar label', 'menubarLabel', [['none', 'None'], ['percent', '% left'], ['left', '$ left'], ['runway', 'Runway'], ['spend', '$ today']], st.menubarLabel)}</div>`
+      + (['percent', 'left', 'runway'].includes(st.menubarLabel) ? `<div class="srow"><span class="t"><b>Show</b><span>${st.menubarLabel === 'left' ? 'Auto picks the fewest $ left' : 'Auto picks the most urgent'}</span></span>${windowPicker(st.menubarWindow)}</div>` : '')
       + `<div class="srow"><span class="t"><b>Density</b></span>${seg('Density', 'density', [['comfortable', 'Comfortable'], ['compact', 'Compact']], st.density)}</div></div></div>`
       + '<div class="group"><span class="caps">Spend goals</span><div class="box">'
       + `<div class="srow"><span class="t"><b>Daily</b><span>API-equivalent, from your agents' logs. 0 is off.</span></span><span class="unit pre">$</span>${numField('budgetDaily', st.budgetDaily || 0, 'Daily spend goal in dollars', 0, 100000, '')}</div>`
@@ -770,11 +775,18 @@
       + '</div></div></div></div>';
   }
 
+  function choose(label, key, opts, value) {
+    return `<select class="field" style="max-width:170px" aria-label="${esc(label)}" data-k="${esc(key)}" data-choose="${esc(key)}">${opts.map(([v, l]) => `<option value="${esc(v)}"${v === value ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
+  }
+
   function windowPicker(value) {
-    const opts = [['', 'Most urgent']];
-    for (const a of S.app?.accounts || []) for (const w of a.windows || []) opts.push([`${a.id}/${w.id}`, `${a.name} · ${w.label}`]);
+    const opts = [['', 'Auto · lowest first']];
+    const accs = (S.app?.accounts || []).filter((a) => (a.windows || []).length);
+    // An account on its own follows that account's lowest window; with one account that's auto.
+    if (accs.length > 1) for (const a of accs) opts.push([`${a.id}/`, a.name]);
+    for (const a of accs) for (const w of a.windows) opts.push([`${a.id}/${w.id}`, `${a.name} · ${w.label}`]);
     if (value && !opts.some(([v]) => v === value)) opts.push([value, 'A window that’s gone (most urgent for now)']);
-    return `<select class="field" style="max-width:170px" aria-label="Window the menubar label shows" data-k="menubarWindow" data-choose="menubarWindow">${opts.map(([v, l]) => `<option value="${esc(v)}"${v === (value || '') ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
+    return `<select class="field" style="max-width:170px" aria-label="Account or window the menubar label shows" data-k="menubarWindow" data-choose="menubarWindow">${opts.map(([v, l]) => `<option value="${esc(v)}"${v === (value || '') ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
   }
 
   // ---------- Settings → Rattleboard ----------

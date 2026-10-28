@@ -4,6 +4,17 @@ Each release's section becomes its GitHub release notes and the in-app "What's n
 `.github/workflows/release.yml`). Write for people using the app: what they can do now, in a
 sentence or two each.
 
+## [Unreleased]
+
+### Added
+- **This cycle's spend on the Now tab**: each allowance window shows what the work since its
+  last reset would have cost at API prices ("$413 this cycle"), from the account's own agent
+  (Claude Code for Claude, Codex for ChatGPT).
+- **$ left in the menubar**: a new label shows the dollars left in a window: the real amount
+  for budgets and credit limits, and for plan windows an estimate at API prices from this
+  cycle's work ("~$590"). Settings → Show picks what the label follows: auto (the lowest of
+  everything), one account's lowest window, or one window.
+
 ## [0.2.3] - 2026-10-29
 
 ### Fixed

@@ -121,11 +121,33 @@ impl AppState {
             .map(|a| {
                 let l = live.get(&a.id).cloned().unwrap_or_default();
                 let history = |w: &str| self.snaps.history(&a.id, w, now - forecast::LOOKBACK_MS - 60_000);
-                allowance::account_view(a, &l, &history, &th, now)
+                let mut v = allowance::account_view(a, &l, &history, &th, now);
+                // What this cycle's work would cost at API prices, from the account's own agent.
+                let harnesses = tokenrunway_core::insights::subscription_harnesses(if a.method == "cli" { &a.provider } else { "" });
+                if let (Some(stats), false) = (self.stats.get(), harnesses.is_empty()) {
+                    for w in &mut v.windows {
+                        w.cycle_spend = w.cycle_start.filter(|s| *s <= now).map(|s| stats.spend_since(s, harnesses));
+                        if w.left_usd.is_none() {
+                            w.left_usd = left_estimate(w.cycle_spend, w.pct);
+                            w.left_estimate = w.left_usd.is_some();
+                        }
+                    }
+                }
+                v
             })
             .collect();
         allowance::sort_urgent(&mut views);
         views
+    }
+}
+
+/// What's left of a seat window in API-equivalent dollars, from what this cycle's work cost so
+/// far: $400 of work at 40% used leaves about $600. Too rough under 5% used.
+fn left_estimate(cycle_spend: Option<f64>, pct: f64) -> Option<f64> {
+    match cycle_spend {
+        Some(_) if pct >= 100.0 => Some(0.0),
+        Some(s) if s > 0.0 && pct >= 5.0 => Some(s * (100.0 - pct) / pct),
+        _ => None,
     }
 }
 

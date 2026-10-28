@@ -138,9 +138,14 @@ catches anything the watchers miss.
   so it follows light/dark). It turns amber at the warning threshold and red at critical or when
   you're projected to run out.
 - **Label** (optional; macOS and Linux appindicator. Windows can't put text in the tray, so it
-  goes in the tooltip): choose between *none*, *% left*, *runway* (time to run out, or to the
-  reset), for the most urgent window or one pinned in Settings (`menubarWindow`), or *$ today*: API-equivalent spend since local midnight from the
-  agents' logs (`$12.40`, `$318`, `$12.3k`), refreshed as the logs are read.
+  goes in the tooltip): choose between *none*, *% left*, *$ left*, *runway* (time to run out, or
+  to the reset), or *$ today*: API-equivalent spend since local midnight from the agents' logs
+  (`$12.40`, `$318`, `$12.3k`), refreshed as the logs are read. *$ left* is limit minus spent for
+  money windows (budgets, credit limits) and, for plan windows, an estimate at API prices from
+  this cycle's work (`~$590`: $400 of work at 40% used), not shown under 5% used. Settings → Show
+  (`menubarWindow`) picks what the label follows: auto (`""`, the lowest of all: most urgent, or
+  fewest dollars for *$ left*), one account's lowest window (`acct/`), or one window
+  (`acct/window`).
 - **Tooltip**: `Tokenrunway · Claude work 5h: 38% left, resets 14:20 · iokig.com`.
 - **Left click** opens the popover. **Right click** (or the menu on Linux) opens the native menu:
   `Tokenrunway v0.1.0 on iokig.com`, Open dashboard, Refresh now, Pause notifications ▸,
@@ -152,7 +157,9 @@ Three tabs, with a footer that never goes away:
 1. **Now**: one card per account, sorted by urgency.
    - Account name, plan badge, provider logo, last updated ("12 s ago" or "stale").
    - One bar per window: used %, absolute where known (`412k / 1.2M tokens`, `$184 / $500`), reset
-     countdown and local time (`resets in 2h 41m · 14:20`), and forecast chip: *On track* /
+     countdown and local time (`resets in 2h 41m · 14:20`), this cycle's API-equivalent work by
+     the account's own agent (`$413 this cycle`, since reset minus the window's length), and
+     forecast chip: *On track* /
      *Out at 13:05 — 1h 15m before reset* / *Out in 2 days*.
    - Actions: **Request more** (§9), Open provider page, Refresh.
 2. **Stats**: today / 7 d / 30 d / lifetime switcher; spend (API-equivalent and actual where

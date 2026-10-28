@@ -34,6 +34,14 @@ pub fn spend_since(store: &Store, from: i64) -> f64 {
     store.conn().query_row("SELECT IFNULL(SUM(cost_usd), 0) FROM events WHERE ts >= ?1", params![from], |r| r.get(0)).unwrap_or(0.0)
 }
 
+/// API-equivalent spend in [from, ∞) by these harnesses only.
+pub fn spend_since_by(store: &Store, from: i64, harnesses: &[&str]) -> f64 {
+    let Ok(mut q) = store.conn().prepare_cached("SELECT IFNULL(SUM(cost_usd), 0) FROM events WHERE ts >= ?1 AND harness = ?2") else {
+        return 0.0;
+    };
+    harnesses.iter().map(|h| q.query_row(params![from, h], |r| r.get::<_, f64>(0)).unwrap_or(0.0)).sum()
+}
+
 /// The median cost of a 20-minute session slice over the 14 days before `before`; None
 /// without enough history.
 pub fn usual_slice_cost(store: &Store, before: i64) -> Option<f64> {
@@ -110,6 +118,11 @@ pub fn local_usage(store: &Store, from: i64) -> (u32, u64, Option<i64>) {
 }
 
 impl Stats {
+    /// API-equivalent work since `from` by these harnesses (an allowance window's cycle).
+    pub fn spend_since(&self, from: i64, harnesses: &[&str]) -> f64 {
+        spend_since_by(&self.store(), from, harnesses)
+    }
+
     /// LM Studio today: requests, tokens, and its last request ever.
     pub fn local_today(&self, now: i64) -> (u32, u64, Option<i64>) {
         local_usage(&self.store(), midnight(local_date(now)))

@@ -30,14 +30,36 @@ pub fn image(level: Level) -> Option<Image<'static>> {
     Image::from_bytes(bytes).ok()
 }
 
-/// The window the label is about: the pinned one (Settings → Menubar label → Window) while it
-/// exists, otherwise the most urgent.
+/// The window the label is about (Settings → Menubar label → Show): a pinned window while it
+/// exists ("acct/window"), or the lowest of one account's windows ("acct/"), or of every
+/// account's (auto). Lowest is the most urgent, or for "$ left" the fewest dollars left.
 pub fn target(view: &AppView) -> Option<(&AccountView, &WindowView)> {
-    let pinned = view.settings.menubar_window.split_once('/').and_then(|(a, w)| {
-        let acct = view.accounts.iter().find(|x| x.id == a)?;
-        Some((acct, acct.windows.iter().find(|x| x.id == w)?))
-    });
-    pinned.or_else(|| forecast::tightest(&view.accounts))
+    let (acct, win) = view.settings.menubar_window.split_once('/').unwrap_or(("", ""));
+    let accounts = match view.accounts.iter().find(|x| x.id == acct) {
+        Some(a) if !win.is_empty() => {
+            if let Some(w) = a.windows.iter().find(|x| x.id == win) {
+                return Some((a, w));
+            }
+            &view.accounts[..]
+        }
+        Some(a) => std::slice::from_ref(a),
+        None => &view.accounts[..],
+    };
+    if view.settings.menubar_label == "left" {
+        let fewest = accounts
+            .iter()
+            .flat_map(|a| a.windows.iter().filter(|w| w.left_usd.is_some()).map(move |w| (a, w)))
+            .min_by(|x, y| x.1.left_usd.partial_cmp(&y.1.left_usd).unwrap_or(std::cmp::Ordering::Equal));
+        if fewest.is_some() {
+            return fewest;
+        }
+    }
+    forecast::tightest(accounts)
+}
+
+/// "$412" left, "~$590" when it's estimated from this cycle's work.
+fn left(w: &WindowView) -> Option<String> {
+    w.left_usd.map(|d| format!("{}{}", if w.left_estimate { "~" } else { "" }, money(d)))
 }
 
 /// What the tray shows for a view: icon level, label and tooltip.
@@ -48,7 +70,7 @@ pub fn describe(view: &AppView) -> (Level, Option<String>, String) {
         Some(Status::Warn) => Level::Warn,
         _ => Level::Normal,
     };
-    let pinned = !view.settings.menubar_window.is_empty();
+    let pinned = view.settings.menubar_window.split_once('/').is_some_and(|(_, w)| !w.is_empty());
     let tight = target(view);
     let spend = view.settings.menubar_label == "spend";
     let label = match (view.settings.menubar_label.as_str(), &view.summary, tight) {
@@ -60,6 +82,7 @@ pub fn describe(view: &AppView) -> (Level, Option<String>, String) {
         }),
         ("runway", Some(s), _) => Some(s.label.clone()),
         ("spend", _, _) => view.spend_today.map(money),
+        ("left", _, Some((_, w))) => left(w).or_else(|| Some(format!("{:.0}%", (100.0 - w.pct).max(0.0)))),
         _ => None,
     };
     // With "$ today" showing, the icon also warns as the daily goal gets close.
@@ -91,6 +114,11 @@ pub fn describe(view: &AppView) -> (Level, Option<String>, String) {
     }
     if let Some((a, w)) = tight {
         let mut s = format!("{} {}: {:.0}% used", a.name, w.label, w.pct);
+        if view.settings.menubar_label == "left" {
+            if let Some(l) = left(w) {
+                s += &format!(", {l} left{}", if w.left_estimate { " at API prices" } else { "" });
+            }
+        }
         match (w.out_at, w.resets_at) {
             (Some(o), _) => s += &format!(", out {}", forecast::when(o, now)),
             (None, Some(r)) => s += &format!(", resets {}", forecast::when(r, now)),
@@ -288,5 +316,38 @@ mod tests {
         // A pinned window that's gone falls back to the most urgent.
         view.settings.menubar_window = "c/gone".into();
         assert_eq!(describe(&view).1.as_deref(), Some("22%"));
+    }
+
+    #[test]
+    fn dollars_left_and_one_account() {
+        let w = |id: &str, pct: f64, status: Status, left: Option<f64>, est: bool| WindowView {
+            id: id.into(),
+            label: id.into(),
+            pct,
+            status,
+            left_usd: left,
+            left_estimate: est,
+            ..Default::default()
+        };
+        let acct = |id: &str, windows: Vec<WindowView>| AccountView { id: id.into(), name: id.into(), windows, ..Default::default() };
+        let mut view = AppView {
+            accounts: vec![
+                acct("claude", vec![w("5h", 78.0, Status::Crit, Some(41.0), true), w("weekly", 40.0, Status::Ok, Some(590.0), true)]),
+                acct("bedrock", vec![w("budget", 37.0, Status::Ok, Some(316.0), false)]),
+                acct("codex", vec![w("weekly", 12.0, Status::Ok, None, false)]),
+            ],
+            ..Default::default()
+        };
+        view.settings.menubar_label = "left".into();
+        let (_, label, tip) = describe(&view);
+        assert_eq!(label.as_deref(), Some("~$41.00"), "auto: the fewest dollars left");
+        assert!(tip.contains("claude 5h: 78% used, ~$41.00 left at API prices"), "{tip}");
+        view.settings.menubar_window = "bedrock/".into();
+        assert_eq!(describe(&view).1.as_deref(), Some("$316"), "one account's lowest, not estimated");
+        view.settings.menubar_window = "codex/".into();
+        assert_eq!(describe(&view).1.as_deref(), Some("88%"), "% left when there's no dollar figure");
+        view.settings.menubar_label = "percent".into();
+        view.settings.menubar_window = "claude/".into();
+        assert_eq!(describe(&view).1.as_deref(), Some("22%"), "the account's most urgent window");
     }
 }

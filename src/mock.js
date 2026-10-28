@@ -21,7 +21,7 @@
 
   const rbDefault = { mode: 'off', url: '', name: '', rows: 6, cols: 22, kind: '', target: '', alerts: 'alerts', card: false };
   const settings = {
-    menubarLabel: 'runway', menubarWindow: '', budgetDaily: 75, budgetMonthly: 1500, notifyBudget: true, notifyBurn: true, density: scenario === 'compact' ? 'compact' : 'comfortable', warnAt: 75, critAt: 90, leadMinutes: 60,
+    menubarLabel: q.get('label') || 'runway', menubarWindow: '', budgetDaily: 75, budgetMonthly: 1500, notifyBudget: true, notifyBurn: true, density: scenario === 'compact' ? 'compact' : 'comfortable', warnAt: 75, critAt: 90, leadMinutes: 60,
     notifyThresholds: true, notifyProjection: true, notifyReset: false, pausedUntil: 0, requestAt: 85,
     admins: { 'acct-1': { name: 'Jordan Lee', email: 'jordan@iokig.com', slack: '@Jordan Lee', teams: '' } },
     myName: 'Sam', updateCheck: true, startAtLogin: false,
@@ -33,16 +33,16 @@
   const claude = () => ({
     id: 'acct-1', provider: 'anthropic', name: 'Claude — work', plan: 'Enterprise', mono: 'C', updatedAt: at(-12000), state: 'ok', problem: null, method: 'cli',
     windows: [
-      win('5h', '5-hour', '412k / 530k tokens', 78, 2 * H + 41 * M, 46, 130, 'crit', 'Out at 13:05, 1h 15m before reset', 1 * H + 26 * M),
-      win('weekly', 'Weekly', null, 64, 2 * D + 21 * H, 59, 79, 'ok', 'On track'),
-      win('weekly-opus', 'Weekly Opus', null, 83, 2 * D + 21 * H, 59, 97, 'warn', 'Tight · ~97% at reset'),
+      { ...win('5h', '5-hour', '412k / 530k tokens', 78, 2 * H + 41 * M, 46, 130, 'crit', 'Out at 13:05, 1h 15m before reset', 1 * H + 26 * M), cycleSpend: 38.42 },
+      { ...win('weekly', 'Weekly', null, 64, 2 * D + 21 * H, 59, 79, 'ok', 'On track'), cycleSpend: 412.6 },
+      { ...win('weekly-opus', 'Weekly Opus', null, 83, 2 * D + 21 * H, 59, 97, 'warn', 'Tight · ~97% at reset'), cycleSpend: 412.6 },
     ],
   });
   const chatgpt = () => ({
     id: 'acct-2', provider: 'openai', name: 'ChatGPT — personal', plan: 'Pro', mono: 'O', updatedAt: at(-48000), state: 'ok', problem: null, method: 'cli',
     windows: [
-      win('5h', 'Codex 5-hour', null, 12, 3 * H + 52 * M, 23, 52, 'ok', 'On track'),
-      win('weekly', 'Codex weekly', null, 31, 4 * D + 6 * H, 39, 79, 'ok', 'On track'),
+      { ...win('5h', 'Codex 5-hour', null, 12, 3 * H + 52 * M, 23, 52, 'ok', 'On track'), cycleSpend: 3.1 },
+      { ...win('weekly', 'Codex weekly', null, 31, 4 * D + 6 * H, 39, 79, 'ok', 'On track'), cycleSpend: 57.8 },
     ],
   });
   const bedrock = () => ({
