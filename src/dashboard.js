@@ -91,7 +91,8 @@
     const acc = (S.app?.accounts || []).find((a) => a.id === S.account);
     const next = (d.resets || [])[0];
     const tiles = [
-      ['Spend · API-equivalent', cash(spend), `${periodWords()} · ${S.project || S.model ? esc(S.project || S.model) : acc ? esc(d.scope || acc.name) : 'all harnesses'}`, ''],
+      // With an account picked, whose work it is ("Claude Code · since 29 Oct") says more than the period, which the toggle shows.
+      ['Spend · API-equivalent', cash(spend), S.project || S.model ? `${periodWords()} · ${esc(S.project || S.model)}` : acc && d.scope ? esc(d.scope) : `${periodWords()} · ${acc ? esc(acc.name) : 'all harnesses'}`, ''],
       ['Actually billed', d.billed != null ? C.money(d.billed, 2) : '—', d.billed != null ? esc(d.billedNote || 'where a source reports it') : 'No source reports billing', ''],
       ['Tokens', C.tokens(tokens), d.cacheShare != null ? `${Math.round(d.cacheShare)}% cache reads` : 'in range', ''],
       ['Sessions', String(d.sessionsTotal ?? sess.length), sess.length ? `avg ${C.minutes(avg)} · ${harnesses} harness${harnesses === 1 ? '' : 'es'}` : 'none in range', ''],

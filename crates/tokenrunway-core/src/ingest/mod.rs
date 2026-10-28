@@ -67,6 +67,9 @@ pub struct Event {
     pub tokens: Tokens,
     /// What the harness itself says the call cost (opencode), if it says
     pub cost_actual: Option<f64>,
+    /// The login the call ran under, when the log says (Codex `session_meta`
+    /// `creator_account_id`); otherwise the store works it out from `logins`
+    pub account: Option<String>,
 }
 
 /// What a reader got from one source in one pass.
@@ -135,6 +138,36 @@ impl Roots {
     /// The roots that exist, for the file watcher.
     pub fn existing(&self) -> Vec<PathBuf> {
         self.claude.iter().chain(&self.codex).chain(&self.opencode).chain(&self.lmstudio).filter(|p| p.is_dir()).cloned().collect()
+    }
+}
+
+/// The file holding the login a Claude Code `projects` directory's sessions run under:
+/// `~/.claude.json` beside the default `~/.claude`, `<dir>/.claude.json` for a
+/// `CLAUDE_CONFIG_DIR`.
+pub fn claude_login_file(projects: &Path) -> Option<PathBuf> {
+    let dir = projects.parent()?;
+    if dir.file_name().is_some_and(|n| n == ".claude") {
+        let beside = dir.parent()?.join(".claude.json");
+        if beside.is_file() {
+            return Some(beside);
+        }
+    }
+    Some(dir.join(".claude.json"))
+}
+
+/// Codex's `auth.json`, beside its `sessions` directory.
+pub fn codex_login_file(sessions: &Path) -> Option<PathBuf> {
+    Some(sessions.parent()?.join("auth.json"))
+}
+
+/// The login a harness is signed in as right now: Claude Code's account uuid
+/// (`oauthAccount.accountUuid`), Codex's ChatGPT account id. Ids only, never tokens.
+pub fn login_in(harness: &str, file: &Path) -> Option<String> {
+    let raw = std::fs::read_to_string(file).ok()?;
+    match harness {
+        "claude-code" => crate::allowance::claude::account_uuid(&raw),
+        "codex" => crate::allowance::codex::account_id(&raw),
+        _ => None,
     }
 }
 

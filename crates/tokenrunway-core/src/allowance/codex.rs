@@ -64,6 +64,16 @@ pub fn parse_auth(json: &str) -> Option<Auth> {
     })
 }
 
+/// The ChatGPT account id in an auth.json, for telling logins apart (no token).
+pub fn account_id(json: &str) -> Option<String> {
+    parse_auth(json)?.account_id
+}
+
+/// The ChatGPT account Codex is signed in as now.
+pub fn login(home: &Path) -> Option<String> {
+    read_auth(home)?.account_id
+}
+
 fn read_auth(home: &Path) -> Option<Auth> {
     parse_auth(&std::fs::read_to_string(codex_home(home).join("auth.json")).ok()?)
 }

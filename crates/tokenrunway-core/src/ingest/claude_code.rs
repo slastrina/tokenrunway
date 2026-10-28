@@ -229,6 +229,7 @@ fn line(l: &str, st: &mut State, b: &mut Batch) {
                 fast: u.speed.as_deref() == Some("fast"),
                 tokens,
                 cost_actual: None,
+                account: None,
             });
         }
         Some("user") => {

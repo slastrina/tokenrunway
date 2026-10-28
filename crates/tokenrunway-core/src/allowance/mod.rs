@@ -223,6 +223,16 @@ pub fn provider_for(acct: &AccountRecord) -> Option<Box<dyn Provider>> {
     }
 }
 
+/// The login a CLI account reads right now (Claude Code's account uuid, Codex's ChatGPT account
+/// id), for matching sessions to accounts; None for other accounts.
+pub fn cli_login(acct: &AccountRecord, home: &std::path::Path) -> Option<String> {
+    match (acct.provider.as_str(), acct.method.as_str()) {
+        ("anthropic", "cli") => claude::login(home),
+        ("openai", "cli") => codex::login(home),
+        _ => None,
+    }
+}
+
 /// "Claude", "ChatGPT", "AWS Bedrock", "Anthropic API", "OpenAI API"
 pub fn provider_name(provider: &str) -> &'static str {
     match provider {

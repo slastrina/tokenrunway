@@ -30,15 +30,19 @@ pub struct Filter {
     pub model: Option<String>,
     /// Only these harnesses (an account's own agent: "claude-code" for a Claude login); None for all
     pub harnesses: Option<Vec<String>>,
+    /// Only calls made under these CLI logins (`AccountRecord::logins`); None for any, including
+    /// calls whose login can't be told
+    pub logins: Option<Vec<String>>,
 }
 
 impl Filter {
     pub fn is_empty(&self) -> bool {
-        self.project.is_none() && self.model.is_none() && self.harnesses.is_none()
+        self.project.is_none() && self.model.is_none() && self.harnesses.is_none() && self.logins.is_none()
     }
 
-    fn keeps(&self, harness: &str, project: &str, model: &str) -> bool {
+    fn keeps(&self, harness: &str, account: Option<&str>, project: &str, model: &str) -> bool {
         self.harnesses.as_ref().is_none_or(|hs| hs.iter().any(|h| h == harness))
+            && self.logins.as_ref().is_none_or(|ls| account.is_some_and(|a| ls.iter().any(|l| l == a)))
             && self.project.as_deref().is_none_or(|p| p == project)
             && self.model.as_deref().is_none_or(|m| m == pricing::display_name(model))
     }
@@ -86,30 +90,42 @@ impl Stats {
     /// is only held to write each file's results.
     pub fn ingest(&self) -> IngestReport {
         let cursors = self.store().cursors();
-        let mut jobs: Vec<(&'static str, PathBuf, Reader)> = Vec::new();
+        let mut jobs: Vec<(&'static str, PathBuf, Reader, Option<String>)> = Vec::new();
+        // Which login each source is signed in as, checked before its new lines are written, so
+        // they go to the login of the time (`Store::observe_login`).
+        let now = crate::now_ms();
+        let scope = |harness: &str, file: Option<PathBuf>| -> Option<String> {
+            let file = file?;
+            let key = file.to_string_lossy().into_owned();
+            let _ = self.store().observe_login(&key, ingest::login_in(harness, &file).as_deref(), now);
+            Some(key)
+        };
         for root in &self.roots.claude {
+            let s = scope("claude-code", ingest::claude_login_file(root));
             for p in ingest::files_under(root, &|n| n.ends_with(".jsonl")) {
-                jobs.push(("claude-code", p, claude_code::read));
+                jobs.push(("claude-code", p, claude_code::read, s.clone()));
             }
         }
         for root in &self.roots.codex {
+            let s = scope("codex", ingest::codex_login_file(root));
             for p in ingest::files_under(root, &|n| n.starts_with("rollout-") && n.ends_with(".jsonl")) {
-                jobs.push(("codex", p, codex::read));
+                jobs.push(("codex", p, codex::read, s.clone()));
             }
         }
         for root in &self.roots.lmstudio {
             for p in ingest::files_under(root, &lmstudio::is_log) {
-                jobs.push(("lmstudio", p, lmstudio::read));
+                jobs.push(("lmstudio", p, lmstudio::read, None));
             }
         }
+        self.backfill_codex_accounts(&jobs);
         // Only the files that changed since their cursor.
         let jobs: Vec<_> = jobs
             .into_iter()
-            .filter_map(|(src, p, f)| {
+            .filter_map(|(src, p, f, scope)| {
                 let (size, mtime) = ingest::stat(&p)?;
                 let key = (src.to_string(), p.to_string_lossy().into_owned());
                 let cur = cursors.get(&key).cloned().unwrap_or_default();
-                (cur.size != size || cur.mtime != mtime).then_some((src, p, f, size, mtime, cur))
+                (cur.size != size || cur.mtime != mtime).then_some((src, p, f, scope, size, mtime, cur))
             })
             .collect();
 
@@ -121,7 +137,7 @@ impl Stats {
             for _ in 0..workers {
                 s.spawn(|| loop {
                     let i = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                    let Some((src, p, read, size, mtime, cur)) = jobs.get(i) else { break };
+                    let Some((src, p, read, scope, size, mtime, cur)) = jobs.get(i) else { break };
                     // A file that shrank was rewritten: start again (the keys make it idempotent).
                     let (from, state) = if *size < cur.offset { (0, "") } else { (cur.offset, cur.state.as_str()) };
                     let res = read(p, from, state);
@@ -129,7 +145,7 @@ impl Stats {
                     match res {
                         Ok((batch, offset, state)) => {
                             let c = Cursor { size: *size, mtime: *mtime, offset, state };
-                            self.write(src, &path, &batch, &c, &names, &report);
+                            self.write(src, &path, scope.as_deref(), &batch, &c, &names, &report);
                         }
                         Err(e) => report.lock().unwrap_or_else(|e| e.into_inner()).errors.push(format!("{path}: {e}")),
                     }
@@ -147,8 +163,33 @@ impl Stats {
         r
     }
 
-    fn write(&self, src: &str, path: &str, b: &Batch, c: &Cursor, names: &Mutex<ProjectNames>, report: &Mutex<IngestReport>) {
-        let res = self.store().apply(src, path, b, c, &mut |cwd| names.lock().unwrap_or_else(|e| e.into_inner()).name(cwd));
+    /// Once: puts Codex sessions read before Tokenrunway kept the account down to the account
+    /// their `session_meta` names. Later sessions get it as they're read.
+    fn backfill_codex_accounts(&self, jobs: &[(&'static str, PathBuf, Reader, Option<String>)]) {
+        const KEY: &str = "codex-accounts";
+        if self.store().meta(KEY).is_some() {
+            return;
+        }
+        for (_, p, ..) in jobs.iter().filter(|j| j.0 == "codex") {
+            if let Some((session, account)) = codex::session_meta(p) {
+                let _ = self.store().set_session_account("codex", &session, &account);
+            }
+        }
+        let _ = self.store().set_meta(KEY, "1");
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn write(
+        &self,
+        src: &str,
+        path: &str,
+        scope: Option<&str>,
+        b: &Batch,
+        c: &Cursor,
+        names: &Mutex<ProjectNames>,
+        report: &Mutex<IngestReport>,
+    ) {
+        let res = self.store().apply(src, path, scope, b, c, &mut |cwd| names.lock().unwrap_or_else(|e| e.into_inner()).name(cwd));
         let mut r = report.lock().unwrap_or_else(|e| e.into_inner());
         r.files_read += 1;
         match res {
@@ -170,7 +211,7 @@ impl Stats {
                     match opencode::read_db(&db, cur.offset) {
                         Ok((b, newest)) => {
                             let c = Cursor { size, mtime, offset: newest, state: String::new() };
-                            self.write("opencode", &path, &b, &c, names, report);
+                            self.write("opencode", &path, None, &b, &c, names, report);
                         }
                         Err(e) => report.lock().unwrap_or_else(|e| e.into_inner()).errors.push(e),
                     }
@@ -190,9 +231,14 @@ impl Stats {
                     continue;
                 }
                 let b = opencode::read_storage_session(&dir, &root.join("storage").join("part"));
-                self.write("opencode-storage", &path, &b, &Cursor { size, mtime, ..Default::default() }, names, report);
+                self.write("opencode-storage", &path, None, &b, &Cursor { size, mtime, ..Default::default() }, names, report);
             }
         }
+    }
+
+    /// When the first call made under any of `logins` on `harnesses` was, for "since 29 Oct".
+    pub fn first_for_logins(&self, harnesses: &[String], logins: &[String]) -> Option<i64> {
+        self.store().first_for_logins(harnesses, logins)
     }
 
     /// Directories to watch for changes (each harness's log root that exists).
@@ -216,7 +262,7 @@ impl Stats {
     pub fn stats_filtered(&self, period: &str, f: &Filter, now: i64) -> StatsView {
         let p = Span::of(period, now);
         let mut rows = self.store().agg(p.start, i64::MAX);
-        rows.retain(|r| f.keeps(&r.harness, &r.project, &r.model));
+        rows.retain(|r| f.keeps(&r.harness, r.account.as_deref(), &r.project, &r.model));
         let mut days = Days::new();
         let mut v = StatsView { period: period.into(), ..Default::default() };
         let (mut actual, mut actual_n, mut actual_from) = (0.0, 0u64, Vec::<String>::new());
@@ -354,9 +400,9 @@ impl Stats {
             (s.agg(p.start, i64::MAX), s.agg(midnight(heat_from), i64::MAX), s.session_parts(p.start, i64::MAX))
         };
         if !f.is_empty() {
-            rows.retain(|r| f.keeps(&r.harness, &r.project, &r.model));
-            heat_rows.retain(|r| f.keeps(&r.harness, &r.project, &r.model));
-            parts.retain(|r| f.keeps(&r.harness, &r.project, &r.model));
+            rows.retain(|r| f.keeps(&r.harness, r.account.as_deref(), &r.project, &r.model));
+            heat_rows.retain(|r| f.keeps(&r.harness, r.account.as_deref(), &r.project, &r.model));
+            parts.retain(|r| f.keeps(&r.harness, r.account.as_deref(), &r.project, &r.model));
         }
         let mut days = Days::new();
         let key = |r: &Agg| match group {

@@ -64,31 +64,37 @@ pub async fn get_dashboard(
     model: Option<String>,
 ) -> DashboardView {
     let now = now_ms();
-    // An account's activity is its own agent's (a Claude login: Claude Code). The logs don't say
-    // which login a session used, so accounts of one provider share it.
-    let (harnesses, scope) = match account.as_deref().and_then(|id| record(&app, id).ok()) {
+    // An account's activity is its own agent's (a Claude login: Claude Code). The only account
+    // for a CLI gets all of it, as before; with several, each gets the sessions made under the
+    // logins it has read (calls from before Tokenrunway noted the login can't be told apart).
+    let (harnesses, logins, scope) = match account.as_deref().and_then(|id| record(&app, id).ok()) {
         Some(rec) => {
-            let hs = insights::subscription_harnesses(if rec.method == "cli" { &rec.provider } else { "" });
-            let names = hs.iter().map(|h| tokenrunway_core::stats::harness_name(h)).collect::<Vec<_>>().join(" + ");
-            let same = app
-                .state::<AppState>()
-                .accounts
-                .lock()
-                .unwrap()
-                .list
+            let hs: Vec<String> = insights::subscription_harnesses(if rec.method == "cli" { &rec.provider } else { "" })
                 .iter()
-                .filter(|a| a.provider == rec.provider && a.method == rec.method)
-                .count();
-            let scope = match (hs.is_empty(), same) {
-                (true, _) => "No agent logs for this account".to_string(),
-                (false, 1) => names,
-                (false, n) => format!("{names} · shared by {n} {} accounts", allowance::provider_name(&rec.provider)),
+                .map(|h| h.to_string())
+                .collect();
+            let names = hs.iter().map(|h| tokenrunway_core::stats::harness_name(h)).collect::<Vec<_>>().join(" + ");
+            let shared = !app.state::<AppState>().accounts.lock().unwrap().peers(&rec.id).is_empty();
+            let first = || activity::stats(&app).and_then(|s| s.first_for_logins(&hs, &rec.logins));
+            use chrono::TimeZone;
+            let day = |t: i64| chrono::Local.timestamp_millis_opt(t).single().map(|d| d.format("%-d %b").to_string()).unwrap_or_default();
+            let (logins, scope) = match (hs.is_empty(), shared) {
+                (true, _) => (None, "No agent logs for this account".to_string()),
+                (false, false) => (None, names.clone()),
+                (false, true) => {
+                    let scope = match first() {
+                        Some(t) if t > period_start(&period, now) => format!("{names} · since {}", day(t)),
+                        Some(_) => format!("{names} · this login"),
+                        None => "No sessions from this login yet".to_string(),
+                    };
+                    (Some(rec.logins.clone()), scope)
+                }
             };
-            (Some(hs.iter().map(|h| h.to_string()).collect()), Some(scope))
+            (Some(hs), logins, Some(scope))
         }
-        None => (None, None),
+        None => (None, None, None),
     };
-    let filter = Filter { project, model, harnesses };
+    let filter = Filter { project, model, harnesses, logins };
     let mut d = match activity::stats(&app) {
         Some(s) => {
             let (p, g) = (period.clone(), group.clone());

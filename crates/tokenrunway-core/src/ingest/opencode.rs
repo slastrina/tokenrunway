@@ -178,6 +178,7 @@ fn build(session: &str, dir: &str, msgs: &[(String, Value)], parts: &[(String, V
             fast: false,
             tokens,
             cost_actual: m["cost"].as_f64(),
+            account: None,
         });
     }
 }

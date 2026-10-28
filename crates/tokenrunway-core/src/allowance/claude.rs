@@ -84,6 +84,17 @@ fn oauth_account(home: &Path) -> Option<Value> {
     v.get("oauthAccount").cloned().filter(Value::is_object)
 }
 
+/// The account uuid in a `.claude.json` (`oauthAccount.accountUuid`), for telling logins apart.
+pub fn account_uuid(json: &str) -> Option<String> {
+    let v: Value = serde_json::from_str(json).ok()?;
+    v.pointer("/oauthAccount/accountUuid")?.as_str().filter(|s| !s.is_empty()).map(String::from)
+}
+
+/// The Claude account Claude Code is signed in as now.
+pub fn login(home: &Path) -> Option<String> {
+    oauth_account(home)?.get("accountUuid")?.as_str().filter(|s| !s.is_empty()).map(String::from)
+}
+
 pub fn email(home: &Path) -> Option<String> {
     oauth_account(home)?.get("emailAddress")?.as_str().map(String::from)
 }
