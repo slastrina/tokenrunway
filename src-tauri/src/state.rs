@@ -131,7 +131,9 @@ impl AppState {
                 let harnesses = tokenrunway_core::insights::subscription_harnesses(if a.method == "cli" { &a.provider } else { "" });
                 if let (Some(stats), false) = (self.stats.get(), harnesses.is_empty()) {
                     for w in &mut v.windows {
-                        w.cycle_spend = w.cycle_start.filter(|s| *s <= now).map(|s| stats.spend_since(s, harnesses));
+                        // A model's own window (Claude's "weekly-opus") counts that model's work.
+                        let model = w.id.strip_prefix("weekly-").filter(|_| a.provider == "anthropic");
+                        w.cycle_spend = w.cycle_start.filter(|s| *s <= now).map(|s| stats.spend_since(s, harnesses, model));
                         if w.left_usd.is_none() {
                             w.left_usd = left_estimate(w.cycle_spend, w.pct);
                             w.left_estimate = w.left_usd.is_some();

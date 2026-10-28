@@ -34,12 +34,13 @@ pub fn spend_since(store: &Store, from: i64) -> f64 {
     store.conn().query_row("SELECT IFNULL(SUM(cost_usd), 0) FROM events WHERE ts >= ?1", params![from], |r| r.get(0)).unwrap_or(0.0)
 }
 
-/// API-equivalent spend in [from, ∞) by these harnesses only.
-pub fn spend_since_by(store: &Store, from: i64, harnesses: &[&str]) -> f64 {
-    let Ok(mut q) = store.conn().prepare_cached("SELECT IFNULL(SUM(cost_usd), 0) FROM events WHERE ts >= ?1 AND harness = ?2") else {
-        return 0.0;
-    };
-    harnesses.iter().map(|h| q.query_row(params![from, h], |r| r.get::<_, f64>(0)).unwrap_or(0.0)).sum()
+/// API-equivalent spend in [from, ∞) by these harnesses only, and only models whose id contains
+/// `model` when given ("opus" for a Weekly Opus window).
+pub fn spend_since_by(store: &Store, from: i64, harnesses: &[&str], model: Option<&str>) -> f64 {
+    let sql = "SELECT IFNULL(SUM(cost_usd), 0) FROM events WHERE ts >= ?1 AND harness = ?2 AND instr(lower(model), ?3) > 0";
+    let Ok(mut q) = store.conn().prepare_cached(sql) else { return 0.0 };
+    let m = model.unwrap_or("").to_ascii_lowercase();
+    harnesses.iter().map(|h| q.query_row(params![from, h, m], |r| r.get::<_, f64>(0)).unwrap_or(0.0)).sum()
 }
 
 /// The median cost of a 20-minute session slice over the 14 days before `before`; None
@@ -119,8 +120,8 @@ pub fn local_usage(store: &Store, from: i64) -> (u32, u64, Option<i64>) {
 
 impl Stats {
     /// API-equivalent work since `from` by these harnesses (an allowance window's cycle).
-    pub fn spend_since(&self, from: i64, harnesses: &[&str]) -> f64 {
-        spend_since_by(&self.store(), from, harnesses)
+    pub fn spend_since(&self, from: i64, harnesses: &[&str], model: Option<&str>) -> f64 {
+        spend_since_by(&self.store(), from, harnesses, model)
     }
 
     /// LM Studio today: requests, tokens, and its last request ever.
@@ -182,6 +183,25 @@ mod tests {
         assert!(hot_sessions(&s, NOW).is_empty(), "$8 with nothing to compare");
         event(&s, "y", "first", NOW, 9.0);
         assert_eq!(hot_sessions(&s, NOW)[0].ratio, 0.0, "$17: hot, no ratio to show");
+    }
+
+    #[test]
+    fn cycle_spend_by_agent_and_model() {
+        let s = Store::open_in_memory().unwrap();
+        event(&s, "old", "a", NOW - 2 * 60 * MIN, 5.0);
+        event(&s, "opus", "a", NOW - MIN, 2.0);
+        s.conn()
+            .execute(
+                "INSERT INTO events (key, ts, harness, model, session_id, project, cost_usd) VALUES ('cx', ?1, 'codex', 'gpt-5.6-terra', 'c', 'p', 1.25)",
+                params![NOW],
+            )
+            .unwrap();
+        let since = NOW - 60 * MIN;
+        assert_eq!(spend_since_by(&s, since, &["claude-code"], None), 2.0);
+        assert_eq!(spend_since_by(&s, since, &["claude-code"], Some("opus")), 2.0);
+        assert_eq!(spend_since_by(&s, since, &["claude-code"], Some("fable")), 0.0, "a Weekly Fable window");
+        assert_eq!(spend_since_by(&s, since, &["codex"], None), 1.25);
+        assert_eq!(spend_since_by(&s, since, &[], None), 0.0);
     }
 
     #[test]
