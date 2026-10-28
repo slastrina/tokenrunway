@@ -369,6 +369,159 @@ pub fn today_text(stats: &StatsView, harness: &HarnessView, p: Paint) -> String 
     out
 }
 
+/// `tokenrunway guard`'s options.
+#[derive(Debug, Clone, PartialEq)]
+pub struct GuardOpts {
+    /// Stop at this % used or more
+    pub max: f64,
+    /// Only accounts whose name contains this (any case), or whose provider is it
+    pub account: Option<String>,
+    /// Only windows whose id is this, or whose label contains it ("5h", "weekly")
+    pub window: Option<String>,
+    /// Also stop when a window is forecast to run out before it resets
+    pub runout: bool,
+    /// Go ahead when it can't tell (the app isn't running, or nothing matches)
+    pub allow_unknown: bool,
+}
+
+impl Default for GuardOpts {
+    fn default() -> Self {
+        Self { max: 90.0, account: None, window: None, runout: false, allow_unknown: false }
+    }
+}
+
+impl GuardOpts {
+    /// Parses `--max 80`, `--max=80`, `--account work`, `--window 5h`, `--runout` and
+    /// `--allow-unknown`; `--json` and `-v` are the caller's. Err says what's wrong.
+    pub fn parse<'a>(args: impl IntoIterator<Item = &'a str>) -> Result<Self, String> {
+        let mut o = Self::default();
+        let mut it = args.into_iter();
+        while let Some(a) = it.next() {
+            let (flag, inline) = match a.split_once('=') {
+                Some((f, v)) if f.starts_with("--") => (f, Some(v.to_string())),
+                _ => (a, None),
+            };
+            let mut value = |name: &str| inline.clone().or_else(|| it.next().map(str::to_string)).ok_or(format!("{name} needs a value"));
+            match flag {
+                "--max" => {
+                    let v = value("--max")?;
+                    o.max = v
+                        .trim_end_matches('%')
+                        .parse::<f64>()
+                        .ok()
+                        .filter(|m| (0.0..=1000.0).contains(m))
+                        .ok_or(format!("--max {v} isn't a percentage"))?;
+                }
+                "--account" => o.account = Some(value("--account")?),
+                "--window" => o.window = Some(value("--window")?),
+                "--runout" => o.runout = true,
+                "--allow-unknown" => o.allow_unknown = true,
+                "--json" | "-v" | "--verbose" => {}
+                _ => return Err(format!("unknown option {a}")),
+            }
+        }
+        Ok(o)
+    }
+}
+
+/// What `guard` decided. Exit codes: 0 go, 1 stop, 3 can't tell (2 is a usage error).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Verdict {
+    Go,
+    Stop,
+    Unknown,
+}
+
+impl Verdict {
+    pub fn code(self) -> i32 {
+        match self {
+            Self::Go => 0,
+            Self::Stop => 1,
+            Self::Unknown => 3,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct GuardWindow {
+    pub account: String,
+    pub window: String,
+    pub pct: f64,
+    pub resets_at: Option<i64>,
+    pub out_at: Option<i64>,
+    /// Why this window stops the run, if it does
+    pub stop: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Guard {
+    pub verdict: Verdict,
+    /// The exit code (`--allow-unknown` turns "can't tell" into 0)
+    pub code: i32,
+    /// One plain line: why it stopped, why it can't tell, or the tightest window it checked
+    pub message: String,
+    pub max: f64,
+    /// The windows it checked
+    pub windows: Vec<GuardWindow>,
+}
+
+/// `tokenrunway guard`: is it safe to start work? Reads only the status file, so it's quick.
+/// "Can't tell" stops by default: a loop that can't see its allowance shouldn't assume room.
+pub fn guard(status: Option<&StatusFile>, o: &GuardOpts, now: i64) -> Guard {
+    let done = |verdict: Verdict, message: String, windows: Vec<GuardWindow>| {
+        let code = if verdict == Verdict::Unknown && o.allow_unknown { 0 } else { verdict.code() };
+        Guard { verdict, code, message, max: o.max, windows }
+    };
+    let s = match status {
+        Some(s) if !s.is_stale(now) => s,
+        _ => return done(Verdict::Unknown, freshness(status, now).unwrap_or_default(), Vec::new()),
+    };
+    let has = |hay: &str, needle: &str| hay.to_lowercase().contains(&needle.to_lowercase());
+    let windows: Vec<GuardWindow> = s
+        .accounts
+        .iter()
+        .filter(|a| o.account.as_deref().is_none_or(|q| has(&a.name, q) || a.provider.eq_ignore_ascii_case(q)))
+        .flat_map(|a| {
+            a.windows.iter().filter(|w| o.window.as_deref().is_none_or(|q| w.id.eq_ignore_ascii_case(q) || has(&w.label, q))).map(|w| {
+                let resets = w.resets_at.map(|r| format!(", resets in {}", forecast::duration(r - now))).unwrap_or_default();
+                // The same forecast the app shows; not one it marks as an estimate (too little history).
+                let runs_out = w.out_at.filter(|out| o.runout && w.status != Status::Est && w.resets_at.is_none_or(|r| *out < r));
+                let stop = if w.pct >= o.max {
+                    Some(format!("{} {} is at {:.0}% (limit {:.0}%){resets}.", a.name, w.label, w.pct, o.max))
+                } else {
+                    runs_out.map(|out| format!("{} {} runs out in {}{resets}.", a.name, w.label, forecast::duration(out - now)))
+                };
+                GuardWindow { account: a.name.clone(), window: w.label.clone(), pct: w.pct, resets_at: w.resets_at, out_at: w.out_at, stop }
+            })
+        })
+        .collect();
+    if windows.is_empty() {
+        let what = match (&o.account, &o.window) {
+            (None, None) => "No account has a usage window to check.".to_string(),
+            (a, w) => format!(
+                "No window matches{}{}.",
+                a.as_ref().map(|a| format!(" --account {a}")).unwrap_or_default(),
+                w.as_ref().map(|w| format!(" --window {w}")).unwrap_or_default()
+            ),
+        };
+        return done(Verdict::Unknown, what, windows);
+    }
+    let stops: Vec<&String> = windows.iter().filter_map(|w| w.stop.as_ref()).collect();
+    if let Some(first) = stops.first() {
+        let msg = match stops.len() {
+            1 => first.to_string(),
+            n => format!("{first} ({} more over the limit)", n - 1),
+        };
+        return done(Verdict::Stop, msg, windows);
+    }
+    let tight = windows.iter().max_by(|a, b| a.pct.total_cmp(&b.pct)).expect("not empty");
+    let msg = format!("OK: the tightest is {} {} at {:.0}% (limit {:.0}%).", tight.account, tight.window, tight.pct, o.max);
+    done(Verdict::Go, msg, windows)
+}
+
 pub const HELP: &str = "\
 Tokenrunway: how much AI runway you have left.
 
@@ -378,8 +531,21 @@ Commands:
   status [--json]   Every account's windows, resets and forecasts, and today's spend
   statusline        One short line for a shell prompt or Claude Code's status line
   today [--json]    Today's spend by harness, model and project
+  guard [options]   Exit 0 if it's safe to start work, 1 if a window is over the limit
   --help            This help
   --version         The version
+
+guard options:
+  --max <percent>     Stop at this % used or more (default 90)
+  --account <name>    Only accounts whose name contains this, or a provider (anthropic, openai…)
+  --window <id>       Only this window: 5h, weekly, or part of its label
+  --runout            Also stop when a window will run out before it resets
+  --allow-unknown     Go ahead when it can't tell (exit 0 instead of 3)
+  -v, --json          Say what it checked; as JSON
+
+  guard prints nothing when it's safe, so `tokenrunway guard && claude -p ...` reads well.
+  Exit codes: 0 go, 1 over the limit, 2 bad options, 3 can't tell (the app isn't running or
+  nothing matches).
 
 With no command, it opens the app. Allowances come from the running app; spend comes from
 your agents' local logs. Set NO_COLOR to turn colours off.
@@ -478,6 +644,56 @@ mod tests {
         let none = status_text(None, Some(3.0), NOW, Paint(false));
         assert!(none.starts_with("Tokenrunway isn't running"), "{none}");
         assert!(status_text(Some(&s), None, NOW + 3 * H, Paint(false)).starts_with("Tokenrunway last updated 3 h ago"));
+    }
+
+    #[test]
+    fn guard_decides() {
+        let s = sample();
+        let opts = |args: &[&str]| GuardOpts::parse(args.iter().copied()).unwrap();
+        let g = guard(Some(&s), &opts(&[]), NOW);
+        assert_eq!((g.verdict, g.code, g.windows.len()), (Verdict::Go, 0, 2), "78% is under the default 90%");
+        assert_eq!(g.message, "OK: the tightest is Claude — work 5-hour at 78% (limit 90%).");
+
+        let g = guard(Some(&s), &opts(&["--max", "75"]), NOW);
+        assert_eq!((g.verdict, g.code), (Verdict::Stop, 1));
+        assert_eq!(g.message, "Claude — work 5-hour is at 78% (limit 75%), resets in 2h 41m.");
+        let g = guard(Some(&s), &opts(&["--max=60%"]), NOW);
+        assert!(g.message.ends_with("(1 more over the limit)"), "{}", g.message);
+
+        // Forecast: out in 1h 26m, before the reset.
+        let g = guard(Some(&s), &opts(&["--runout"]), NOW);
+        assert_eq!(g.message, "Claude — work 5-hour runs out in 1h 26m, resets in 2h 41m.");
+        let mut est = s.clone();
+        est.accounts[0].windows[0].status = Status::Est;
+        assert_eq!(guard(Some(&est), &opts(&["--runout"]), NOW).verdict, Verdict::Go, "not on an estimate");
+
+        // Filters: a window, an account, a provider, case and part of the label.
+        assert_eq!(guard(Some(&s), &opts(&["--window", "WEEKLY", "--max", "70"]), NOW).verdict, Verdict::Go);
+        assert_eq!(guard(Some(&s), &opts(&["--window", "5h", "--max", "70"]), NOW).verdict, Verdict::Stop);
+        assert_eq!(guard(Some(&s), &opts(&["--account", "work", "--window", "5-hour"]), NOW).windows.len(), 1);
+        let none = guard(Some(&s), &opts(&["--account", "chatgpt"]), NOW);
+        assert_eq!((none.verdict, none.code, none.message.as_str()), (Verdict::Unknown, 3, "No window matches --account chatgpt."));
+        assert_eq!(guard(Some(&s), &opts(&["--account", "chatgpt", "--allow-unknown"]), NOW).code, 0);
+
+        // The app isn't running, or stopped writing: can't tell, which stops unless allowed.
+        let off = guard(None, &opts(&[]), NOW);
+        assert_eq!((off.verdict, off.code), (Verdict::Unknown, 3));
+        assert!(off.message.starts_with("Tokenrunway isn't running"));
+        let stale = guard(Some(&s), &opts(&["--allow-unknown"]), NOW + STALE_MS + 1);
+        assert_eq!((stale.verdict, stale.code), (Verdict::Unknown, 0));
+        assert!(stale.message.contains("Is the app running?"));
+    }
+
+    #[test]
+    fn guard_options() {
+        let o =
+            GuardOpts::parse(["--max", "80", "--account=work", "--window", "5h", "--runout", "--allow-unknown", "-v", "--json"]).unwrap();
+        assert_eq!(o, GuardOpts { max: 80.0, account: Some("work".into()), window: Some("5h".into()), runout: true, allow_unknown: true });
+        assert_eq!(GuardOpts::parse([]).unwrap(), GuardOpts::default());
+        assert_eq!(GuardOpts::parse(["--max"]).unwrap_err(), "--max needs a value");
+        assert_eq!(GuardOpts::parse(["--max", "lots"]).unwrap_err(), "--max lots isn't a percentage");
+        assert_eq!(GuardOpts::parse(["--nope"]).unwrap_err(), "unknown option --nope");
+        assert_eq!(Verdict::Stop.code(), 1);
     }
 
     #[test]

@@ -4,6 +4,16 @@ Each release's section becomes its GitHub release notes and the in-app "What's n
 `.github/workflows/release.yml`). Write for people using the app: what they can do now, in a
 sentence or two each.
 
+## [Unreleased]
+
+### Added
+- **`tokenrunway guard`**: a check for scripts and agent loops. It exits quietly with 0 when every
+  window is under your limit (90% by default, `--max 80` to change it) and 1 with a one-line
+  reason when one isn't, so `tokenrunway guard && claude -p "…"` stops a long batch before it hits
+  the wall. Narrow it with `--account` and `--window`, add `--runout` to also stop when a window
+  is forecast to run out before it resets, and `--json` for the details. When the app isn't
+  running it can't tell, and stops (exit 3) unless you add `--allow-unknown`.
+
 ## [0.2.3] - 2026-10-29
 
 ### Fixed

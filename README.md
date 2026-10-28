@@ -121,10 +121,24 @@ $ tokenrunway status          # every account's windows, resets and forecasts, a
 $ tokenrunway statusline      # ▲ 1h 26m · Claude 5-hour 78% · $12.40 today
 $ tokenrunway today           # today's spend by harness, model and project
 $ tokenrunway status --json   # the same for scripts (also: today --json)
+$ tokenrunway guard           # exit 0 if every window is under 90%, 1 with the reason if not
 ```
 
 Homebrew also adds two shorter names for the same command, `runway` and `trw` (not `tr`, which
-is the Unix tool): `runway status`, `trw today`.
+is the Unix tool): `runway status`, `trw today`, `runway guard`.
+
+**Guard a script or agent loop**: `guard` prints nothing when it's safe, so it chains:
+
+```sh
+tokenrunway guard --max 80 && claude -p "fix the flaky tests"
+tokenrunway guard --account work --window 5h --runout || echo "out of runway, try later"
+```
+
+`--max` sets the limit (% used, default 90), `--account` and `--window` narrow it (part of the
+name, or `5h`, `weekly`), `--runout` also stops when a window is forecast to run out before it
+resets, `-v` says what it checked and `--json` gives the details. Exit codes: 0 go, 1 over the
+limit, 2 bad options, 3 can't tell (the app isn't running, or nothing matches); `--allow-unknown`
+turns 3 into 0.
 
 Allowances come from the running app (it shares them in its data folder), so start Tokenrunway
 first; spend comes straight from your agents' logs. Set `NO_COLOR=1` to turn colours off.
