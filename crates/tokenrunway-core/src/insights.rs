@@ -251,6 +251,8 @@ impl Stats {
                     duration_ms: s.active,
                     tokens: s.tokens,
                     cost: s.cost,
+                    harness_id: s.harness,
+                    session_id: s.session_id,
                 })
                 .collect::<Vec<_>>(),
         )

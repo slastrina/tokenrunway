@@ -205,6 +205,42 @@
     };
   };
 
+  // ---------- session drill-down: steps made up to add up to the sample row ----------
+  const session = (id) => {
+    const row = dashboard('30d', 'model').sessions.find((s) => s.sessionId === id);
+    if (!row) return null;
+    const local = row.harnessId === 'lmstudio';
+    const n = Math.max(6, Math.round(row.durationMs / (2.4 * M)));
+    const TOOLS = row.harnessId === 'codex' ? ['shell', 'apply_patch', 'update_plan'] : ['Bash', 'Read', 'Edit', 'Grep', 'TodoWrite', 'mcp__github__create_issue'];
+    const kinds = [row.kind, row.kind, row.kind, 'Discovery', 'Test'];
+    let seed = 7;
+    const rnd = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
+    const weights = Array.from({ length: n }, (_, i) => (i === 3 || i === Math.floor(n * 0.6) ? 6 : 0.6 + rnd()));
+    const wsum = weights.reduce((a, b) => a + b, 0);
+    let ts = row.started;
+    const steps = weights.map((w, i) => {
+      const tokens = Math.round((row.tokens * w) / wsum);
+      const miss = i === Math.floor(n * 0.6);
+      ts += Math.round((row.durationMs / n) * (0.6 + rnd() * 0.8));
+      const tools = TOOLS.filter((_, k) => (i + k) % 3 === 0).map((name, k) => ({ name, n: 1 + ((i + k) % 4) }));
+      return {
+        ts: i ? ts : row.started, calls: 1 + Math.floor(rnd() * 5), model: i === 5 && !local ? `${row.model} + Haiku 4.5` : row.model,
+        input: Math.round(tokens * 0.01), output: Math.round(tokens * 0.05), cacheRead: miss ? Math.round(tokens * 0.1) : Math.round(tokens * 0.86), cacheWrite: miss ? Math.round(tokens * 0.84) : Math.round(tokens * 0.08),
+        cost: local ? 0 : (row.cost * w) / wsum, kind: kinds[i % kinds.length], tools, expensive: !local && w > 5, cacheMiss: miss, subagent: i === n - 2,
+      };
+    });
+    let cum = 0;
+    const tally = {};
+    steps.forEach((s) => s.tools.forEach((t) => { tally[t.name] = (tally[t.name] || 0) + t.n; }));
+    return {
+      harness: row.harness, harnessId: row.harnessId, sessionId: id, project: row.project, branch: local ? '' : row.project === 'tokenrunway' ? 'main' : 'feat/drill-down',
+      models: steps.some((s) => s.model.includes('+')) ? [row.model, 'Haiku 4.5'] : [row.model], started: row.started, last: steps[steps.length - 1].ts, activeMs: row.durationMs,
+      tokens: row.tokens, cost: row.cost, kind: row.kind, calls: steps.reduce((a, s) => a + s.calls, 0),
+      tools: Object.entries(tally).map(([name, k]) => ({ name, n: k })).sort((a, b) => b.n - a.n),
+      steps, stepsTotal: n, curve: steps.map((s) => { cum += s.cost; return [s.ts, cum]; }),
+    };
+  };
+
   // ---------- dashboard ----------
   const dashboard = (period, group, account) => {
     const n = { '7d': 7, '30d': 30, '90d': 90, lifetime: 120 }[period] || 30;
@@ -249,7 +285,10 @@
       [t(-2, 11, 40), 'Codex', 'tokenrunway', 'GPT-5 Codex', 'Review', 15, 0.7e6, 2.4],
       [t(-3, 16, 2), 'Claude Code', 'intake-classifier', 'Opus 5.5', 'Bug fix', 33, 2.2e6, 13.5],
       [t(-3, 10, 18), 'Claude Code', 'dotfiles', 'Haiku 5.5', 'Docs', 8, 0.2e6, 0.3],
-    ].map(([started, harness, project, model, kind, mins, tokens, cost]) => ({ started, harness, project, model, kind, durationMs: mins * M, tokens, cost }));
+    ].map(([started, harness, project, model, kind, mins, tokens, cost], i) => ({
+      started, harness, project, model, kind, durationMs: mins * M, tokens, cost,
+      harnessId: harness.toLowerCase().replace(/\s+/g, '-').replace('lm-studio', 'lmstudio'), sessionId: `mock-${i}`,
+    }));
     const start = now - 2.32 * H;
     const P = (h, r) => [Math.round(start + h * H), 100 - r];
     return {
@@ -382,6 +421,7 @@
       };
     },
     get_insights: ({ period, project }) => insights(period, project),
+    get_session: ({ sessionId }) => session(sessionId),
     take_dashboard_target: () => { const t = dashTarget; dashTarget = null; return t; },
     list_detected: () => detected,
     list_aws_profiles: () => ['iokig-prod', 'default'],
@@ -442,7 +482,7 @@
       // get_state.json copied from the app's debug state file) wins where a file exists.
       const fx = new URLSearchParams(location.search).get('fixture');
       if (fx) {
-        const name = [cmd, args.period, args.group].filter(Boolean).join('-');
+        const name = [cmd, args.period, args.group, args.sessionId && String(args.sessionId).replace(/[^A-Za-z0-9_.-]/g, '_')].filter(Boolean).join('-');
         const r = await fetch(`${fx}/${name}.json`).catch(() => null);
         if (r && r.ok) {
           const v = await r.json();

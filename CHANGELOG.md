@@ -40,6 +40,11 @@ sentence or two each.
   ran under, so that goes back through your history; for Claude Code, Tokenrunway notes which
   login is signed in as it reads the logs, so it counts from when you update (the spend tile says
   "since" that day). With one account per agent nothing changes.
+- **Session drill-down**: click a session in the dashboard to see why it cost what it did: its
+  cost over time, the tools it ran, and every step in order with its tokens and cost. The most
+  expensive steps and the cache misses (a big prompt written to the cache again after a break)
+  are marked. Only tool names are kept, never what they were given, and they're recorded from
+  this version on.
 
 ## [0.2.3] - 2026-10-29
 

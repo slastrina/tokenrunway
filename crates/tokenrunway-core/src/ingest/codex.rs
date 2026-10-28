@@ -206,11 +206,16 @@ fn tool(sig: &mut Signals, name: &str, args: &Value, cmd: Option<&str>) {
     let patch = cmd.filter(|c| c.contains("*** Begin Patch"));
     if name == "apply_patch" || patch.is_some() {
         let paths = patch.or(cmd).map(patch_paths).unwrap_or_default();
-        if paths.is_empty() {
-            sig.tool("apply_patch", None, None);
-        }
-        for p in paths {
-            sig.tool("apply_patch", Some(p), None);
+        // One patch is one run of the tool, however many files it edits.
+        match paths.split_first() {
+            None => sig.tool("apply_patch", None, None),
+            Some((first, rest)) => {
+                sig.tool("apply_patch", Some(*first), None);
+                for p in rest {
+                    sig.tools += 1;
+                    sig.edit(p);
+                }
+            }
         }
         return;
     }

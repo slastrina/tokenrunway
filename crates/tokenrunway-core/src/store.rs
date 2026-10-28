@@ -1,14 +1,15 @@
 //! The activity database (SPEC.md §7.2): SQLite in WAL mode, holding
 //! - `events`: one row per model call, keyed by the reader's dedupe key, with its tokens and
 //!   API-equivalent cost (and the harness's own cost where it reports one)
-//! - `turns`: each turn's category signals (counts only), category and confidence
+//! - `turns`: each turn's category signals (counts, and how often each tool ran by name),
+//!   category and confidence
 //! - `cursors`: how far each source file has been read
 //! - `meta`: the price table version the stored costs were worked out with
 //! - `logins`: which CLI login each log source was signed in as, and when (account ids only),
 //!   so `events.account` can say which login a call ran under
 //!
 //! Nothing here can hold prompt text: events have counts, ids, paths and names; turns have
-//! keyword counts.
+//! keyword counts and tool names (never their arguments).
 
 use crate::categorise::{self, Signals};
 use crate::ingest::{Batch, Cursor, Event, Tokens};
@@ -40,6 +41,7 @@ CREATE TABLE IF NOT EXISTS events (
 ) WITHOUT ROWID;
 CREATE INDEX IF NOT EXISTS events_ts ON events(ts);
 CREATE INDEX IF NOT EXISTS events_unpriced ON events(key) WHERE cost_usd IS NULL;
+CREATE INDEX IF NOT EXISTS events_session ON events(harness, session_id, ts);
 CREATE TABLE IF NOT EXISTS turns (
     id TEXT PRIMARY KEY,
     signals TEXT NOT NULL,
@@ -150,6 +152,35 @@ pub struct SessionPart {
     pub active_ms: i64,
     /// The login the session ran under, where it's known
     pub account: Option<String>,
+}
+
+/// One model call of a session, with its turn's category and tool names (`Store::session_calls`).
+#[derive(Debug, Clone, Default)]
+pub struct SessionCall {
+    pub ts: i64,
+    pub turn_id: Option<String>,
+    pub model: String,
+    pub project: String,
+    pub branch: Option<String>,
+    pub sidechain: bool,
+    pub input: u64,
+    pub output: u64,
+    pub cache_read: u64,
+    pub cache_write: u64,
+    pub cost: f64,
+    pub category: String,
+    /// The turn's tool runs by name (the same on every call of a turn)
+    pub tools: Vec<(String, u32)>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct SessionTotals {
+    pub calls: u32,
+    pub tokens: u64,
+    pub cost: f64,
+    pub first: i64,
+    pub last: i64,
+    pub active_ms: i64,
 }
 
 /// A gap between two events longer than this is a break, not work.
@@ -546,6 +577,61 @@ impl Store {
             })
         });
         rows.map(|r| r.flatten().collect()).unwrap_or_default()
+    }
+
+    /// One session's model calls in time order, at most `cap` (the first ones).
+    pub fn session_calls(&self, harness: &str, session_id: &str, cap: u32) -> Vec<SessionCall> {
+        let sql = "SELECT e.ts, e.turn_id, e.model, e.project, e.branch, e.sidechain, e.input, e.output, e.cache_read,
+                   e.cache_write_5m + e.cache_write_1h, IFNULL(e.cost_usd, 0), IFNULL(t.category, 'chat'), t.signals
+                   FROM events e LEFT JOIN turns t ON t.id = e.turn_id
+                   WHERE e.harness = ?1 AND e.session_id = ?2
+                   ORDER BY e.ts, e.key LIMIT ?3";
+        let Ok(mut q) = self.conn.prepare_cached(sql) else { return Vec::new() };
+        let rows = q.query_map(params![harness, session_id, cap], |r| {
+            let signals: Option<String> = r.get(12)?;
+            let tools =
+                signals.and_then(|s| serde_json::from_str::<Signals>(&s).ok()).map(|s| s.names.into_iter().collect()).unwrap_or_default();
+            Ok(SessionCall {
+                ts: r.get(0)?,
+                turn_id: r.get(1)?,
+                model: r.get(2)?,
+                project: r.get(3)?,
+                branch: r.get(4)?,
+                sidechain: r.get::<_, i64>(5)? != 0,
+                input: r.get::<_, i64>(6)? as u64,
+                output: r.get::<_, i64>(7)? as u64,
+                cache_read: r.get::<_, i64>(8)? as u64,
+                cache_write: r.get::<_, i64>(9)? as u64,
+                cost: r.get(10)?,
+                category: r.get(11)?,
+                tools,
+            })
+        });
+        rows.map(|r| r.flatten().collect()).unwrap_or_default()
+    }
+
+    /// A whole session's totals, however many calls `session_calls` returned: calls, tokens, cost,
+    /// first and last call, and working time (gaps over `IDLE_MS` left out).
+    pub fn session_totals(&self, harness: &str, session_id: &str) -> Option<SessionTotals> {
+        let sql = "WITH s AS (
+                       SELECT ts, input + output + cache_read + cache_write_5m + cache_write_1h AS tokens, IFNULL(cost_usd, 0) AS cost,
+                       ts - LAG(ts) OVER (ORDER BY ts) AS gap
+                       FROM events WHERE harness = ?1 AND session_id = ?2)
+                   SELECT COUNT(*), IFNULL(SUM(tokens), 0), IFNULL(SUM(cost), 0), MIN(ts), MAX(ts),
+                   IFNULL(SUM(CASE WHEN gap <= ?3 THEN gap ELSE 0 END), 0) FROM s";
+        self.conn
+            .query_row(sql, params![harness, session_id, IDLE_MS], |r| {
+                Ok(SessionTotals {
+                    calls: r.get::<_, i64>(0)? as u32,
+                    tokens: r.get::<_, i64>(1)? as u64,
+                    cost: r.get(2)?,
+                    first: r.get::<_, Option<i64>>(3)?.unwrap_or(0),
+                    last: r.get::<_, Option<i64>>(4)?.unwrap_or(0),
+                    active_ms: r.get(5)?,
+                })
+            })
+            .ok()
+            .filter(|t| t.calls > 0)
     }
 
     /// The earliest event's time, if there are any.

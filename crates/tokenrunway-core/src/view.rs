@@ -512,6 +512,71 @@ pub struct SessionRow {
     pub duration_ms: i64,
     pub tokens: u64,
     pub cost: f64,
+    /// "claude-code", with `session_id`: what `get_session` takes
+    pub harness_id: String,
+    pub session_id: String,
+}
+
+/// One session in detail, for the dashboard's drill-down (`get_session`). The whole session,
+/// whatever range the dashboard shows.
+#[derive(Debug, Clone, Serialize, Default, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionDetail {
+    pub harness: String,
+    pub harness_id: String,
+    pub session_id: String,
+    /// The project with the most tokens, and its branch ("" when the harness didn't say)
+    pub project: String,
+    pub branch: String,
+    /// By cost, biggest first ("Opus 5.5", "Haiku 4.5")
+    pub models: Vec<String>,
+    pub started: i64,
+    pub last: i64,
+    /// Working time, without breaks over 30 minutes
+    pub active_ms: i64,
+    pub tokens: u64,
+    pub cost: f64,
+    /// "Bug fix", the kind of work with the most tokens
+    pub kind: String,
+    pub calls: u32,
+    /// Tools run in the whole session, most first
+    pub tools: Vec<ToolCount>,
+    /// Turns in order (a prompt and the calls that answered it; a call without a turn is its
+    /// own step). At most `STEP_CAP`, the first ones
+    pub steps: Vec<SessionStep>,
+    pub steps_total: u32,
+    /// Cumulative cost over the session (ms, $), at most ~120 points, for the chart
+    pub curve: Vec<(i64, f64)>,
+}
+
+#[derive(Debug, Clone, Serialize, Default, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionStep {
+    pub ts: i64,
+    pub calls: u32,
+    /// The step's models, by cost ("Opus 5.5 + Haiku 4.5")
+    pub model: String,
+    pub input: u64,
+    pub output: u64,
+    pub cache_read: u64,
+    pub cache_write: u64,
+    pub cost: f64,
+    pub kind: String,
+    pub tools: Vec<ToolCount>,
+    /// One of the session's few most expensive steps
+    pub expensive: bool,
+    /// A big prompt written to the cache again after the session had started (the cache had
+    /// expired or been broken), rather than read from it
+    pub cache_miss: bool,
+    /// Every call in it came from a subagent
+    pub subagent: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Default, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolCount {
+    pub name: String,
+    pub n: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Default, PartialEq)]

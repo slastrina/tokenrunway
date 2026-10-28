@@ -143,3 +143,46 @@ tbody tr:hover td { background: var(--btn); }
 .tip b::before { content: ''; width: 6px; height: 6px; border-radius: 2px; background: var(--warn); flex-shrink: 0; transform: translateY(-1px); }
 .tip p { margin: 0; font-size: 11.5px; color: var(--fg2); line-height: 1.45; -webkit-user-select: text; user-select: text; }
 .tip.good b::before { background: var(--ok); }
+
+/* ---------- session drill-down ---------- */
+.sessions tbody tr.go { cursor: pointer; }
+.sessions tbody tr.go:focus-visible td { background: var(--btn-hover); outline: none; }
+.drill-scrim { position: fixed; inset: 44px 0 0 0; z-index: 30; background: rgba(0, 0, 0, .18); }
+.drill { position: fixed; top: 44px; right: 0; bottom: 0; z-index: 31; width: min(600px, 72vw); display: flex; flex-direction: column; background: var(--pop-solid); box-shadow: -1px 0 0 var(--line-strong), -12px 0 32px rgba(0, 0, 0, .22); }
+.drill[hidden], .drill-scrim[hidden] { display: none; }
+.dr-h { display: flex; align-items: flex-start; gap: 10px; padding: 14px 16px 10px; border-bottom: 1px solid var(--line); }
+.dr-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.dr-t h2 { display: flex; align-items: center; gap: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dr-t h2 .mono { font-family: var(--mono); font-size: 12.5px; font-weight: 600; }
+.dr-t h2 .tag { height: 20px; font-size: 11px; font-weight: 500; margin-left: 4px; }
+.dr-t .muted { white-space: normal; }
+.drill .x { width: 26px; height: 26px; border: 0; border-radius: 6px; background: var(--btn); color: var(--fg2); display: inline-flex; align-items: center; justify-content: center; padding: 0; flex-shrink: 0; }
+.drill .x:hover { background: var(--btn-hover); color: var(--fg1); }
+.dr-body { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 16px 16px; display: flex; flex-direction: column; gap: 14px; -webkit-user-select: text; user-select: text; }
+.dr-body section { display: flex; flex-direction: column; gap: 7px; }
+.dr-body h3 { margin: 0; font-size: 12px; font-weight: 600; }
+.dr-body .sm { font-size: 11.5px; margin: 0; }
+.dr-body .dim { color: var(--fg2); }
+.kpis.dr-k { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.dr-chart { height: 90px; }
+.dr-chart svg { display: block; }
+.tools { display: flex; flex-wrap: wrap; gap: 5px; }
+.tl { height: 20px; padding: 0 7px; border-radius: 5px; background: var(--btn); font-size: 11.5px; color: var(--fg2); display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; font-family: var(--mono); }
+.tl b { color: var(--fg1); font-weight: 600; font-family: var(--font, inherit); }
+.tl.more { font-family: inherit; color: var(--fg3); }
+.tools.sm .tl { height: 18px; font-size: 10.5px; padding: 0 6px; }
+.steps { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+.st { padding: 7px 0 8px 8px; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 3px; }
+.st.hi { box-shadow: inset 2px 0 0 var(--crit); }
+.st .l1 { display: flex; align-items: center; gap: 8px; font-size: 12px; min-width: 0; }
+.st .when { color: var(--fg3); font-variant-numeric: tabular-nums; min-width: 64px; flex-shrink: 0; white-space: nowrap; }
+.st .mdl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.st .kd { color: var(--fg2); font-size: 11.5px; white-space: nowrap; }
+.st .c { font-weight: 600; min-width: 52px; text-align: right; font-variant-numeric: tabular-nums; }
+.st .l2 { font-size: 11px; color: var(--fg2); padding-left: 72px; font-variant-numeric: tabular-nums; }
+.st .tools { padding-left: 72px; }
+.mk { height: 17px; padding: 0 6px; border-radius: 4px; font-size: 10.5px; font-weight: 600; background: var(--btn); color: var(--fg2); display: inline-flex; align-items: center; white-space: nowrap; flex-shrink: 0; }
+.mk.crit { background: var(--crit-bg); color: var(--crit-text); }
+.mk.warn { background: var(--warn-bg); color: var(--warn-text); }
+.tr-h12 .st .when { min-width: 74px; }
+.tr-h12 .st .l2, .tr-h12 .st .tools { padding-left: 82px; }

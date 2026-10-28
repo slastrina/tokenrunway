@@ -232,6 +232,7 @@ pub fn run() {
             commands::get_harness,
             commands::get_dashboard,
             commands::get_insights,
+            commands::get_session,
             commands::take_dashboard_target,
             commands::list_detected,
             commands::list_aws_profiles,

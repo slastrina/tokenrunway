@@ -11,8 +11,8 @@ use tokenrunway_core::insights::{self, Subscription};
 use tokenrunway_core::now_ms;
 use tokenrunway_core::stats::Filter;
 use tokenrunway_core::view::{
-    AccountView, AdminContact, AppView, Burndown, DashboardView, Detected, HarnessView, InsightsView, RequestDraft, ResetRow, Settings,
-    StatsView,
+    AccountView, AdminContact, AppView, Burndown, DashboardView, Detected, HarnessView, InsightsView, RequestDraft, ResetRow,
+    SessionDetail, Settings, StatsView,
 };
 
 #[tauri::command]
@@ -51,6 +51,13 @@ pub async fn get_insights(app: AppHandle, period: String, project: Option<String
     let subs = subscriptions(&st.account_views(now));
     let prices = st.settings.lock().unwrap().insights.plan_prices.clone();
     tauri::async_runtime::spawn_blocking(move || s.insights(&period, project.as_deref(), &subs, &prices, now)).await.unwrap_or_default()
+}
+
+/// One session in detail for the dashboard's drill-down (`harness` is the id, "claude-code").
+#[tauri::command]
+pub async fn get_session(app: AppHandle, harness: String, session_id: String) -> Option<SessionDetail> {
+    let s = activity::stats(&app)?;
+    tauri::async_runtime::spawn_blocking(move || s.session(&harness, &session_id)).await.ok().flatten()
 }
 
 /// `project` / `model` (a display name, "Opus 5.5") narrow the activity parts to that one.

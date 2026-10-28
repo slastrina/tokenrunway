@@ -183,6 +183,22 @@ heatmap; a table of sessions (date, harness, project, model, tokens, cost, categ
 burn-down per window with the forecast cone; and a reset calendar showing upcoming resets across
 accounts. Filters: account, harness, model, project, category, date range. Export as CSV/JSON.
 
+**Session drill-down** (`get_session { harness, sessionId }`, `Stats::session`): clicking a row in
+the sessions table (or Enter on it) opens a panel over the right of the dashboard with the whole
+session, whatever range is shown: harness, project and branch, models, start to end, working time
+(breaks over 30 minutes left out), kind of work, cost, tokens and the share read from the cache.
+Below: the running cost as a line, the tools it ran and its steps in order. A step is a turn (a
+prompt and the calls that answered it, wherever they fall; a call without a turn is its own step),
+with its time, models, calls, input/output/cache read/cache write tokens, cost, kind and tools.
+Marks: *Expensive* for the top three steps by cost when each is at least 5% of the session (and
+there are more than three steps); *Cache miss* when a step after the first writes 20k+ prompt
+tokens to the cache and reads back less than that (the cache had expired or been broken);
+*Subagent* when every call in it came from one (a subagent's own first write isn't a miss).
+The list stops at the first 400 steps (the totals and chart cover all, and reading stops at 20,000
+calls). Tool names come from the turn signals (`Signals::names`: names only, at most 32 per turn,
+and only strings that look like a tool name), so sessions ingested before 0.2.4 have none. Esc,
+the close button or a click outside closes it, and focus goes back to the row.
+
 ### 6.4 Settings
 Accounts (add/remove/re-login/rename/colour), Harness sources (detected paths, enable/disable,
 custom paths), Notifications (§8.3), Rattleboard (§8.4), Menubar label, Pricing (currency, overrides), Categories

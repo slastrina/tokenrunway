@@ -89,6 +89,14 @@ fn main() {
                 put(format!("get_dashboard-{period}-{group}"), serde_json::to_string(&stats.dashboard(period, group, now)).unwrap());
             }
         }
+        // The drill-down for the newest sessions (file names as the mock asks for them).
+        let t = Instant::now();
+        let recent = stats.dashboard("30d", "model", now).sessions;
+        for s in recent.iter().take(40) {
+            let id: String = s.session_id.chars().map(|c| if c.is_ascii_alphanumeric() || "_.-".contains(c) { c } else { '_' }).collect();
+            put(format!("get_session-{id}"), serde_json::to_string(&stats.session(&s.harness_id, &s.session_id)).unwrap());
+        }
+        println!("{} session drill-downs in {:?}", recent.len().min(40), t.elapsed());
         println!("wrote views to {}", out.display());
     }
     if std::env::var_os("TR_KEEP_DB").is_some() {
