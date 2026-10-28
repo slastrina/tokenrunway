@@ -1,5 +1,5 @@
 //! The `tokenrunway` command line: the app's own executable with a subcommand (`status`,
-//! `statusline`, `today`, `--help`, `--version`) prints and exits before any window, tray icon
+//! `statusline`, `today`, `guard`, `--help`, `--version`) prints and exits before any window, tray icon
 //! or single-instance check starts. The formatting is in tokenrunway_core::cli; this reads the
 //! app's `status.json` and `activity.db`, and on Windows borrows the parent's console (the app
 //! is a GUI-subsystem program, which has none of its own).
@@ -14,13 +14,16 @@ use tokenrunway_core::view::AppView;
 pub fn run_from_args() -> Option<i32> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let cmd = args.first()?.as_str();
-    if !matches!(cmd, "status" | "statusline" | "today" | "help" | "--help" | "-h" | "--version" | "-V" | "version") {
+    if !matches!(cmd, "status" | "statusline" | "today" | "guard" | "help" | "--help" | "-h" | "--version" | "-V" | "version") {
         // Anything else (macOS's -psn_…, autostart's flags) is for the app.
         return None;
     }
     attach_console();
     let rest: Vec<&str> = args[1..].iter().map(String::as_str).collect();
     let json = rest.contains(&"--json");
+    if cmd == "guard" {
+        return Some(guard(&rest, json));
+    }
     if let Some(bad) = rest.iter().find(|a| **a != "--json") {
         eprintln!("tokenrunway {cmd}: unknown option {bad}\n\n{}", cli::HELP);
         return Some(2);
@@ -84,6 +87,26 @@ fn command(cmd: &str, json: bool) -> Result<String, String> {
         }
         _ => Err(format!("unknown command {cmd}")),
     }
+}
+
+/// `tokenrunway guard`: silent when it's safe (exit 0), one line on stderr when it isn't (1) or
+/// can't tell (3, or 0 with --allow-unknown); `-v` says what it checked, `--json` all of it.
+fn guard(args: &[&str], json: bool) -> i32 {
+    let opts = match cli::GuardOpts::parse(args.iter().copied()) {
+        Ok(o) => o,
+        Err(e) => {
+            eprintln!("tokenrunway guard: {e}\n\n{}", cli::HELP);
+            return 2;
+        }
+    };
+    let status = cli::data_dir().and_then(|d| read_status(&d));
+    let g = cli::guard(status.as_ref(), &opts, tokenrunway_core::now_ms());
+    if json {
+        println!("{}", serde_json::to_string_pretty(&g).unwrap_or_default());
+    } else if g.verdict != cli::Verdict::Go || args.iter().any(|a| matches!(*a, "-v" | "--verbose")) {
+        eprintln!("{}", g.message);
+    }
+    g.code
 }
 
 fn read_status(dir: &Path) -> Option<StatusFile> {

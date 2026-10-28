@@ -205,6 +205,16 @@ any window, tray icon or single-instance check starts (src-tauri/src/cli.rs; for
 - `tokenrunway statusline`: one line for a shell prompt or Claude Code's `statusLine` command,
   e.g. `▲ 1h 26m · Claude 5-hour 78% · $12.40 today`. It doesn't read stdin, so it never waits.
 - `tokenrunway today [--json]`: today's spend by harness, model and project.
+- `tokenrunway guard [--max N] [--account A] [--window W] [--runout] [--allow-unknown] [-v|--json]`:
+  for scripts and agent loops (`tokenrunway guard && claude -p …`). Silent exit 0 when every
+  matching window is under `--max` % used (default 90); exit 1 with one line on stderr naming the
+  window when one is at or over it, or with `--runout` when the app's forecast says it runs out
+  before its reset (not for windows marked as estimates). `--account` matches part of the name
+  (any case) or the provider id; `--window` the id (`5h`, `weekly`) or part of the label. Can't
+  tell (no or stale `status.json`, or nothing matches) is exit 3 and stops by default, since a
+  loop that can't see its allowance shouldn't assume room; `--allow-unknown` makes it 0. Bad
+  options are exit 2. `-v` prints the check on success; `--json` prints the decision, the message
+  and every window checked. Logic and parsing: `cli::guard`, `cli::GuardOpts`.
 - Allowances come from `status.json`, which the running app writes to its data folder on every
   state broadcast (accounts, windows, summary and today's spend; no settings, keys or cookies).
   Older than 10 minutes counts as stale and says so. Spend comes from `activity.db` (WAL, so safe
