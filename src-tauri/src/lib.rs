@@ -13,6 +13,7 @@ mod commands;
 mod login;
 mod notify;
 mod poll;
+mod prices;
 mod recap;
 mod state;
 mod tray;
@@ -293,6 +294,7 @@ pub fn run() {
             }
             activity::start(&h);
             tauri::async_runtime::spawn(poll::run(h.clone()));
+            tauri::async_runtime::spawn(prices::run(h.clone()));
             tauri::async_runtime::spawn(updates::run(h));
             Ok(())
         })

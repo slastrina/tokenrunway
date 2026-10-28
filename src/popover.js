@@ -711,6 +711,13 @@
   const sw = (name, on, label) => `<button class="switch" role="switch" aria-checked="${!!on}" aria-label="${esc(label)}" data-act="toggle" data-name="${name}" data-k="sw-${name}"></button>`;
   const numField = (name, value, label, min, max, unit) => `<input class="field num" type="number" inputmode="numeric" min="${min}" max="${max}" value="${esc(value)}" aria-label="${esc(label)}" data-k="n-${name}" data-num="${name}">${unit ? `<span class="unit">${unit}</span>` : ''}`;
 
+  // Where costs' prices come from. A failed fetch only shows here, never as an alert.
+  function pricesLine(on, p) {
+    if (on && p?.source === 'github' && p.updatedAt) return `Prices from GitHub, updated ${C.ago(p.updatedAt)}`;
+    const built = 'Using the prices built into this version';
+    return on && p?.reason ? `${built} · ${p.reason}` : built;
+  }
+
   function viewSettings() {
     const st = S.settings || S.app?.settings || {};
     const accs = S.app?.accounts || [];
@@ -765,6 +772,7 @@
       + '<div class="group"><span class="caps">General</span><div class="box">'
       + `<div class="srow"><span class="t"><b>Start at login</b></span>${sw('startAtLogin', st.startAtLogin, 'Start at login')}</div>`
       + `<div class="srow"><span class="t"><b>Check for updates</b><span>Daily, from GitHub releases</span></span>${sw('updateCheck', st.updateCheck, 'Check for updates automatically')}</div>`
+      + `<div class="srow"><span class="t"><b>Fetch the latest prices</b><span>${esc(pricesLine(st.fetchPrices !== false, S.app?.prices))}</span></span>${sw('fetchPrices', st.fetchPrices !== false, 'Fetch the latest model prices daily from GitHub')}</div>`
       + `<div class="srow"><span class="t"><b>Tokenrunway v${esc(S.app?.version || '')}</b><span>${S.app?.update ? `v${esc(S.app.update)} is available` : 'MIT licence · made by iokig'}</span></span><button class="btn s24" data-act="view" data-v="update" data-k="set-upd">${S.app?.update ? 'Update' : 'Check now'}</button></div>`
       + `<div class="srow"><span class="t"><b>iokig.com</b><span>More tools and the changelog</span></span><button class="btn s24" data-act="site" data-k="set-site">Open</button></div>`
       + '</div></div></div></div>';

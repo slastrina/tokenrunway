@@ -166,18 +166,19 @@ impl Store {
         Ok(s)
     }
 
-    /// Works the costs out again when the price table has changed since they were stored.
-    fn reprice_if_needed(&self) -> Result<(), String> {
+    /// Works the costs out again when the price table in use has changed since they were
+    /// stored (at open, and after the app fetches a new table). True when it did.
+    pub fn reprice_if_needed(&self) -> Result<bool, String> {
         let v = pricing::version();
         let have: Option<String> =
             self.conn.query_row("SELECT v FROM meta WHERE k = 'pricing'", [], |r| r.get(0)).optional().map_err(|e| e.to_string())?;
         if have.as_deref() == Some(v.as_str()) {
-            return Ok(());
+            return Ok(false);
         }
         self.conn.execute("UPDATE events SET cost_usd = NULL", []).map_err(|e| e.to_string())?;
         self.price_missing()?;
         self.conn.execute("INSERT OR REPLACE INTO meta (k, v) VALUES ('pricing', ?1)", [v]).map_err(|e| e.to_string())?;
-        Ok(())
+        Ok(true)
     }
 
     /// Prices every event whose cost is unset (new, grown, or after a price table change).

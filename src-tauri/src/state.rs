@@ -45,6 +45,8 @@ pub struct AppState {
     last_json: Mutex<String>,
     /// LM Studio's server as last probed (poll.rs, every 15 s while it's installed)
     pub local: Mutex<LocalProbe>,
+    /// Which price table is in use (prices.rs)
+    pub prices: Mutex<tokenrunway_core::view::PriceStatus>,
 }
 
 #[derive(Default)]
@@ -68,6 +70,8 @@ impl AppState {
         let ctx = Ctx::new(data_dir.clone());
         let accounts = Accounts::load(&data_dir);
         let detected = allowance::detect(&ctx.home, &accounts.list);
+        // Before activity.db opens, so stored costs are priced with the newest table we have.
+        let prices = crate::prices::startup(&data_dir, settings.fetch_prices);
         Self {
             update: Mutex::new(None),
             ctx,
@@ -84,6 +88,7 @@ impl AppState {
             board: Mutex::new(Default::default()),
             last_json: Mutex::new(String::new()),
             local: Mutex::new(LocalProbe::default()),
+            prices: Mutex::new(prices),
             data_dir,
         }
     }
@@ -147,6 +152,7 @@ pub fn app_view(app: &AppHandle) -> AppView {
     let detected = st.detected.lock().unwrap().clone();
     let settings = st.settings.lock().unwrap().clone();
     let rattleboard_key = crate::board::has_key(app, &settings.rattleboard);
+    let prices = st.prices.lock().unwrap().clone();
     AppView {
         version: env!("CARGO_PKG_VERSION").into(),
         os: OS.into(),
@@ -164,6 +170,7 @@ pub fn app_view(app: &AppHandle) -> AppView {
         spend_month: st.stats.get().map(|s| s.spend_month(now)),
         hot: st.stats.get().map(|s| s.hot_sessions(now)).unwrap_or_default(),
         local: local_server(&st, now),
+        prices,
     }
 }
 

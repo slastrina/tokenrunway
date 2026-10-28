@@ -24,7 +24,7 @@
     menubarLabel: 'runway', menubarWindow: '', budgetDaily: 75, budgetMonthly: 1500, notifyBudget: true, notifyBurn: true, density: scenario === 'compact' ? 'compact' : 'comfortable', warnAt: 75, critAt: 90, leadMinutes: 60,
     notifyThresholds: true, notifyProjection: true, notifyReset: false, pausedUntil: 0, requestAt: 85,
     admins: { 'acct-1': { name: 'Jordan Lee', email: 'jordan@iokig.com', slack: '@Jordan Lee', teams: '' } },
-    myName: 'Sam', updateCheck: true, startAtLogin: false,
+    myName: 'Sam', updateCheck: true, fetchPrices: true, startAtLogin: false,
     rattleboard: { ...rbDefault }, insights: { weeklyRecap: true, planPrices: { 'acct-1': 60 } },
   };
   const rbq = q.get('rb') || '';
@@ -111,6 +111,10 @@
   };
   if (q.get('local') === 'stopped') app.local = { ...app.local, running: false, models: [], todayRequests: 7, todayTokens: 18200, lastUsed: now - 2 * H };
   if (q.get('local') === 'off') app.local = null;
+  // ?prices=bundled | failed: never fetched, or GitHub couldn't be reached (default: fetched).
+  app.prices = q.get('prices') === 'bundled' ? { source: 'bundled' }
+    : q.get('prices') === 'failed' ? { source: 'bundled', reason: "couldn't reach GitHub" }
+    : { source: 'github', updatedAt: now - 3 * H };
   if (q.get('live') === 'none') { app.hot = []; app.tips = []; settings.budgetDaily = 0; settings.budgetMonthly = 0; }
   if (['local', 'local-key', 'network', 'vestaboard', 'error'].includes(rbq)) {
     const local = rbq.startsWith('local');
@@ -316,6 +320,9 @@
         }
         p.rattleboard = { ...app.settings.rattleboard, alerts, card, target };
         if (card !== app.settings.rattleboard.card) app.rattleboardStatus = card ? `Added the AI runway card to the rotation at ${hhmm()}` : `Took the card off the board at ${hhmm()}`;
+      }
+      if ('fetchPrices' in p && p.fetchPrices !== app.settings.fetchPrices) {
+        app.prices = p.fetchPrices ? { source: 'github', updatedAt: Date.now() } : { source: 'bundled' };
       }
       app = { ...app, settings: { ...app.settings, ...p } };
       setTimeout(() => emit('tr://state', app), 50);

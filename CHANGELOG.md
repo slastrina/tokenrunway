@@ -4,6 +4,14 @@ Each release's section becomes its GitHub release notes and the in-app "What's n
 `.github/workflows/release.yml`). Write for people using the app: what they can do now, in a
 sentence or two each.
 
+## [Unreleased]
+
+### Added
+- **New models priced within a day**: Tokenrunway fetches the latest price list from GitHub once a
+  day, so a new model gets its price without waiting for an app update. The prices built into the
+  app stay as the fallback: behind a strict firewall it quietly uses those, and Settings → Fetch
+  the latest prices shows which prices are in use (turn it off to always use the built-in ones).
+
 ## [0.2.3] - 2026-10-29
 
 ### Fixed
