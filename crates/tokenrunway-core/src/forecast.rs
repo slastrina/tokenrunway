@@ -71,6 +71,8 @@ pub fn outlook(readings: &[WindowReading]) -> Outlook {
 /// A recent rate needs readings spanning at least this long; until then the window's average
 /// pace stands in.
 pub const MIN_SPAN_MS: i64 = 15 * 60 * 1000;
+/// How far ahead the recent pace is carried before the window's average pace takes over.
+pub const RECENT_HOLDS_MS: i64 = 5 * 60 * 60 * 1000;
 /// The average pace isn't trusted this early in a window (share elapsed, %).
 const MIN_PACE: f64 = 10.0;
 const MIN: i64 = 60 * 1000;
@@ -156,21 +158,42 @@ where
     let (proj, out_at) = match w.resets_at {
         Some(reset) if has_limit && reset > now => {
             let left = (reset - now) as f64;
-            let r = rate.or_else(|| {
-                // The window's average pace so far.
-                let (s, _) = start?;
-                (pace? >= MIN_PACE && now > s).then(|| w.used / (now - s) as f64)
-            });
-            match r {
-                Some(r) => {
-                    let proj = (w.used + r * left) * 100.0;
+            // The window's average pace so far.
+            let avg = start.and_then(|(s, _)| (pace? >= MIN_PACE && now > s).then(|| w.used / (now - s) as f64));
+            // The recent pace only holds for a working session: carried over a whole week, one
+            // busy hour at 2% read as "out on Monday". So it covers the next few hours, and the
+            // slower of it and the average pace the rest (slowing down still counts); with no
+            // average yet, only the next few hours are forecast.
+            let near = left.min(RECENT_HOLDS_MS as f64);
+            let far = left - near;
+            let later = match (rate, avg) {
+                (Some(r), Some(a)) => Some(r.min(a)),
+                (None, a) => a,
+                (Some(_), None) => None,
+            };
+            match (rate.or(avg), later) {
+                (Some(r1), r2) if far <= 0.0 || r2.is_some() => {
+                    let r2 = r2.unwrap_or(0.0);
+                    let at_near = w.used + r1 * near;
+                    let proj = (at_near + r2 * far) * 100.0;
                     // Compared in f64 first: a near-zero rate puts the run-out time centuries
                     // away, which overflowed i64 and wrapped round to "already out".
-                    let to_out = (1.0 - w.used) / r;
-                    let out = (w.used < 1.0 && r > 0.0 && to_out < left).then(|| now + to_out.round() as i64);
+                    let to_out = if r1 > 0.0 && (1.0 - w.used) / r1 <= near {
+                        Some((1.0 - w.used) / r1)
+                    } else if r2 > 0.0 && at_near < 1.0 {
+                        Some(near + (1.0 - at_near) / r2).filter(|t| *t < left)
+                    } else {
+                        None
+                    };
+                    let out = to_out.filter(|t| w.used < 1.0 && *t < left).map(|t| now + t.round() as i64);
                     (Some(proj), out)
                 }
-                None => (None, None),
+                (Some(r1), None) => {
+                    // Early in a long window: only a run-out within the next few hours is said.
+                    let out = (w.used < 1.0 && r1 > 0.0 && (1.0 - w.used) / r1 <= near).then(|| now + ((1.0 - w.used) / r1).round() as i64);
+                    (None, out)
+                }
+                _ => (None, None),
             }
         }
         _ => (None, None),
@@ -454,7 +477,39 @@ mod tests {
         let slope = 0.4 / (36.0 * 60.0 * MIN as f64);
         let pts: Vec<(i64, f64)> = (0..4).map(|i| (now - (60 - i * 20) * MIN, 0.6 - slope * ((60 - i * 20) * MIN) as f64)).collect();
         let v = window_view_in(&input(0.6, reset, 7 * 24 * 60 * MIN), &hist(&pts, reset), now, &Thresholds::default(), &Utc);
-        assert_eq!(v.forecast, "Out Sat 23:39, 1d 12h before reset");
+        // The last hour's faster pace holds for 5 hours, then the window's average pace.
+        assert_eq!(v.forecast, "Out Sun 23:45, 11h 53m before reset");
+    }
+
+    #[test]
+    fn a_busy_hour_early_in_the_week() {
+        // Weekly at 2%, a day in, all of it in the last hour: the next few hours are fine, and
+        // that hour isn't carried across the week.
+        let now = at(11, 39);
+        let week = 7 * 24 * 60 * MIN;
+        let reset = now + week - 24 * 60 * MIN;
+        let pts: Vec<(i64, f64)> = (0..=6).map(|i| (now - (60 - i * 10) * MIN, 0.02 * i as f64 / 6.0)).collect();
+        let v = window_view_in(&input(0.02, reset, week), &hist(&pts, reset), now, &Thresholds::default(), &Utc);
+        assert_eq!((v.status, v.out_at, v.forecast.as_str()), (Status::Ok, None, "On track"));
+        assert!(v.proj.is_some_and(|p| p < 30.0), "the average pace after the next 5 hours: {:?}", v.proj);
+        // Earlier still, with no average pace to go on, there's no projection to the reset.
+        let v = window_view_in(
+            &input(0.02, now + week - 6 * 60 * MIN, week),
+            &hist(&pts, now + week - 6 * 60 * MIN),
+            now,
+            &Thresholds::default(),
+            &Utc,
+        );
+        assert_eq!((v.status, v.proj, v.out_at), (Status::Ok, None, None));
+        // A 5-hour window at that pace still says when it runs out.
+        let v = window_view_in(
+            &input(0.6, now + 4 * 60 * MIN, 5 * 60 * MIN),
+            &hist(&pts.iter().map(|&(t, u)| (t, u * 30.0)).collect::<Vec<_>>(), now + 4 * 60 * MIN),
+            now,
+            &Thresholds::default(),
+            &Utc,
+        );
+        assert!(v.out_at.is_some(), "{v:?}");
     }
 
     #[test]

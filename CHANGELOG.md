@@ -30,6 +30,9 @@ sentence or two each.
   the latest prices shows which prices are in use (turn it off to always use the built-in ones).
 
 ### Fixed
+- **Weekly forecasts that cried wolf**: an hour of heavy use early in the week no longer reads as
+  "Out Monday" at 2% used. The last hour's pace now counts for the next few hours; after that,
+  the forecast uses your pace across the window so far, or the recent pace if you've slowed down.
 - **Check for updates**: turning it off in Settings now stops the daily check (it kept checking).
   *Check now* still works.
 

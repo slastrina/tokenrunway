@@ -466,6 +466,12 @@ per window (from the previous reset to the next).
   Then `t_out = t + (1-u)/r`. We show *On track* if `t_out ≥ R`, otherwise the run-out time and the
   margin. A cone (P25–P75) comes from the profile's spread. Until there are 2 weeks of history,
   only (a) is used, and the chip says "rough".
+- **As built**: the recent rate (least squares over the last 90 min, at least 15 min of readings)
+  is carried for the next 5 hours only (`RECENT_HOLDS_MS`); beyond that the slower of it and the
+  window's average pace so far. A working session's pace carried across a whole week said "out on
+  Monday" at 2% used. Before the average pace is trusted (10% of the window elapsed) a long window
+  gets no projection to the reset, only a run-out within the next 5 hours. A 5-hour window is
+  all "next 5 hours", so it's unchanged.
 - **Spend projection**: month-to-date + Σ over the remaining days of (weekday-weighted daily
   median), shown as month-end, next-30-days and year-to-date at that run rate.
 - Backtests: unit tests replay recorded snapshot series and assert the error stays within bounds.
