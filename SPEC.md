@@ -471,6 +471,13 @@ The popover's Top models and Top projects rows open the dashboard narrowed to th
 project (`open_dashboard { target }`; an open dashboard switches via `tr://dash-target`). The
 dashboard's filter chips clear it. Today maps to the dashboard's 7 d.
 
+The dashboard's account menu narrows everything, not only the allowance tiles: a subscription
+login's activity is its own agent's (Claude → Claude Code, ChatGPT → Codex, Gemini → Gemini
+CLI). The logs don't say which login a session used, so accounts of one provider share it (the
+spend tile says so); accounts with no agent of their own (API keys, Bedrock, Copilot, Cursor…)
+show no activity. A cloud model the price table doesn't know is listed under Stats as counted at
+$0, rather than passing silently.
+
 ### 10.6 Insights (`insights.rs`, `get_insights { period, project }`)
 - **Projects and branches**: cost, tokens, sessions and cache hit rate per project, with its top
   branches (all of them in the drill-down, which also filters the dashboard's chart, heatmap and

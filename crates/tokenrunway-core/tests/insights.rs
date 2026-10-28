@@ -136,15 +136,25 @@ fn subscription_value() {
 fn dashboard_and_stats_filters() {
     let e = env("filters");
     let all = e.stats.stats("30d", now());
-    let f = Filter { project: Some("alpha".into()), model: None };
+    let f = Filter { project: Some("alpha".into()), ..Default::default() };
     let alpha = e.stats.stats_filtered("30d", &f, now());
     assert!(alpha.spend_api > 0.0 && alpha.spend_api < all.spend_api);
     assert_eq!(alpha.projects.len(), 1);
     let d = e.stats.dashboard_filtered("30d", "model", &f, now());
     assert!(d.sessions.iter().all(|s| s.project == "alpha"));
     assert_eq!(d.sessions_total, 3);
-    let m = Filter { project: None, model: Some("Opus 5.5".into()) };
+    let m = Filter { model: Some("Opus 5.5".into()), ..Default::default() };
     assert!((e.stats.stats_filtered("30d", &m, now()).spend_api - all.spend_api).abs() < 1e-9);
-    let none = Filter { project: None, model: Some("Haiku 5.5".into()) };
+    let none = Filter { model: Some("Haiku 5.5".into()), ..Default::default() };
     assert_eq!(e.stats.dashboard_filtered("30d", "model", &none, now()).sessions_total, 0);
+    // An account's own agent: a Claude login is Claude Code's work, nothing else's.
+    let harness = |hs: &[&str]| Filter { harnesses: Some(hs.iter().map(|h| h.to_string()).collect()), ..Default::default() };
+    let claude = e.stats.stats_filtered("30d", &harness(&["claude-code"]), now());
+    assert!(claude.spend_api > 0.0 && claude.spend_api <= all.spend_api);
+    let gemini = harness(&["gemini-cli"]);
+    assert_eq!(e.stats.stats_filtered("30d", &gemini, now()).spend_api, 0.0);
+    let d = e.stats.dashboard_filtered("30d", "model", &gemini, now());
+    assert_eq!((d.sessions_total, d.series.len()), (0, 0));
+    let nothing = Filter { harnesses: Some(Vec::new()), ..Default::default() };
+    assert_eq!(e.stats.stats_filtered("30d", &nothing, now()).tokens.total, 0);
 }

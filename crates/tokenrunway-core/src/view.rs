@@ -355,6 +355,8 @@ pub struct StatsView {
     pub projects: Vec<Ranked>,
     /// All ten categories, biggest first, share of tokens 0–100
     pub kinds: Vec<KindShare>,
+    /// Cloud models in the period that the price table doesn't know yet (counted at $0)
+    pub unpriced: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Default, PartialEq)]
@@ -454,6 +456,9 @@ pub struct DashboardView {
     /// kept since Tokenrunway started tracking)
     pub ran_out: Option<u32>,
     pub ran_out_note: Option<String>,
+    /// Filled in by the app with an account filter: whose work the activity parts show
+    /// ("Claude Code", "Claude Code · shared by 2 Claude accounts", "No agent logs for this account")
+    pub scope: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Default, PartialEq)]

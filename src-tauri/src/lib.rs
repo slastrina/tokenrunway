@@ -22,7 +22,7 @@ pub use state::AppState;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, Rect, RunEvent, WebviewUrl, WebviewWindowBuilder, WindowEvent};
+use tauri::{AppHandle, Emitter, Manager, Rect, RunEvent, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 use tauri_plugin_autostart::MacosLauncher;
 
 /// The project page: the credit in the popover footer, the tray menu and the tooltip.
@@ -133,9 +133,46 @@ fn toggle_popover(app: &AppHandle, rect: Option<Rect>, view: &str) {
     let _ = w.set_focus();
 }
 
-/// Under the icon on a top menu bar (macOS, most Linux panels), above it on a bottom taskbar
-/// (Windows), kept inside the work area. Without an icon position, the top-right (macOS) or
-/// bottom-right corner.
+/// Under the icon on the menu bar of the screen it was clicked on, kept inside that screen's work
+/// area. Without an icon position, the main screen's top-right corner.
+#[cfg(target_os = "macos")]
+fn place(app: &AppHandle, w: &tauri::WebviewWindow, rect: Option<Rect>) {
+    // macOS screens share one coordinate space in points, while the icon's rect comes in pixels
+    // at its own screen's scale, and a pixel position is turned back into points at the scale
+    // of the screen the popover is on now. So find the icon's screen by trying each one's scale,
+    // and place in points: on a second screen with a different scale this used to land on the
+    // main one.
+    let mons = app.available_monitors().unwrap_or_default();
+    let pt = |m: &tauri::Monitor| m.position().to_logical::<f64>(m.scale_factor());
+    let icon = rect.and_then(|r| {
+        mons.iter().find_map(|m| {
+            let s = m.scale_factor();
+            let (p, sz) = (r.position.to_logical::<f64>(s), r.size.to_logical::<f64>(s));
+            let (o, size) = (pt(m), m.size().to_logical::<f64>(s));
+            let (cx, cy) = (p.x + sz.width / 2.0, p.y + sz.height / 2.0);
+            (cx >= o.x && cx < o.x + size.width && cy >= o.y && cy < o.y + size.height).then(|| (m.clone(), p, sz))
+        })
+    });
+    let Some(mon) = icon.as_ref().map(|(m, ..)| m.clone()).or_else(|| app.primary_monitor().ok().flatten()) else { return };
+    let s = mon.scale_factor();
+    let wa = mon.work_area();
+    let (x0, y0) = (wa.position.x as f64 / s, wa.position.y as f64 / s);
+    let x1 = x0 + wa.size.width as f64 / s;
+    let size = w.outer_size().unwrap_or_default().to_logical::<f64>(w.scale_factor().unwrap_or(1.0));
+    let margin = 8.0;
+    let (x, y) = match icon {
+        Some((_, p, sz)) => {
+            let x = (p.x + sz.width / 2.0 - size.width / 2.0).clamp(x0 + margin, (x1 - size.width - margin).max(x0));
+            (x, (p.y + sz.height + 4.0).max(y0 + 4.0))
+        }
+        None => (x1 - size.width - margin, y0 + 4.0),
+    };
+    let _ = w.set_position(tauri::LogicalPosition::new(x, y));
+}
+
+/// Under the icon on a top panel (most Linux), above it on a bottom taskbar (Windows), kept
+/// inside the work area. Without an icon position, the bottom-right corner.
+#[cfg(not(target_os = "macos"))]
 fn place(app: &AppHandle, w: &tauri::WebviewWindow, rect: Option<Rect>) {
     let mon = match rect {
         Some(r) => {
@@ -161,10 +198,9 @@ fn place(app: &AppHandle, w: &tauri::WebviewWindow, rect: Option<Rect>) {
                 if below { (pos.y + sz.height + 4.0 * scale).max(y0 + 4.0 * scale) } else { (pos.y - ph - margin).min(y1 - ph - margin) };
             (x, y)
         }
-        None if cfg!(target_os = "macos") => (x1 - pw - margin, y0 + 4.0 * scale),
         None => (x1 - pw - margin, y1 - ph - margin),
     };
-    let _ = w.set_position(PhysicalPosition::new(x.round() as i32, y.round() as i32));
+    let _ = w.set_position(tauri::PhysicalPosition::new(x.round() as i32, y.round() as i32));
 }
 
 pub fn open_view(app: &AppHandle, view: &str) {

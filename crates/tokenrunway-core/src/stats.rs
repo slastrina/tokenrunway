@@ -28,15 +28,19 @@ pub struct Stats {
 pub struct Filter {
     pub project: Option<String>,
     pub model: Option<String>,
+    /// Only these harnesses (an account's own agent: "claude-code" for a Claude login); None for all
+    pub harnesses: Option<Vec<String>>,
 }
 
 impl Filter {
     pub fn is_empty(&self) -> bool {
-        self.project.is_none() && self.model.is_none()
+        self.project.is_none() && self.model.is_none() && self.harnesses.is_none()
     }
 
-    fn keeps(&self, project: &str, model: &str) -> bool {
-        self.project.as_deref().is_none_or(|p| p == project) && self.model.as_deref().is_none_or(|m| m == pricing::display_name(model))
+    fn keeps(&self, harness: &str, project: &str, model: &str) -> bool {
+        self.harnesses.as_ref().is_none_or(|hs| hs.iter().any(|h| h == harness))
+            && self.project.as_deref().is_none_or(|p| p == project)
+            && self.model.as_deref().is_none_or(|m| m == pricing::display_name(model))
     }
 }
 
@@ -206,7 +210,7 @@ impl Stats {
     pub fn stats_filtered(&self, period: &str, f: &Filter, now: i64) -> StatsView {
         let p = Span::of(period, now);
         let mut rows = self.store().agg(p.start, i64::MAX);
-        rows.retain(|r| f.keeps(&r.project, &r.model));
+        rows.retain(|r| f.keeps(&r.harness, &r.project, &r.model));
         let mut days = Days::new();
         let mut v = StatsView { period: period.into(), ..Default::default() };
         let (mut actual, mut actual_n, mut actual_from) = (0.0, 0u64, Vec::<String>::new());
@@ -215,7 +219,11 @@ impl Stats {
         let mut projects: HashMap<String, (f64, u64)> = HashMap::new();
         let mut kinds: HashMap<String, u64> = HashMap::new();
         let mut daily: HashMap<NaiveDate, (f64, u64)> = HashMap::new();
+        let mut unpriced = std::collections::BTreeSet::new();
         for r in &rows {
+            if r.tokens() > 0 && pricing::is_cloud(&r.model) && pricing::lookup(&r.model).is_none() {
+                unpriced.insert(pricing::display_name(&r.model));
+            }
             v.spend_api += r.cost;
             v.tokens.input += r.input;
             v.tokens.output += r.output;
@@ -247,6 +255,7 @@ impl Stats {
         v.local_models = top(local, 4);
         v.projects = top(projects, 4);
         v.kinds = kind_shares(&kinds);
+        v.unpriced = unpriced.into_iter().collect();
         v
     }
 
@@ -339,9 +348,9 @@ impl Stats {
             (s.agg(p.start, i64::MAX), s.agg(midnight(heat_from), i64::MAX), s.session_parts(p.start, i64::MAX))
         };
         if !f.is_empty() {
-            rows.retain(|r| f.keeps(&r.project, &r.model));
-            heat_rows.retain(|r| f.keeps(&r.project, &r.model));
-            parts.retain(|r| f.keeps(&r.project, &r.model));
+            rows.retain(|r| f.keeps(&r.harness, &r.project, &r.model));
+            heat_rows.retain(|r| f.keeps(&r.harness, &r.project, &r.model));
+            parts.retain(|r| f.keeps(&r.harness, &r.project, &r.model));
         }
         let mut days = Days::new();
         let key = |r: &Agg| match group {
@@ -510,7 +519,7 @@ fn category_label(id: &str) -> &'static str {
     categorise::from_id(id).map(categorise::label).unwrap_or("Chat")
 }
 
-pub(crate) fn harness_name(id: &str) -> &str {
+pub fn harness_name(id: &str) -> &str {
     match id {
         "claude-code" => "Claude Code",
         "codex" => "Codex",

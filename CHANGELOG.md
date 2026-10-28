@@ -4,6 +4,19 @@ Each release's section becomes its GitHub release notes and the in-app "What's n
 `.github/workflows/release.yml`). Write for people using the app: what they can do now, in a
 sentence or two each.
 
+## [Unreleased]
+
+### Fixed
+- **Codex costs showed $0**: the price list now has the current OpenAI models (GPT-5.6 Sol, Terra
+  and Luna, GPT-5.5, GPT-5.4, GPT-5.3 Codex and the GPT-6 family), so Codex work is priced again,
+  including what's already in your stats. If a model is ever newer than the list, Stats now says
+  so instead of quietly counting it as $0.
+- **The dashboard's account filter**: picking an account now narrows spend, tokens, sessions, the
+  chart and the heatmap to that account's own agent (Claude Code for Claude, Codex for ChatGPT),
+  not just the resets. Small amounts show cents ($0.12 rather than $0).
+- **Multiple displays on macOS**: the popover opens under the menubar icon you clicked, on that
+  screen, instead of always on the main one.
+
 ## [0.2.2] - 2026-10-25
 
 ### Fixed

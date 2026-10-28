@@ -64,7 +64,31 @@ pub async fn get_dashboard(
     model: Option<String>,
 ) -> DashboardView {
     let now = now_ms();
-    let filter = Filter { project, model };
+    // An account's activity is its own agent's (a Claude login: Claude Code). The logs don't say
+    // which login a session used, so accounts of one provider share it.
+    let (harnesses, scope) = match account.as_deref().and_then(|id| record(&app, id).ok()) {
+        Some(rec) => {
+            let hs = insights::subscription_harnesses(if rec.method == "cli" { &rec.provider } else { "" });
+            let names = hs.iter().map(|h| tokenrunway_core::stats::harness_name(h)).collect::<Vec<_>>().join(" + ");
+            let same = app
+                .state::<AppState>()
+                .accounts
+                .lock()
+                .unwrap()
+                .list
+                .iter()
+                .filter(|a| a.provider == rec.provider && a.method == rec.method)
+                .count();
+            let scope = match (hs.is_empty(), same) {
+                (true, _) => "No agent logs for this account".to_string(),
+                (false, 1) => names,
+                (false, n) => format!("{names} · shared by {n} {} accounts", allowance::provider_name(&rec.provider)),
+            };
+            (Some(hs.iter().map(|h| h.to_string()).collect()), Some(scope))
+        }
+        None => (None, None),
+    };
+    let filter = Filter { project, model, harnesses };
     let mut d = match activity::stats(&app) {
         Some(s) => {
             let (p, g) = (period.clone(), group.clone());
@@ -81,7 +105,8 @@ pub async fn get_dashboard(
         None => DashboardView { period: period.clone(), group, ..Default::default() },
     };
     let st = app.state::<AppState>();
-    // The allowance parts follow the account filter (the activity parts aren't per account yet).
+    d.scope = scope;
+    // The allowance parts follow the account filter too.
     let accounts: Vec<AccountView> = st.account_views(now).into_iter().filter(|a| account.as_ref().is_none_or(|id| *id == a.id)).collect();
     let since = period_start(&period, now);
     d.ran_out = Some(st.snaps.ran_out(since, account.as_deref()));

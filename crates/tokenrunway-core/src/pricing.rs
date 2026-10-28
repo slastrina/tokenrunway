@@ -128,6 +128,17 @@ pub fn is_local(model: &str) -> bool {
     model.starts_with(crate::ingest::lmstudio::MODEL_PREFIX)
 }
 
+/// A model id from a cloud provider whose list price the table should have (Claude, GPT and
+/// o-series, Gemini, Grok), as opposed to an open model run through opencode or similar.
+pub fn is_cloud(model: &str) -> bool {
+    if is_local(model) {
+        return false;
+    }
+    let k = normalise(model);
+    (["claude-", "gpt-", "codex-", "gemini-", "grok-"].iter().any(|p| k.starts_with(p)) && !k.starts_with("gpt-oss"))
+        || (k.starts_with('o') && k[1..].starts_with(|c: char| c.is_ascii_digit()))
+}
+
 /// "Opus 5.5" for "claude-opus-5-5-20260101"; for models the table doesn't know, the id as the
 /// harness wrote it, without a provider path ("lmstudio/Qwen3-30B" → "Qwen3-30B").
 pub fn display_name(model: &str) -> String {
@@ -219,6 +230,34 @@ mod tests {
         // Sonnet 4.5 above 200k prompt tokens: $6 input.
         assert!((cost("claude-sonnet-4-5", &t, false) - 6.0).abs() < 1e-9);
         assert!((cost("claude-sonnet-4-5", &toks(100_000, 0, 0, 0, 0), false) - 0.3).abs() < 1e-9);
+    }
+
+    #[test]
+    fn current_openai_models() {
+        // Codex's default models in 2026: these counted at $0 before the table had them.
+        for (id, name) in [
+            ("gpt-5.6-terra", "GPT-5.6 Terra"),
+            ("gpt-5.6-sol", "GPT-5.6 Sol"),
+            ("gpt-5.5", "GPT-5.5"),
+            ("gpt-5.3-codex", "GPT-5.3 Codex"),
+            ("openai/gpt-6.1-terra", "GPT-6.1 Terra"),
+        ] {
+            assert_eq!(lookup(id).map(|p| p.name.as_str()), Some(name), "{id}");
+        }
+        let c = cost("gpt-5.6-terra", &toks(1_000_000, 100_000, 2_000_000, 0, 0), false);
+        assert!((c - (2.0 + 1.2 + 0.4)).abs() < 1e-9, "{c}");
+        let long = cost("gpt-5.5", &toks(300_000, 0, 0, 0, 0), false);
+        assert!((long - 3.0).abs() < 1e-9, "long-context tier above 272K: {long}");
+    }
+
+    #[test]
+    fn cloud_or_open_model() {
+        for m in ["gpt-9-nova", "claude-opus-9", "o5-mini", "gemini-4-pro", "grok-6", "openai/gpt-7"] {
+            assert!(is_cloud(m), "{m}");
+        }
+        for m in ["Qwen3.8-27B-Heretic-GGUF", "qwen/qwen3-coder-30b", "big-pickle", "lmstudio/gpt-oss-20b", "gpt-oss-120b", "ollama"] {
+            assert!(!is_cloud(m), "{m}");
+        }
     }
 
     #[test]

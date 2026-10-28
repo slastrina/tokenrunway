@@ -77,6 +77,8 @@
     C.tick();
   }
 
+  // Whole dollars from $10; cents below, so a $0.12 Codex day doesn't read as $0.
+  const cash = (n) => C.money(n, Math.abs(n ?? 0) >= 10 ? 0 : 2);
   const periodWords = () => ({ '7d': '7 days', '30d': '30 days', '90d': '90 days', lifetime: 'Lifetime' })[S.period];
   function kpis() {
     const d = S.data;
@@ -89,7 +91,7 @@
     const acc = (S.app?.accounts || []).find((a) => a.id === S.account);
     const next = (d.resets || [])[0];
     const tiles = [
-      ['Spend · API-equivalent', C.money(spend, 0), `${periodWords()} · ${S.project || S.model ? esc(S.project || S.model) : acc ? esc(acc.name) : 'all harnesses'}`, ''],
+      ['Spend · API-equivalent', cash(spend), `${periodWords()} · ${S.project || S.model ? esc(S.project || S.model) : acc ? esc(d.scope || acc.name) : 'all harnesses'}`, ''],
       ['Actually billed', d.billed != null ? C.money(d.billed, 2) : '—', d.billed != null ? esc(d.billedNote || 'where a source reports it') : 'No source reports billing', ''],
       ['Tokens', C.tokens(tokens), d.cacheShare != null ? `${Math.round(d.cacheShare)}% cache reads` : 'in range', ''],
       ['Sessions', String(d.sessionsTotal ?? sess.length), sess.length ? `avg ${C.minutes(avg)} · ${harnesses} harness${harnesses === 1 ? '' : 'es'}` : 'none in range', ''],
@@ -136,7 +138,7 @@
     for (const s of series) {
       const sp = document.createElement('span');
       const i = document.createElement('i'); i.style.background = `var(${s.c})`;
-      const b = document.createElement('b'); b.textContent = C.money(s.total, 0);
+      const b = document.createElement('b'); b.textContent = cash(s.total);
       sp.append(i, document.createTextNode(s.name + ' '), b);
       legend.appendChild(sp);
     }
@@ -148,11 +150,11 @@
     const step = nice(Math.max(...totals));
     const yMax = Math.max(step * 3, Math.ceil(Math.max(...totals) / step) * step);
     const y = (v) => top + plotH - (v / yMax) * plotH;
-    const svg = el('svg', { width: W, height: H, role: 'img', 'aria-label': `Stacked daily spend by ${S.group}, ${days.length} days. ${series.map((s) => `${s.name} ${C.money(s.total, 0)}`).join(', ')}.` }, box);
+    const svg = el('svg', { width: W, height: H, role: 'img', 'aria-label': `Stacked daily spend by ${S.group}, ${days.length} days. ${series.map((s) => `${s.name} ${cash(s.total)}`).join(', ')}.` }, box);
     for (let v = 0; v <= yMax + 1e-9; v += step) {
       el('line', { x1: L, x2: W, y1: y(v), y2: y(v), stroke: 'var(--grid)', 'stroke-width': 1 }, svg);
       const t = el('text', { x: 0, y: y(v) + 3.5, 'font-size': 10.5, fill: 'var(--fg3)' }, svg);
-      t.textContent = '$' + (step < 1 ? v.toFixed(1) : Math.round(v));
+      t.textContent = '$' + (step < 0.1 ? v.toFixed(2) : step < 1 ? v.toFixed(1) : Math.round(v));
     }
     const n = days.length;
     const gap = n <= 31 ? 4 : n <= 60 ? 2 : 1;
@@ -329,7 +331,7 @@
     $('#proj-head').innerHTML = '<tr><th scope="col">Project</th><th scope="col">Top branches</th><th scope="col" class="r">Sessions</th><th scope="col" class="r">Cache</th><th scope="col" class="r">Tokens</th><th scope="col" class="r">Cost</th></tr>';
     $('#projects').innerHTML = rows.length ? rows.map((p) => `<tr class="go" tabindex="0" data-project="${esc(p.name)}" aria-label="${esc(p.name)}: ${esc(C.money(p.cost))}. Show its branches and sessions">`
       + `<td class="mono">${esc(p.name)}</td>`
-      + `<td class="br">${p.branches.map((b) => `<span>${branchName(b.name)} ${esc(C.money(b.cost, 0))}</span>`).join('')}${p.branchesTotal > p.branches.length ? `<span>+${p.branchesTotal - p.branches.length} more</span>` : ''}</td>`
+      + `<td class="br">${p.branches.map((b) => `<span>${branchName(b.name)} ${esc(cash(b.cost))}</span>`).join('')}${p.branchesTotal > p.branches.length ? `<span>+${p.branchesTotal - p.branches.length} more</span>` : ''}</td>`
       + `<td class="r dim">${p.sessions}</td><td class="r">${cache(p.cacheHit)}</td><td class="r">${esc(C.tokens(p.tokens))}</td><td class="r cost">${esc(C.money(p.cost))}</td></tr>`).join('')
       : '<tr><td colspan="6" class="dim" style="text-align:center;padding:24px">No projects in this range.</td></tr>';
   }
@@ -347,10 +349,10 @@
     const delta = r.changePct == null ? 'nothing the week before' : Math.abs(r.changePct) < 3 ? 'about the same as the week before' : `${r.changePct > 0 ? '▲' : '▼'} ${Math.abs(Math.round(r.changePct))}% on the week before`;
     const fact = (k, v) => (v ? `<dt>${k}</dt><dd title="${esc(v)}">${esc(v)}</dd>` : '');
     const b = r.biggest;
-    box.innerHTML = `<div class="big"><b>${esc(C.money(r.spend, 0))}</b><span class="delta">${esc(delta)}</span></div>`
+    box.innerHTML = `<div class="big"><b>${esc(cash(r.spend))}</b><span class="delta">${esc(delta)}</span></div>`
       + `<dl class="facts">${fact('Tokens', `${C.tokens(r.tokens)} in ${r.sessions} session${r.sessions === 1 ? '' : 's'}`)}`
-      + fact('Top project', r.topProject && `${r.topProject.name} · ${C.money(r.topProject.cost, 0)}`)
-      + fact('Top model', r.topModel && `${r.topModel.name} · ${C.money(r.topModel.cost, 0)}`)
+      + fact('Top project', r.topProject && `${r.topProject.name} · ${cash(r.topProject.cost)}`)
+      + fact('Top model', r.topModel && `${r.topModel.name} · ${cash(r.topModel.cost)}`)
       + fact('Biggest session', b && `${C.money(b.cost)} · ${b.project} · ${b.harness}`) + '</dl>';
   }
 

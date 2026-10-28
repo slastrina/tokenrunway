@@ -352,12 +352,20 @@
     return bar(right) + `<div class="scroll" id="panel" role="tabpanel" aria-labelledby="tab-stats"><div class="pane" style="${S.loadingData ? 'opacity:.6' : ''}">${periodGroup('stats')}${body}</div></div>`;
   }
 
+  // Cloud models newer than the bundled price table: their tokens count, their cost reads $0.
+  function unpricedNote(models) {
+    if (!models?.length) return '';
+    const names = models.length > 2 ? `${models.slice(0, 2).join(', ')} and ${models.length - 2} more` : models.join(' and ');
+    return `<p class="note" role="note">${ICON.warn()} No price yet for ${esc(names)}, so ${models.length === 1 ? 'it counts' : 'they count'} as $0 here. A Tokenrunway update adds new models' prices.</p>`;
+  }
+
   function statsBody(st) {
     const t = st.tokens || {};
     // A $0 "actual" (free or local models) says nothing useful, so it reads as subscription use.
     const actual = st.spendActual ? `Actual ${C.money(st.spendActual)}${st.actualNote ? ' · ' + esc(st.actualNote) : ''}` : 'What it would cost at API prices';
     const kpis = `<div class="kpis"><div class="kpi"><span class="k">Spend · API-equivalent</span><span class="v">${C.money(st.spendApi)}</span><span class="s">${actual}</span></div>`
-      + `<div class="kpi"><span class="k">Tokens</span><span class="v">${C.tokens(t.total)}</span><span class="s">${C.tokens(t.cache)} cache · ${C.tokens(t.input)} in · ${C.tokens(t.output)} out</span></div></div>`;
+      + `<div class="kpi"><span class="k">Tokens</span><span class="v">${C.tokens(t.total)}</span><span class="s">${C.tokens(t.cache)} cache · ${C.tokens(t.input)} in · ${C.tokens(t.output)} out</span></div></div>`
+      + unpricedNote(st.unpriced);
 
     const daily = st.daily || [];
     const max = Math.max(0, ...daily.map((d) => d.cost));
