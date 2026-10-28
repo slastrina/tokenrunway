@@ -24,6 +24,10 @@ sentence or two each.
   reminds you when a weekly or monthly allowance (Claude, ChatGPT, Copilot and other seats)
   resets in the next 12 hours with 30% or more still unused, even at your recent pace. It goes to
   your Rattleboard too, with its own switch under Settings → Rattleboard.
+- **New models priced within a day**: Tokenrunway fetches the latest price list from GitHub once a
+  day, so a new model gets its price without waiting for an app update. The prices built into the
+  app stay as the fallback: behind a strict firewall it quietly uses those, and Settings → Fetch
+  the latest prices shows which prices are in use (turn it off to always use the built-in ones).
 
 ## [0.2.3] - 2026-10-29
 

@@ -75,6 +75,12 @@ impl Stats {
         self.store.lock().unwrap_or_else(|e| e.into_inner())
     }
 
+    /// Prices everything stored again if the table in use changed (a fetched table, or back to
+    /// the bundled one). True when it did.
+    pub fn reprice(&self) -> Result<bool, String> {
+        self.store().reprice_if_needed()
+    }
+
     /// Reads whatever is new in every harness's logs (incremental; cheap when nothing changed:
     /// one stat() per file). Files are parsed on a few threads without the database lock, which
     /// is only held to write each file's results.

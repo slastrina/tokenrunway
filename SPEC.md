@@ -441,10 +441,17 @@ the account card.
   cost, Cline cost).
 - **Subscription value**: API-equivalent cost this cycle compared with the plan price ("your $200 Max
   plan did $1,940 of API work this month").
-- Price table: a bundled JSON snapshot generated in CI from public price lists (LiteLLM's
-  `model_prices_and_context_window.json` as the base, plus our overrides), refreshed weekly from the
-  repo's latest release asset. Users can override it. Currency conversion is optional and uses a
-  daily rate.
+- Price table: `crates/tokenrunway-core/src/pricing.json` (`"schema": 1`), compiled in as the
+  fallback. While Settings → Fetch the latest prices is on (default), the app fetches the same file
+  from the main branch (raw.githubusercontent.com) about 20 s after launch and then daily, so a
+  price change pushed to main reaches everyone within a day without a release. A fetched table is
+  checked (parses, a schema this version reads, has models, every price finite and ≥ 0) and laid
+  over the bundled one (union: its entries win, and a model it leaves out keeps its bundled price).
+  The last good one is kept in `prices.json` in the data folder for offline starts. Whenever the
+  table in use changes, stored events are priced again (`pricing::version()` follows the active
+  table). Failing to fetch is silent apart from the line under the setting ("Using the prices
+  built into this version · couldn't reach GitHub"); turning the setting off goes back to the
+  bundled table.
 
 ### 10.2 Periods
 Day / week (ISO, or a configurable start day) / month / lifetime, in local time; plus "this cycle"

@@ -1,4 +1,5 @@
 {
+  "schema": 1,
   "_comment": "USD per million tokens (OpenAI checked against developers.openai.com/api/docs/pricing, 2026-10-29). Pro models have no cached-input price, so cache_read is the input price. cache_write_5m / cache_write_1h default to 1.25x / 2x input and cache_read to 0.1x input when left out. 'fast' multiplies everything when usage.speed == \"fast\". 'long_context' applies when a call's whole prompt (input + cache read + cache write) is above 'above' tokens. Entries with 'verify' are from memory of the public price list and should be checked against it.",
   "models": {
     "claude-fable-5-1": { "name": "Fable 5.1", "input": 10, "output": 50, "cache_read": 0.25 },

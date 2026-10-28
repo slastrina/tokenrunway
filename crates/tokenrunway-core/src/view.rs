@@ -54,6 +54,8 @@ pub struct AppView {
     pub tips: Vec<Tip>,
     /// LM Studio on this computer, while its server answers or it ran today (local.rs)
     pub local: Option<LocalServer>,
+    /// Where costs' prices come from (Settings → Fetch the latest prices)
+    pub prices: PriceStatus,
 }
 
 /// A local model server: the Now tab's LM Studio card.
@@ -259,11 +261,25 @@ pub struct Settings {
     /// The name signed under request messages ("Sam")
     pub my_name: String,
     pub update_check: bool,
+    /// Fetch the newest price table from GitHub once a day (pricing.rs); the bundled one otherwise
+    pub fetch_prices: bool,
     pub start_at_login: bool,
     /// Alerts and the AI runway card on a Rattleboard (SPEC.md §8.4); its key is in the keychain
     pub rattleboard: RattleboardSettings,
     /// The weekly recap and plan prices (insights.rs)
     pub insights: InsightSettings,
+}
+
+/// Which price table costs come from, for the line under Settings → Fetch the latest prices.
+#[derive(Debug, Clone, Serialize, Default, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct PriceStatus {
+    /// "github" (a fetched table, over the bundled one) | "bundled"
+    pub source: String,
+    /// When the table in use was fetched (ms), for "github"
+    pub updated_at: Option<i64>,
+    /// Why the bundled table is in use although fetching is on ("couldn't reach GitHub")
+    pub reason: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -328,6 +344,7 @@ impl Default for Settings {
             admins: Default::default(),
             my_name: String::new(),
             update_check: true,
+            fetch_prices: true,
             start_at_login: false,
             rattleboard: RattleboardSettings::default(),
             insights: InsightSettings::default(),

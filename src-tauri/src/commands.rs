@@ -566,6 +566,9 @@ pub fn set_settings(app: AppHandle, patch: serde_json::Value) -> Result<Settings
     if before.paused_until != after.paused_until {
         crate::tray::refresh_menu(&app);
     }
+    if before.fetch_prices != after.fetch_prices {
+        crate::prices::setting_changed(&app, after.fetch_prices);
+    }
     broadcast(&app);
     Ok(after)
 }

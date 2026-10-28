@@ -74,6 +74,8 @@
 - **Sign in where there's no CLI**: Cursor and Grok can be signed in to inside Tokenrunway. Only
   the session cookie is kept, in your keychain.
 - **Rattleboard**: alerts and an "AI runway" card on a split-flap board.
+- **Current prices**: the price list updates daily from GitHub, so new models are priced without
+  an app update (the built-in prices stay as the fallback).
 - **Updates itself** with release notes, and installs with Homebrew.
 - **Private**: no account, no server, no telemetry. Your logins stay in your OS keychain, and your
   stats stay on your computer.
