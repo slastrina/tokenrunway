@@ -9,7 +9,7 @@
 
 use crate::model::Category;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::OnceLock;
 
 const BUNDLED: &str = include_str!("categories.json");
@@ -191,10 +191,23 @@ pub struct Signals {
     pub cmd_test: u32,
     pub cmd_ops: u32,
     pub cmd_review: u32,
+    /// How many times each tool ran, by name ("Bash", "Edit", "mcp__github__create_issue"), for
+    /// the session drill-down. Names only, never arguments; capped
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    pub names: BTreeMap<String, u32>,
 }
 
 const KW_CAP: u8 = 3;
 const FILES_CAP: usize = 64;
+const NAMES_CAP: usize = 32;
+
+/// A tool name as it's kept: short, and only the characters tool names use, so nothing else (a
+/// path, a command) can slip in through a harness that puts it there.
+fn tool_name(name: &str) -> Option<String> {
+    let n = name.trim();
+    let ok = !n.is_empty() && n.len() <= 64 && n.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.' | ':'));
+    ok.then(|| n.to_string())
+}
 
 impl Signals {
     /// A user prompt. Read here and dropped; only the keyword counts stay.
@@ -245,6 +258,9 @@ impl Signals {
     pub fn tool(&mut self, name: &str, path: Option<&str>, command: Option<&str>) {
         let r = rules();
         self.tools += 1;
+        if let Some(n) = tool_name(name) {
+            self.count_name(n, 1);
+        }
         let name = name.to_lowercase();
         match r.tools.get(&name).copied() {
             Some(ToolKind::Edit) => {
@@ -322,6 +338,15 @@ impl Signals {
         self.cmd_test += o.cmd_test;
         self.cmd_ops += o.cmd_ops;
         self.cmd_review += o.cmd_review;
+        for (n, c) in &o.names {
+            self.count_name(n.clone(), *c);
+        }
+    }
+
+    fn count_name(&mut self, name: String, n: u32) {
+        if self.names.len() < NAMES_CAP || self.names.contains_key(&name) {
+            *self.names.entry(name).or_default() += n;
+        }
     }
 
     fn edits(&self) -> u32 {
@@ -507,6 +532,29 @@ mod tests {
         let j = serde_json::to_string(&a).unwrap();
         assert!(!j.contains("fix the bug"));
         assert_eq!(serde_json::from_str::<Signals>(&j).unwrap(), a);
+    }
+
+    #[test]
+    fn tool_names_only() {
+        let mut a = Signals::default();
+        a.tool("Bash", None, Some("cargo test"));
+        a.tool("Bash", None, Some("ls"));
+        a.tool("mcp__github__create_issue", None, None);
+        a.tool("rm -rf /secret/path", None, None); // not a tool name: counted, never kept
+        a.tool("", None, None);
+        assert_eq!(a.tools, 5);
+        assert_eq!(a.names.iter().map(|(k, v)| (k.as_str(), *v)).collect::<Vec<_>>(), [("Bash", 2), ("mcp__github__create_issue", 1)]);
+        let mut b = Signals::default();
+        b.tool("Bash", None, None);
+        for i in 0..40 {
+            b.tool(&format!("tool{i}"), None, None);
+        }
+        assert_eq!(b.names.len(), NAMES_CAP, "capped");
+        a.merge(&b);
+        assert_eq!(a.names["Bash"], 3, "a name already kept still counts past the cap");
+        // Turns stored before names existed still read.
+        let old: Signals = serde_json::from_str(r#"{"prompts":1,"tools":2}"#).unwrap();
+        assert!(old.names.is_empty());
     }
 
     #[test]

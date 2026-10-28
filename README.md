@@ -63,8 +63,9 @@
 - **Insights**: cost per project and git branch, cache-efficiency tips, a Monday recap of last
   week, and what your plan is worth at API prices ("your $200 plan did $874 of work, 4.4×").
 - **A full dashboard** with daily spend by model, harness or category, a burn-down for any window,
-  every session, upcoming resets and a contribution-style heatmap. Click a model or project in
-  Stats to open it there.
+  every session, upcoming resets and a contribution-style heatmap. Click a session to see its
+  steps: what each cost, the tools it ran, the expensive steps and the cache misses. Click a model
+  or project in Stats to open it there.
 - **Menubar your way**: runway, % left, or today's spend, for the most urgent window or one you
   pin. A copy button puts a usage summary on the clipboard.
 - **`tokenrunway` on the command line**: `status`, `today`, and a one-line `statusline` for your

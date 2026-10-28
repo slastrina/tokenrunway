@@ -241,12 +241,144 @@
     const d = S.data;
     const rows = d.sessions || [];
     $('#sess-n').textContent = `${d.sessionsTotal ?? rows.length} in range · newest first`;
-    $('#sessions').innerHTML = rows.length ? rows.map((s) => `<tr><td class="dim">${esc(startedText(s.started))}</td>`
+    $('#sessions').innerHTML = rows.length ? rows.map((s, i) => `<tr class="go" tabindex="0" data-i="${i}" aria-label="${esc(s.harness)} session in ${esc(s.project)}, ${esc(startedText(s.started))}, ${esc(C.isLocal(s.harness) ? 'free' : C.money(s.cost))}. Show its steps">`
+      + `<td class="dim">${esc(startedText(s.started))}</td>`
       + `<td><span class="dot" style="--c:var(${C.harnessVar(s.harness)})"></span>${esc(s.harness)}</td>`
       + `<td class="mono">${esc(s.project)}</td><td class="dim">${esc(s.model)}</td><td class="dim">${esc(s.kind)}</td>`
       + `<td class="r dim">${esc(C.minutes(s.durationMs))}</td><td class="r">${esc(C.tokens(s.tokens))}</td><td class="r cost">${esc(C.isLocal(s.harness) ? 'Free' : C.money(s.cost))}</td></tr>`).join('')
       : '<tr><td colspan="8" class="dim" style="text-align:center;padding:24px">No sessions in this range.</td></tr>';
   }
+  const openSession = (tr) => { const s = tr && S.data?.sessions?.[+tr.dataset.i]; if (s) drill.open(s, tr); };
+  $('#sessions').addEventListener('click', (e) => openSession(e.target.closest('tr.go')));
+  $('#sessions').addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openSession(e.target.closest('tr.go')); } });
+
+  // ---------- session drill-down ----------
+  // A panel over the right of the dashboard: the session's totals, its cost over time, the tools
+  // it ran and every step (a prompt and the calls that answered it), with the expensive ones and
+  // the cache misses marked. Esc, the close button or a click outside closes it.
+  const drill = (() => {
+    const box = $('#drill');
+    const scrim = $('#drill-scrim');
+    let row = null; // the row it opened from (focus goes back there)
+    let cur = null; // { harnessId, sessionId } on show
+    let seq = 0;
+    // "mcp__github__create_issue" reads as "github: create_issue".
+    const toolName = (n) => { const m = /^mcp__(.+?)__(.+)$/.exec(n); return m ? `${m[1]}: ${m[2]}` : n; };
+    const toolList = (ts, max) => {
+      const shown = ts.slice(0, max).map((t) => `<span class="tl">${esc(toolName(t.name))}${t.n > 1 ? ` <b>×${t.n}</b>` : ''}</span>`).join('');
+      return shown + (ts.length > max ? `<span class="tl more">+${ts.length - max} more</span>` : '');
+    };
+    const free = () => C.isLocal(cur?.harness || '');
+    // A time within the session: just the clock on its first day, with the day after that.
+    const at = (ms, start) => (C.dayDiff(ms) === C.dayDiff(start) ? C.clock(ms) : C.dayDiff(ms) === 0 ? `Today ${C.clock(ms)}` : startedText(ms));
+    const price = (n) => (free() ? 'Free' : C.money(n));
+
+    function close() {
+      if (box.hidden) return;
+      box.hidden = true; scrim.hidden = true; cur = null; C.tip.hide();
+      if (row && document.contains(row)) row.focus();
+      row = null;
+    }
+    async function open(s, tr) {
+      row = tr;
+      cur = { harness: s.harness, harnessId: s.harnessId, sessionId: s.sessionId };
+      box.hidden = false; scrim.hidden = false;
+      box.innerHTML = head(s.harness, s.project, '', `${esc(startedText(s.started))}`) + '<div class="dr-body"><div class="empty">Loading the session…</div></div>';
+      box.querySelector('.x').focus();
+      await reload();
+    }
+    async function reload() {
+      if (!cur) return;
+      const me = ++seq;
+      const d = await invoke('get_session', { harness: cur.harnessId, sessionId: cur.sessionId }).catch(() => null);
+      if (me !== seq || !cur) return;
+      const hadFocus = box.contains(document.activeElement) && document.activeElement.classList.contains('x');
+      box.innerHTML = d ? render(d) : head(cur.harness, '', '', '') + '<div class="dr-body"><div class="empty">This session isn\'t in the activity log any more.</div></div>';
+      if (d) chart(d);
+      if (hadFocus || !box.contains(document.activeElement)) box.querySelector('.x').focus();
+    }
+    function head(harness, project, branch, sub) {
+      return `<div class="dr-h"><div class="dr-t"><h2 id="drill-t"><span class="dot" style="--c:var(${C.harnessVar(harness)})"></span>${esc(harness)}`
+        + `${project ? ` · <span class="mono">${esc(project)}</span>` : ''}${branch ? ` <span class="tag mono">${esc(branch)}</span>` : ''}</h2>`
+        + `<span class="muted">${sub}</span></div>`
+        + `<button class="x" aria-label="Close session details" title="Close (Esc)">${C.ICON.x(12)}</button></div>`;
+    }
+    function render(d) {
+      const cached = d.steps.reduce((a, s) => a + s.cacheRead, 0);
+      const prompt = d.steps.reduce((a, s) => a + s.cacheRead + s.cacheWrite + s.input, 0);
+      const sub = [`${esc(startedText(d.started))} to ${esc(at(d.last, d.started))}`,
+        `${esc(C.minutes(d.activeMs))} working`, esc(d.models.slice(0, 3).join(' + ') + (d.models.length > 3 ? ` +${d.models.length - 3}` : '')), esc(d.kind)].filter(Boolean).join(' · ');
+      const kpi = (k, v, s) => `<div class="kpi"><span class="k">${k}</span><span class="v">${v}</span><span class="s">${s}</span></div>`;
+      const misses = d.steps.filter((s) => s.cacheMiss).length;
+      const kpis = `<div class="kpis dr-k">`
+        + kpi('Cost', esc(price(d.cost)), esc(free() ? d.models[0] || '' : 'at API prices'))
+        + kpi('Tokens', esc(C.tokens(d.tokens)), prompt ? `${Math.round((cached / prompt) * 100)}% from the cache` : 'no prompt tokens')
+        + kpi('Steps', esc(String(d.stepsTotal)), `${d.calls} call${d.calls === 1 ? '' : 's'}`)
+        + kpi('Cache misses', esc(String(misses)), misses ? 'cache rebuilt' : 'cache held')
+        + '</div>';
+      const tools = d.tools.length ? `<div class="tools">${toolList(d.tools, 14)}</div>`
+        : '<p class="dim sm">No tools recorded for this session. Sessions read before this update don\'t have them.</p>';
+      const steps = d.steps.map((s, i) => {
+        const marks = (s.expensive ? '<span class="mk crit">Expensive</span>' : '') + (s.cacheMiss ? '<span class="mk warn">Cache miss</span>' : '') + (s.subagent ? '<span class="mk">Subagent</span>' : '');
+        const tok = [`${C.tokens(s.input)} in`, `${C.tokens(s.output)} out`, s.cacheRead ? `${C.tokens(s.cacheRead)} cache read` : '', s.cacheWrite ? `${C.tokens(s.cacheWrite)} cache write` : ''].filter(Boolean).join(' · ');
+        return `<li class="st${s.expensive ? ' hi' : ''}" aria-label="Step ${i + 1}">`
+          + `<div class="l1"><span class="when">${esc(at(s.ts, d.started))}</span>`
+          + `<span class="mdl">${esc(s.model)}${s.calls > 1 ? ` <span class="dim">· ${s.calls} calls</span>` : ''}</span>${marks}<span class="flex"></span>`
+          + `<span class="kd">${esc(s.kind)}</span><b class="c">${esc(price(s.cost))}</b></div>`
+          + `<div class="l2">${esc(tok)}</div>`
+          + (s.tools.length ? `<div class="tools sm">${toolList(s.tools, 4)}</div>` : '')
+          + '</li>';
+      }).join('');
+      const cut = d.stepsTotal > d.steps.length ? `<p class="dim sm">Showing the first ${d.steps.length} of ${d.stepsTotal} steps. The totals and the chart cover the whole session.</p>` : '';
+      return head(d.harness, d.project, d.branch, sub)
+        + `<div class="dr-body">${kpis}`
+        + `<section><div class="ph"><h3 class="flex">Cost over the session</h3><span class="muted sm">${free() ? 'tokens are free here' : 'running total'}</span></div><div class="dr-chart" id="dr-chart"></div></section>`
+        + `<section><div class="ph"><h3 class="flex">Tools</h3><span class="muted sm">names only</span></div>${tools}</section>`
+        + `<section><div class="ph"><h3 class="flex">Steps</h3><span class="muted sm">a prompt and the calls that answered it</span></div><ol class="steps">${steps}</ol>${cut}</section>`
+        + '</div>';
+    }
+    // The running total as a line, with the expensive steps as dots.
+    function chart(d) {
+      const el = box.querySelector('#dr-chart');
+      const pts = d.curve;
+      if (!el || pts.length < 2 || !(d.cost > 0)) { if (el) el.innerHTML = '<div class="empty" style="padding:12px 0">Nothing to chart.</div>'; return; }
+      const W = el.clientWidth || 520, H = 90, L = 4, R = 4, T = 6, B = 6;
+      const t0 = pts[0][0], t1 = pts[pts.length - 1][0] || t0 + 1, max = pts[pts.length - 1][1] || 1;
+      const x = (t) => L + ((t - t0) / Math.max(1, t1 - t0)) * (W - L - R);
+      const y = (v) => T + (1 - v / max) * (H - T - B);
+      const line = pts.map(([t, v], i) => `${i ? 'L' : 'M'}${x(t).toFixed(1)},${y(v).toFixed(1)}`).join('');
+      let cum = 0;
+      const hot = d.steps.map((s) => { cum += s.cost; return s.expensive ? [s.ts, cum, s] : null; }).filter(Boolean);
+      el.innerHTML = `<svg width="${W}" height="${H}" role="img" aria-label="Running cost over the session, ${esc(C.money(d.cost))} in all">`
+        + `<path d="${line}L${x(t1).toFixed(1)},${H - B}L${L},${H - B}Z" fill="var(--accent)" opacity=".12"/>`
+        + `<path d="${line}" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linejoin="round"/>`
+        + hot.map(([t, v], i) => `<circle cx="${x(t).toFixed(1)}" cy="${y(v).toFixed(1)}" r="3.5" fill="var(--crit)" data-h="${i}"/>`).join('')
+        + `<rect class="hit" x="0" y="0" width="${W}" height="${H}" fill="transparent"/></svg>`;
+      el.querySelector('rect.hit').addEventListener('pointermove', (e) => {
+        const r = el.getBoundingClientRect();
+        const t = t0 + ((e.clientX - r.left - L) / (W - L - R)) * (t1 - t0);
+        let k = 0;
+        while (k < pts.length - 1 && pts[k + 1][0] <= t) k++;
+        C.tip.show(e.clientX, e.clientY, [{ head: true, label: C.clock(pts[k][0]) }, { value: C.money(pts[k][1]), label: 'so far' }]);
+      });
+      el.querySelector('rect.hit').addEventListener('pointerleave', () => C.tip.hide());
+    }
+    box.addEventListener('click', (e) => { if (e.target.closest('.x')) close(); });
+    scrim.addEventListener('click', close);
+    document.addEventListener('keydown', (e) => {
+      if (box.hidden) return;
+      if (e.key === 'Escape') { e.preventDefault(); close(); return; }
+      // Keep Tab inside the panel while it's open.
+      if (e.key === 'Tab') {
+        const f = [...box.querySelectorAll('button, [tabindex="0"], a[href]')];
+        if (!f.length) return;
+        const [a, z] = [f[0], f[f.length - 1]];
+        if (e.shiftKey && document.activeElement === a) { e.preventDefault(); z.focus(); }
+        else if (!e.shiftKey && document.activeElement === z) { e.preventDefault(); a.focus(); }
+      }
+    });
+    return { open, close, reload, isOpen: () => !box.hidden };
+  })();
 
   // ---------- resets ----------
   function resets() {
@@ -378,7 +510,7 @@
   // ---------- live ----------
   let rz;
   new ResizeObserver(() => { clearTimeout(rz); rz = setTimeout(() => { if (S.data) stacked(); }, 60); }).observe($('#chart'));
-  listen('tr://stats-changed', () => load());
+  listen('tr://stats-changed', () => { load(); drill.reload(); });
   listen('tr://state', ({ payload }) => { S.app = payload; C.setOs(payload.os); controls(); if (S.data) { resets(); kpis(); } });
 
   controls();

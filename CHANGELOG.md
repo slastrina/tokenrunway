@@ -4,6 +4,15 @@ Each release's section becomes its GitHub release notes and the in-app "What's n
 `.github/workflows/release.yml`). Write for people using the app: what they can do now, in a
 sentence or two each.
 
+## [Unreleased]
+
+### Added
+- **Session drill-down**: click a session in the dashboard to see why it cost what it did: its
+  cost over time, the tools it ran, and every step in order with its tokens and cost. The most
+  expensive steps and the cache misses (a big prompt written to the cache again after a break)
+  are marked. Only tool names are kept, never what they were given, and they're recorded from
+  this version on.
+
 ## [0.2.3] - 2026-10-29
 
 ### Fixed

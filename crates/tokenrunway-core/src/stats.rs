@@ -8,8 +8,11 @@
 use crate::categorise::{self, ALL};
 use crate::ingest::{self, claude_code, codex, lmstudio, opencode, Batch, Cursor, ProjectNames, Roots};
 use crate::pricing;
-use crate::store::{Agg, SessionPart, Store, BUCKET_MS};
-use crate::view::{DashboardView, DayCost, HarnessRow, HarnessView, KindShare, Ranked, Series, SessionRow, StatsView};
+use crate::store::{Agg, SessionCall, SessionPart, SessionTotals, Store, BUCKET_MS};
+use crate::view::{
+    DashboardView, DayCost, HarnessRow, HarnessView, KindShare, Ranked, Series, SessionDetail, SessionRow, SessionStep, StatsView,
+    ToolCount,
+};
 use chrono::{Duration, Local, NaiveDate, TimeZone};
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
@@ -409,6 +412,8 @@ impl Stats {
                 duration_ms: s.active,
                 tokens: s.tokens,
                 cost: s.cost,
+                harness_id: s.harness,
+                session_id: s.session_id,
             })
             .collect();
         DashboardView {
@@ -536,6 +541,7 @@ pub fn harness_name(id: &str) -> &str {
 /// the most tokens.
 pub(crate) struct Session {
     pub(crate) harness: String,
+    pub(crate) session_id: String,
     pub(crate) first: i64,
     /// Working time, without breaks over 30 minutes (store::IDLE_MS)
     pub(crate) active: i64,
@@ -571,8 +577,9 @@ pub(crate) fn sessions(parts: &[SessionPart]) -> Vec<Session> {
         *a.kinds.entry(p.category.clone()).or_default() += p.tokens;
     }
     m.into_iter()
-        .map(|((h, _), a)| Session {
+        .map(|((h, id), a)| Session {
             harness: h.to_string(),
+            session_id: id.to_string(),
             first: a.first,
             active: a.active,
             model: top(a.models, 1).into_iter().next().map(|r| r.name).unwrap_or_default(),
@@ -582,6 +589,178 @@ pub(crate) fn sessions(parts: &[SessionPart]) -> Vec<Session> {
             cost: a.cost,
         })
         .collect()
+}
+
+/// The most steps the drill-down lists (the first ones); its totals and chart cover them all.
+pub const STEP_CAP: usize = 400;
+/// The most calls read for one session; a longer one is cut there (its header totals still
+/// cover all of it).
+const CALL_CAP: u32 = 20_000;
+/// Prompt written to the cache in one step, past the first, that reads as a cache miss when
+/// less than that came back from the cache.
+const MISS_TOKENS: u64 = 20_000;
+/// How many steps get the "expensive" mark, and the least share of the session's cost they need.
+const EXPENSIVE_N: usize = 3;
+const EXPENSIVE_SHARE: f64 = 0.05;
+const CURVE_POINTS: usize = 120;
+
+impl Stats {
+    /// One session in detail, for the dashboard's drill-down; None when it has no calls.
+    pub fn session(&self, harness: &str, session_id: &str) -> Option<SessionDetail> {
+        let (totals, calls) = {
+            let s = self.store();
+            (s.session_totals(harness, session_id)?, s.session_calls(harness, session_id, CALL_CAP))
+        };
+        Some(session_detail(harness, session_id, &totals, &calls))
+    }
+}
+
+/// Groups a session's calls into steps (a turn's calls together, wherever they fall; a call
+/// without a turn on its own) and marks the expensive ones and the cache misses.
+pub(crate) fn session_detail(harness: &str, session_id: &str, t: &SessionTotals, calls: &[SessionCall]) -> SessionDetail {
+    #[derive(Default)]
+    struct Step {
+        ts: i64,
+        calls: u32,
+        models: HashMap<String, (f64, u64)>,
+        input: u64,
+        output: u64,
+        cache_read: u64,
+        cache_write: u64,
+        cost: f64,
+        category: String,
+        tools: Vec<(String, u32)>,
+        subagent: bool,
+    }
+    let mut steps: Vec<Step> = Vec::new();
+    let mut by_turn: HashMap<&str, usize> = HashMap::new();
+    let mut models: HashMap<String, (f64, u64)> = HashMap::new();
+    let mut projects: HashMap<&str, u64> = HashMap::new();
+    let mut branches: HashMap<(&str, &str), u64> = HashMap::new();
+    let mut kinds: HashMap<String, u64> = HashMap::new();
+    let mut tools: HashMap<&str, u32> = HashMap::new();
+    for c in calls {
+        let i = match c.turn_id.as_deref().and_then(|id| by_turn.get(id).copied()) {
+            Some(i) => i,
+            None => {
+                // A turn's tool counts are on each of its calls: count them once, with the step.
+                for (n, k) in &c.tools {
+                    *tools.entry(n).or_default() += k;
+                }
+                steps.push(Step { ts: c.ts, category: c.category.clone(), tools: c.tools.clone(), subagent: true, ..Default::default() });
+                if let Some(id) = c.turn_id.as_deref() {
+                    by_turn.insert(id, steps.len() - 1);
+                }
+                steps.len() - 1
+            }
+        };
+        let s = &mut steps[i];
+        let tokens = c.input + c.output + c.cache_read + c.cache_write;
+        s.calls += 1;
+        s.input += c.input;
+        s.output += c.output;
+        s.cache_read += c.cache_read;
+        s.cache_write += c.cache_write;
+        s.cost += c.cost;
+        s.subagent &= c.sidechain;
+        let name = pricing::display_name(&c.model);
+        let e = s.models.entry(name.clone()).or_default();
+        e.0 += c.cost;
+        e.1 += tokens;
+        let e = models.entry(name).or_default();
+        e.0 += c.cost;
+        e.1 += tokens;
+        *projects.entry(&c.project).or_default() += tokens;
+        if let Some(b) = c.branch.as_deref().filter(|b| !b.is_empty() && *b != "HEAD") {
+            *branches.entry((&c.project, b)).or_default() += tokens;
+        }
+        *kinds.entry(c.category.clone()).or_default() += tokens;
+    }
+
+    let project = projects.iter().max_by(|a, b| a.1.cmp(b.1).then(b.0.cmp(a.0))).map(|(p, _)| p.to_string()).unwrap_or_default();
+    let branch = branches
+        .iter()
+        .filter(|((p, _), _)| *p == project)
+        .max_by(|a, b| a.1.cmp(b.1).then(b.0 .1.cmp(a.0 .1)))
+        .map(|((_, b), _)| b.to_string())
+        .unwrap_or_default();
+    let mut tool_list: Vec<ToolCount> = tools.into_iter().map(|(name, n)| ToolCount { name: name.to_string(), n }).collect();
+    tool_list.sort_by(|a, b| b.n.cmp(&a.n).then(a.name.cmp(&b.name)));
+
+    // The few steps that cost the most, when there's a crowd to stand out from.
+    let total: f64 = steps.iter().map(|s| s.cost).sum();
+    let mut by_cost: Vec<usize> = (0..steps.len()).collect();
+    by_cost.sort_by(|&a, &b| steps[b].cost.total_cmp(&steps[a].cost).then(a.cmp(&b)));
+    let expensive: Vec<usize> = if steps.len() > EXPENSIVE_N {
+        by_cost.into_iter().take(EXPENSIVE_N).filter(|&i| total > 0.0 && steps[i].cost >= total * EXPENSIVE_SHARE).collect()
+    } else {
+        Vec::new()
+    };
+
+    let mut cum = 0.0;
+    let all_curve: Vec<(i64, f64)> = steps
+        .iter()
+        .map(|s| {
+            cum += s.cost;
+            (s.ts, cum)
+        })
+        .collect();
+    let curve = if all_curve.len() <= CURVE_POINTS {
+        all_curve
+    } else {
+        let last = all_curve.len() - 1;
+        let mut v: Vec<(i64, f64)> = (0..CURVE_POINTS - 1).map(|k| all_curve[k * last / (CURVE_POINTS - 1)]).collect();
+        v.push(all_curve[last]);
+        v
+    };
+
+    let steps_total = steps.len() as u32;
+    let steps = steps
+        .into_iter()
+        .enumerate()
+        .take(STEP_CAP)
+        .map(|(i, s)| {
+            let fresh = s.input + s.cache_write;
+            let mut tools: Vec<ToolCount> = s.tools.into_iter().map(|(name, n)| ToolCount { name, n }).collect();
+            tools.sort_by(|a, b| b.n.cmp(&a.n).then(a.name.cmp(&b.name)));
+            SessionStep {
+                ts: s.ts,
+                calls: s.calls,
+                model: top(s.models, 2).into_iter().map(|r| r.name).collect::<Vec<_>>().join(" + "),
+                input: s.input,
+                output: s.output,
+                cache_read: s.cache_read,
+                cache_write: s.cache_write,
+                cost: s.cost,
+                kind: category_label(&s.category).to_string(),
+                tools,
+                expensive: expensive.contains(&i),
+                // A subagent starts its own cache, so its first write isn't a miss.
+                cache_miss: i > 0 && !s.subagent && fresh >= MISS_TOKENS && s.cache_read < fresh,
+                subagent: s.subagent,
+            }
+        })
+        .collect();
+
+    SessionDetail {
+        harness: harness_name(harness).to_string(),
+        harness_id: harness.to_string(),
+        session_id: session_id.to_string(),
+        project,
+        branch,
+        models: top(models, usize::MAX).into_iter().map(|r| r.name).collect(),
+        started: t.first,
+        last: t.last,
+        active_ms: t.active_ms,
+        tokens: t.tokens,
+        cost: t.cost,
+        kind: top_kind(&kinds),
+        calls: t.calls,
+        tools: tool_list,
+        steps,
+        steps_total,
+        curve,
+    }
 }
 
 #[cfg(test)]
@@ -615,5 +794,96 @@ mod tests {
         assert!((v[0].share - 70.0).abs() < 1e-9);
         assert_eq!(v[1].kind, "Bug fix");
         assert_eq!(v[9].share, 0.0);
+    }
+
+    #[test]
+    fn session_drill_down() {
+        use crate::ingest::{Event, Tokens};
+        use crate::model::Harness;
+        let stats = Stats::in_memory().unwrap();
+        let ev = |key: &str, ts: i64, session: &str, turn: &str, sidechain: bool, t: Tokens| Event {
+            key: key.into(),
+            ts,
+            harness: Harness::ClaudeCode,
+            model: "claude-opus-5-5".into(),
+            session_id: session.into(),
+            turn_id: Some(turn.into()),
+            cwd: "/x/proj".into(),
+            branch: Some("main".into()),
+            sidechain,
+            fast: false,
+            tokens: t,
+            cost_actual: None,
+        };
+        let tk = |input, output, cache_read, cache_write_5m| Tokens { input, output, cache_read, cache_write_5m, ..Default::default() };
+        const MIN: i64 = 60_000;
+        let mut b = Batch::default();
+        // Out of order on purpose: the drill-down sorts by time.
+        b.events.push(ev("k2", 2 * MIN, "s1", "t1", false, tk(100, 500, 30_000, 0)));
+        b.events.push(ev("k1", MIN, "s1", "t1", false, tk(1_000, 500, 0, 30_000)));
+        b.events.push(ev("k3", 50 * MIN, "s1", "t2", false, tk(100, 500, 0, 40_000))); // back after the cache expired
+        b.events.push(ev("k4", 51 * MIN, "s1", "t3", false, tk(100, 400_000, 40_000, 0))); // the big one
+        b.events.push(ev("k5", 52 * MIN, "s1", "t4", true, tk(100, 500, 0, 25_000))); // a subagent's own cache
+        b.events.push(ev("k6", 53 * MIN, "s1", "t1", false, tk(100, 500, 40_000, 0))); // t1 again, later
+        b.events.push(ev("x1", MIN, "s2", "u1", false, tk(5_000, 5_000, 0, 0)));
+        b.turn("t1").tool("Bash", None, Some("cargo test"));
+        b.turn("t1").tool("Bash", None, Some("cargo build"));
+        b.turn("t1").tool("Read", Some("src/a.rs"), None);
+        b.turn("t2").tool("Edit", Some("src/a.rs"), None);
+        stats.store().apply("cc", "/a.jsonl", &b, &Cursor::default(), &mut |c| c.rsplit('/').next().unwrap_or("").to_string()).unwrap();
+
+        let d = stats.session("claude-code", "s1").unwrap();
+        assert_eq!((d.harness.as_str(), d.project.as_str(), d.branch.as_str()), ("Claude Code", "proj", "main"));
+        assert_eq!((d.calls, d.started, d.last), (6, MIN, 53 * MIN));
+        assert_eq!(d.models, ["Opus 5.5"]);
+        // Steps: t1 (three calls, the later one too), t2, t3, t4, in the order each began.
+        assert_eq!(d.steps.iter().map(|s| (s.ts, s.calls)).collect::<Vec<_>>(), [(MIN, 3), (50 * MIN, 1), (51 * MIN, 1), (52 * MIN, 1)]);
+        assert_eq!(d.steps_total, 4);
+        let tools = |s: &SessionStep| s.tools.iter().map(|t| (t.name.clone(), t.n)).collect::<Vec<_>>();
+        assert_eq!(tools(&d.steps[0]), [("Bash".to_string(), 2), ("Read".to_string(), 1)]);
+        assert_eq!(d.tools.iter().map(|t| (t.name.as_str(), t.n)).collect::<Vec<_>>(), [("Bash", 2), ("Edit", 1), ("Read", 1)]);
+        assert_eq!(
+            d.steps.iter().map(|s| s.cache_miss).collect::<Vec<_>>(),
+            [false, true, false, false],
+            "only t2: the first step and a subagent start their own cache"
+        );
+        assert!(d.steps[3].subagent && !d.steps[0].subagent);
+        assert!(d.steps[2].expensive, "400k output");
+        // Totals add up, and match the session's row in the dashboard.
+        let sum: f64 = d.steps.iter().map(|s| s.cost).sum();
+        assert!((sum - d.cost).abs() < 1e-9);
+        assert_eq!(d.steps.iter().map(|s| s.input + s.output + s.cache_read + s.cache_write).sum::<u64>(), d.tokens);
+        assert!((d.curve.last().unwrap().1 - d.cost).abs() < 1e-9);
+        assert_eq!(d.active_ms, 4 * MIN, "the 48-minute break isn't work");
+        let dash = stats.dashboard_filtered("lifetime", "model", &Filter::default(), 60 * MIN);
+        let row = dash.sessions.iter().find(|r| r.session_id == "s1").unwrap();
+        assert_eq!((row.harness_id.as_str(), row.tokens, row.duration_ms), ("claude-code", d.tokens, d.active_ms));
+        assert!((row.cost - d.cost).abs() < 1e-9);
+        assert!(stats.session("claude-code", "nope").is_none());
+        assert!(stats.session("codex", "s1").is_none(), "a session is its harness's");
+    }
+
+    #[test]
+    fn long_sessions_are_cut_but_add_up() {
+        let calls: Vec<SessionCall> = (0..(STEP_CAP as i64 + 50))
+            .map(|i| SessionCall {
+                ts: i * 1000,
+                turn_id: Some(format!("t{i}")),
+                model: "claude-opus-5-5".into(),
+                output: 10,
+                cost: 0.01,
+                ..Default::default()
+            })
+            .collect();
+        let t = SessionTotals {
+            calls: calls.len() as u32,
+            tokens: 10 * calls.len() as u64,
+            cost: 0.01 * calls.len() as f64,
+            ..Default::default()
+        };
+        let d = session_detail("claude-code", "s", &t, &calls);
+        assert_eq!((d.steps.len(), d.steps_total as usize), (STEP_CAP, STEP_CAP + 50));
+        assert!(d.curve.len() <= CURVE_POINTS && d.curve.last().unwrap().0 == (STEP_CAP as i64 + 49) * 1000);
+        assert!(d.steps.iter().all(|s| !s.expensive), "nothing stands out when every step costs the same share under 5%");
     }
 }
