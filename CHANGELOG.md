@@ -4,7 +4,7 @@ Each release's section becomes its GitHub release notes and the in-app "What's n
 `.github/workflows/release.yml`). Write for people using the app: what they can do now, in a
 sentence or two each.
 
-## [Unreleased]
+## [0.2.3] - 2026-10-29
 
 ### Fixed
 - **Codex costs showed $0**: the price list now has the current OpenAI models (GPT-5.6 Sol, Terra
