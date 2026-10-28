@@ -10,6 +10,10 @@
 //! - Budget (`evaluate_live`): 80% and 100% of the daily and monthly spend goals, once per day
 //!   or month.
 //! - Burn (`evaluate_live`): a session spending much faster than usual, at most every 2 hours.
+//! - Unused (off by default): a weekly or monthly seat window resets within 12 hours and at
+//!   least 30% of it will go unused, even at the recent pace. Seat allowances only: what's left
+//!   of a spend budget or API limit is money saved, and a 5-hour window comes back too soon to
+//!   matter.
 //!
 //! A projection alert carries the "switch to save" tip for its window when there is one.
 //!
@@ -24,6 +28,11 @@ use std::collections::{BTreeMap, BTreeSet};
 
 const MIN: i64 = 60_000;
 const DAY: i64 = 24 * 60 * MIN;
+
+/// Use it or lose it: remind this long before the reset…
+const UNUSED_LEAD: i64 = 12 * 60 * MIN;
+/// …when at least this much (%) will be left over at the recent pace.
+const UNUSED_PCT: f64 = 30.0;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Alert {
@@ -53,6 +62,21 @@ pub enum Kind {
     Budget,
     /// A session spending much faster than usual
     Burn,
+    /// A weekly or monthly seat window about to reset with a lot left
+    Unused,
+}
+
+/// A window whose leftovers are lost at the reset, and long enough to plan around: a
+/// subscription's weekly or monthly allowance (Claude, ChatGPT, Copilot, Cursor, Gemini, Grok),
+/// not its 5-hour window, extra usage, or a spend limit.
+pub fn use_it_or_lose_it(a: &AccountView, w: &WindowView) -> bool {
+    let seat = match a.provider.as_str() {
+        "anthropic" | "openai" | "cursor" | "gemini" => a.method != "key",
+        "copilot" => true,
+        "xai" => a.method == "login",
+        _ => false,
+    };
+    seat && (w.id.starts_with("weekly") || matches!(w.id.as_str(), "monthly" | "credits" | "premium"))
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -225,6 +249,33 @@ impl Memory {
                             kind: if top >= s.crit_at { Kind::Crit } else { Kind::Warn },
                             desktop: s.notify_thresholds,
                             title: a.name.clone(),
+                            body,
+                        });
+                    }
+                }
+                // Use it or lose it: what's left at the reset at the recent pace (the projection),
+                // so a window that's being used fast isn't nagged.
+                if let (true, Some(r), AccountState::Ok) = (s.notify_unused, w.resets_at, a.state) {
+                    let left = 100.0 - w.proj.unwrap_or(w.pct).max(w.pct);
+                    if r > now
+                        && r - now <= UNUSED_LEAD
+                        && left >= UNUSED_PCT
+                        && use_it_or_lose_it(a, w)
+                        && self.fire(format!("{inst}/unused"), until)
+                    {
+                        let unused = 100.0 - w.pct;
+                        let when = forecast::when(r, now);
+                        let body = if left + 1.0 < unused {
+                            format!("{unused:.0}% is unused, and at your recent pace about {left:.0}% will still be left when it starts over {when}.")
+                        } else {
+                            format!("{unused:.0}% is unused, and it starts over {when}. Use it before then or it's gone.")
+                        };
+                        out.push(Alert {
+                            account_id: a.id.clone(),
+                            window_id: Some(w.id.clone()),
+                            kind: Kind::Unused,
+                            desktop: true,
+                            title: format!("{} · {} resets in {}", a.name, w.label, forecast::duration(r - now)),
                             body,
                         });
                     }
@@ -422,6 +473,73 @@ mod tests {
         let a = Memory::default().evaluate(&[tight, roomy], &Settings::default(), now);
         let p = a.iter().find(|x| x.kind == Kind::Projection).unwrap();
         assert!(p.body.ends_with("before reset. ChatGPT has room (Codex weekly at 12%): move your next task there."), "{}", p.body);
+    }
+
+    #[test]
+    fn use_it_or_lose_it_before_the_reset() {
+        let now = 1_000 * DAY;
+        let s = Settings { notify_unused: true, ..Default::default() };
+        let win = |id: &str, pct: f64, proj: Option<f64>, reset_in: i64| WindowView {
+            id: id.into(),
+            label: if id == "5h" { "5-hour".into() } else { "Weekly".into() },
+            pct,
+            proj,
+            resets_at: Some(now + reset_in),
+            status: Status::Ok,
+            ..Default::default()
+        };
+        let claude = |w: WindowView| AccountView {
+            id: "a".into(),
+            provider: "anthropic".into(),
+            method: "cli".into(),
+            name: "Claude — work".into(),
+            state: AccountState::Ok,
+            windows: vec![w],
+            ..Default::default()
+        };
+        let unused = |v: &[Alert]| v.iter().filter(|x| x.kind == Kind::Unused).count();
+        let mut m = Memory::default();
+        let a = m.evaluate(&[claude(win("weekly", 55.0, Some(55.0), 6 * 60 * MIN))], &s, now);
+        assert_eq!(a.len(), 1, "{a:?}");
+        assert_eq!((a[0].kind, a[0].desktop), (Kind::Unused, true));
+        assert_eq!(a[0].title, "Claude — work · Weekly resets in 6h 0m");
+        assert!(a[0].body.starts_with("45% is unused, and it starts over "), "{}", a[0].body);
+        assert!(a[0].body.ends_with(". Use it before then or it's gone."), "{}", a[0].body);
+        assert_eq!(unused(&m.evaluate(&[claude(win("weekly", 56.0, Some(56.0), 6 * 60 * MIN))], &s, now)), 0, "once per reset");
+        // The next week's window can remind again.
+        assert_eq!(unused(&m.evaluate(&[claude(win("weekly", 20.0, None, 7 * DAY + 5 * 60 * MIN))], &s, now + 7 * DAY)), 1);
+
+        let fires = |acct: AccountView, s: &Settings| unused(&Memory::default().evaluate(&[acct], s, now)) == 1;
+        assert!(!fires(claude(win("weekly", 40.0, None, 2 * DAY)), &s), "too far from the reset");
+        assert!(!fires(claude(win("weekly", 75.0, None, 3 * 60 * MIN)), &s), "under 30% left");
+        assert!(!fires(claude(win("weekly", 40.0, Some(85.0), 3 * 60 * MIN)), &s), "being used fast enough");
+        assert!(!fires(claude(win("5h", 10.0, None, 60 * MIN)), &s), "the 5-hour window comes back soon anyway");
+        assert!(!fires(claude(win("weekly", 10.0, None, 3 * 60 * MIN)), &Settings::default()), "off by default");
+        let mut budget = claude(win("monthly", 10.0, None, 3 * 60 * MIN));
+        budget.provider = "bedrock".into();
+        budget.method = "aws".into();
+        assert!(!fires(budget, &s), "a spend budget left over is money saved");
+        let mut api = claude(win("monthly", 10.0, None, 3 * 60 * MIN));
+        api.provider = "anthropic-api".into();
+        api.method = "key".into();
+        assert!(!fires(api, &s), "nor an API limit");
+        let mut stale = claude(win("weekly", 10.0, None, 3 * 60 * MIN));
+        stale.state = AccountState::Stale;
+        assert!(!fires(stale, &s), "not from an old reading");
+        let mut codex = claude(win("credits", 20.0, None, 3 * 60 * MIN));
+        codex.provider = "openai".into();
+        assert!(fires(codex, &s), "a ChatGPT seat's credits");
+
+        // Partly used, but the pace still leaves a lot.
+        let a = Memory::default().evaluate(&[claude(win("weekly", 40.0, Some(55.0), 4 * 60 * MIN))], &s, now);
+        assert!(
+            a[0].body.starts_with("60% is unused, and at your recent pace about 45% will still be left when it starts over "),
+            "{}",
+            a[0].body
+        );
+        // Paused: counted, not shown.
+        let p = Settings { paused_until: i64::MAX, ..s.clone() };
+        assert!(Memory::default().evaluate(&[claude(win("weekly", 10.0, None, 60 * MIN))], &p, now).is_empty());
     }
 
     #[test]

@@ -358,6 +358,12 @@ libnotify). Rules, per window and editable:
   the median 20-minute slice of the last 14 days' sessions, while it's still writing (within
   5 minutes). Without 10 slices of history, only $15 in 20 minutes counts. At most every 2 hours
   per session; also shown as a banner on the Now tab.
+- **Use it or lose it** (off by default): "Claude — work · Weekly resets in 6h 0m / 45% is unused,
+  and it starts over at 18:00." Sent once per window instance when a seat's weekly, monthly,
+  credit or premium-request window resets within 12 hours and at least 30% will be left at the
+  recent pace (the projection, so a window being used fast isn't nagged). Seats only (Claude,
+  ChatGPT, Copilot, Cursor, Gemini, Grok signed in): what's left of a spend budget or API limit is
+  money saved, and a 5-hour window comes back too soon to matter. Not from a stale reading.
 - **Switch to save** (`allowance/tips.rs`): a tight window gets a tip. A model's own window
   (*Weekly Opus*) tight while the account's *Weekly* isn't: use another model for routine work.
   Otherwise another seat (Claude, ChatGPT, Copilot, Cursor, Gemini, Grok; not API orgs or cloud
@@ -385,9 +391,11 @@ Rattleboard).
   or 401 on `/rattleboard/info`, a layout from `/local-api/message`) gets alerts as a plain layout.
 - **Alerts.** Whatever the §8.3 rules raise (once per window instance, held while paused) goes to
   the board too, by its own level, independent of the desktop switches: *Alerts* (critical,
-  projected run-out, login expired), *+ Warnings*, *Everything* (also resets). Short upper-case text
+  projected run-out, login expired), *+ Warnings*, *Everything* (also resets). Use-it-or-lose-it
+  reminders go at any level but *Off*, with their own switch (on by default; shown once the
+  reminder is on): "CODEX WK 45% LEFT / USE IT BY 18:00", blue. Short upper-case text
   with a chip: "CLAUDE 5H OUT AT 13:05 / 1H 15M BEFORE RESET". Red for critical (sent with priority
-  `alert`, so it gets through a Focus), orange for warnings, green for resets, violet for logins.
+  `alert`, so it gets through a Focus), orange for warnings, green for resets, blue for use it or lose it, violet for logins.
   Shown for 30 s, linked to the provider's usage page. API: `POST /rattleboard/notify`, or
   `/local-api/message` where the board lacks `notify`; CLI: `--notify --color --seconds --source
   Tokenrunway [--target]`.

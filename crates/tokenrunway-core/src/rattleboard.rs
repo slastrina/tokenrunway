@@ -484,8 +484,14 @@ pub fn rotation_with_card(sources: &Value) -> Option<Value> {
 
 // ---------------------------------------------------------------- alerts
 
+/// Whether the board gets this kind of notification: by the alert level, and use-it-or-lose-it
+/// reminders by their own switch (at any level but "off").
+pub fn sends(s: &crate::view::RattleboardSettings, kind: Kind) -> bool {
+    wanted(&s.alerts, kind) && (kind != Kind::Unused || s.unused)
+}
+
 /// Which notifications go to the board: "off" | "alerts" (critical, projected run-out, login
-/// expired) | "warnings" (also warnings) | "all" (also resets).
+/// expired, use-it-or-lose-it) | "warnings" (also warnings) | "all" (also resets).
 pub fn wanted(level: &str, kind: Kind) -> bool {
     let rank = match level {
         "alerts" => 1,
@@ -494,7 +500,7 @@ pub fn wanted(level: &str, kind: Kind) -> bool {
         _ => return false,
     };
     let need = match kind {
-        Kind::Crit | Kind::Projection | Kind::Login => 1,
+        Kind::Crit | Kind::Projection | Kind::Login | Kind::Unused => 1,
         Kind::Warn => 2,
         Kind::Reset => 3,
         // About spend, not a window: the desktop's business.
@@ -613,6 +619,10 @@ where
             (text, if alert.kind == Kind::Crit { RED } else { ORANGE })
         }
         Kind::Reset => (format!("{name} RESET\nBACK TO {}", pct(w.pct)), GREEN),
+        Kind::Unused => {
+            let r = w.resets_at?;
+            (format!("{name} {} LEFT\nUSE IT BY {}", pct(100.0 - w.pct), at_words(r, now, tz)), BLUE)
+        }
         Kind::Login | Kind::Budget | Kind::Burn => unreachable!(),
     };
     Some(Note { text: clean(&text), chip: Some(chip), alert: matches!(alert.kind, Kind::Crit | Kind::Projection), link })
@@ -1059,6 +1069,18 @@ mod tests {
         let n = note_for_in(&alert(Kind::Login, "acct-2", None), &accts, "alerts", None, NOW, &tz()).unwrap();
         assert_eq!((n.text.as_str(), n.chip, n.alert), ("CHATGPT LOGIN EXPIRED\nSIGN IN AGAIN", Some(VIOLET), false));
         assert_eq!(note_for_in(&alert(Kind::Crit, "acct-1", Some("5h")), &accts, "off", None, NOW, &tz()), None);
+        let unused = alert(Kind::Unused, "acct-2", Some("weekly"));
+        let n = note_for_in(&unused, &accts, "alerts", None, NOW, &tz()).unwrap();
+        assert_eq!((n.text.as_str(), n.chip, n.alert), ("CODEX WK 69% LEFT\nUSE IT BY TUE 11:54", Some(BLUE), false));
+        check_fits(&n.text, 3, 22);
+        assert_eq!(note_for_in(&unused, &accts, "off", None, NOW, &tz()), None);
+        let mut s = crate::view::RattleboardSettings::default();
+        assert!(sends(&s, Kind::Unused) && sends(&s, Kind::Crit));
+        s.unused = false;
+        assert!(!sends(&s, Kind::Unused) && sends(&s, Kind::Crit), "its own switch");
+        s = crate::view::RattleboardSettings { alerts: "off".into(), ..Default::default() };
+        assert!(!sends(&s, Kind::Unused));
+        assert!(!sends(&crate::view::RattleboardSettings::default(), Kind::Budget));
         assert_eq!(note_for_in(&alert(Kind::Crit, "gone", Some("5h")), &accts, "all", None, NOW, &tz()), None);
     }
 

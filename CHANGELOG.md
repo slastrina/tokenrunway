@@ -20,6 +20,10 @@ sentence or two each.
   the wall. Narrow it with `--account` and `--window`, add `--runout` to also stop when a window
   is forecast to run out before it resets, and `--json` for the details. When the app isn't
   running it can't tell, and stops (exit 3) unless you add `--allow-unknown`.
+- **Use it or lose it**: turn on Settings → Notifications → *Use it or lose it* and Tokenrunway
+  reminds you when a weekly or monthly allowance (Claude, ChatGPT, Copilot and other seats)
+  resets in the next 12 hours with 30% or more still unused, even at your recent pace. It goes to
+  your Rattleboard too, with its own switch under Settings → Rattleboard.
 
 ## [0.2.3] - 2026-10-29
 
