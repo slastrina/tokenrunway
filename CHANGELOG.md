@@ -29,6 +29,10 @@ sentence or two each.
   app stay as the fallback: behind a strict firewall it quietly uses those, and Settings → Fetch
   the latest prices shows which prices are in use (turn it off to always use the built-in ones).
 
+### Fixed
+- **Check for updates**: turning it off in Settings now stops the daily check (it kept checking).
+  *Check now* still works.
+
 ## [0.2.3] - 2026-10-29
 
 ### Fixed

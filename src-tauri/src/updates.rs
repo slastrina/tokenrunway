@@ -47,7 +47,11 @@ async fn check(app: &AppHandle) -> Result<update::Release, String> {
 pub async fn run(app: AppHandle) {
     tokio::time::sleep(Duration::from_secs(30)).await;
     loop {
-        let _ = check(&app).await;
+        // Settings → Check for updates; "Check now" works either way.
+        let wanted = app.state::<AppState>().settings.lock().unwrap().update_check;
+        if wanted {
+            let _ = check(&app).await;
+        }
         tokio::time::sleep(Duration::from_millis(update::EVERY_MS as u64)).await;
     }
 }
