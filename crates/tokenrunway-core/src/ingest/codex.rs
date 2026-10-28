@@ -29,6 +29,9 @@ struct State {
     cwd: String,
     branch: Option<String>,
     last_total: u64,
+    /// `session_meta` `creator_account_id`: the ChatGPT account the session ran under
+    #[serde(default)]
+    account: Option<String>,
 }
 
 /// Lines we never need, skipped before parsing (tool output and encrypted reasoning are the bulk).
@@ -49,6 +52,27 @@ pub fn read(path: &Path, from: u64, state: &str) -> std::io::Result<(Batch, u64,
     let mut b = Batch::default();
     let end = super::read_lines(path, from, |l| line(l, &mut st, &mut b))?;
     Ok((b, end, serde_json::to_string(&st).unwrap_or_default()))
+}
+
+/// The ChatGPT account a session ran under (`session_meta` `creator_account_id`, written by
+/// Codex since mid-2026; older sessions don't say).
+fn session_account(p: &Value) -> Option<String> {
+    p["creator_account_id"].as_str().filter(|s| !s.is_empty()).map(str::to_string)
+}
+
+/// A rollout file's session id and account, from its first line (`session_meta`), for
+/// attributing sessions read before Tokenrunway kept the account.
+pub fn session_meta(path: &Path) -> Option<(String, String)> {
+    use std::io::BufRead;
+    let mut first = String::new();
+    std::io::BufReader::new(std::fs::File::open(path).ok()?).read_line(&mut first).ok()?;
+    let v: Value = serde_json::from_str(first.trim()).ok()?;
+    if v["type"] != "session_meta" {
+        return None;
+    }
+    let p = &v["payload"];
+    let id = p["id"].as_str().or(p["session_id"].as_str())?.to_string();
+    Some((id, session_account(p)?))
 }
 
 /// "rollout-2026-09-21T13-47-56-<uuid>.jsonl" → the uuid, until session_meta says.
@@ -80,6 +104,9 @@ fn line(l: &str, st: &mut State, b: &mut Batch) {
             }
             if let Some(br) = p["git"]["branch"].as_str() {
                 st.branch = Some(br.to_string());
+            }
+            if let Some(a) = session_account(p) {
+                st.account = Some(a);
             }
         }
         Some("turn_context") => {
@@ -131,6 +158,7 @@ fn line(l: &str, st: &mut State, b: &mut Batch) {
                 fast: false,
                 tokens,
                 cost_actual: None,
+                account: st.account.clone(),
             });
         }
         Some("response_item") => {

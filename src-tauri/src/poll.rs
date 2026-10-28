@@ -103,6 +103,14 @@ pub async fn poll_one(app: &AppHandle, id: &str) {
                     let _ = accts.save();
                 }
             }
+            // Which CLI login this reading was (an id, no token), so the dashboard can tell this
+            // account's sessions from another login's.
+            if let Some(login) = allowance::cli_login(&rec, &st.ctx.home) {
+                let mut accts = st.accounts.lock().unwrap();
+                if accts.learn_login(id, &login) {
+                    let _ = accts.save();
+                }
+            }
             let updated = f.windows.iter().map(|w| w.at).min().filter(|_| f.caveat.is_some() || rec.provider == "bedrock").unwrap_or(now);
             let mut live = st.live.lock().unwrap();
             let l = live.entry(id.to_string()).or_default();

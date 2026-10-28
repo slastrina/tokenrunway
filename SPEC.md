@@ -473,10 +473,28 @@ dashboard's filter chips clear it. Today maps to the dashboard's 7 d.
 
 The dashboard's account menu narrows everything, not only the allowance tiles: a subscription
 login's activity is its own agent's (Claude → Claude Code, ChatGPT → Codex, Gemini → Gemini
-CLI). The logs don't say which login a session used, so accounts of one provider share it (the
-spend tile says so); accounts with no agent of their own (API keys, Bedrock, Copilot, Cursor…)
-show no activity. A cloud model the price table doesn't know is listed under Stats as counted at
-$0, rather than passing silently.
+CLI); accounts with no agent of their own (API keys, Bedrock, Copilot, Cursor…) show no activity.
+A cloud model the price table doesn't know is listed under Stats as counted at $0, rather than
+passing silently.
+
+Which login a call ran under (`events.account`, an account id, never a token):
+- Codex writes it into each session's `session_meta` (`creator_account_id`, the ChatGPT account
+  id that `auth.json` holds), so Codex sessions are told apart all the way back; sessions read
+  before 0.2.4 are filled in once from their files' first line.
+- Claude Code's logs don't say (only rare `bridge-session` lines carry an account uuid), so each
+  ingest pass first notes which login the source's `.claude.json` names
+  (`oauthAccount.accountUuid`; `CLAUDE_CONFIG_DIR` gives each config dir its own) in a `logins`
+  table of stretches (`from_ts`, `seen_ts`). A call goes to the stretch it falls in, or to the
+  latest one if it's within a minute of the last check and no other login has been seen since.
+  Calls before the first check, or in a gap between two logins, stay unattributed.
+- Each CLI account notes the login ids it reads (`AccountRecord.logins`, learned on each good
+  poll). The only account for a CLI collects every login it reads; with several, a new account
+  takes the login it was added under and the others keep theirs.
+
+The filter then: the only account for a CLI gets all of that agent's work, as before. With
+several (two Claude logins), each gets the calls made under its own logins; the spend tile says
+"Claude Code · since 29 Oct" when this login's first known call is inside the period, since
+earlier sessions can't be told apart.
 
 ### 10.6 Insights (`insights.rs`, `get_insights { period, project }`)
 - **Projects and branches**: cost, tokens, sessions and cache hit rate per project, with its top

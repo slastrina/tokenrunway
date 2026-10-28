@@ -23,6 +23,10 @@ pub struct AccountRecord {
     /// A monthly limit in USD the user set, for spend windows that have none of their own
     pub limit_usd: Option<f64>,
     pub created_at: i64,
+    /// The CLI logins this account has read (Claude account uuids, ChatGPT account ids; no
+    /// tokens), so the dashboard can tell its sessions from another login's
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub logins: Vec<String>,
 }
 
 /// The saved list, and where it lives.
@@ -69,6 +73,39 @@ impl Accounts {
         let i = self.list.iter().position(|a| a.id == id)?;
         Some(self.list.remove(i))
     }
+
+    /// The other accounts reading the same CLI login as `id` (another Claude Code account).
+    pub fn peers(&self, id: &str) -> Vec<&AccountRecord> {
+        let Some(me) = self.get(id) else { return Vec::new() };
+        self.list.iter().filter(|a| a.id != id && a.provider == me.provider && a.method == me.method).collect()
+    }
+
+    /// Notes that account `id` just read CLI login `login`; true if that changed the list.
+    ///
+    /// A new account takes the login it was added under (from whichever account had it). The
+    /// only account for a CLI collects every login it reads, so one Claude account still counts
+    /// all of Claude Code. With several, an account keeps the logins it had: the CLI being
+    /// signed in as someone else doesn't make their sessions this account's.
+    pub fn learn_login(&mut self, id: &str, login: &str) -> bool {
+        let Some(me) = self.get(id) else { return false };
+        if me.logins.iter().any(|l| l == login) {
+            return false;
+        }
+        let fresh = me.logins.is_empty();
+        let peers: Vec<String> = self.peers(id).iter().map(|a| a.id.clone()).collect();
+        if !fresh && !peers.is_empty() {
+            return false;
+        }
+        for p in &peers {
+            if let Some(a) = self.get_mut(p) {
+                a.logins.retain(|l| l != login);
+            }
+        }
+        if let Some(me) = self.get_mut(id) {
+            me.logins.push(login.to_string());
+        }
+        true
+    }
 }
 
 /// Writes next to the file and renames over it, so a crash never leaves half a file.
@@ -105,5 +142,30 @@ mod tests {
         let raw = std::fs::read_to_string(dir.join("accounts.json")).unwrap();
         assert!(!raw.contains("key\":\"sk-"), "no secrets");
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn logins_follow_the_account_they_were_added_under() {
+        let rec = |id: &str| AccountRecord { id: id.into(), provider: "anthropic".into(), method: "cli".into(), ..Default::default() };
+        let mut a = Accounts { path: PathBuf::new(), list: vec![rec("work")] };
+        assert!(a.learn_login("work", "u-work"));
+        assert!(!a.learn_login("work", "u-work"), "already known");
+        // The only Claude account collects every login Claude Code is signed in as.
+        assert!(a.learn_login("work", "u-home"));
+        assert_eq!(a.get("work").unwrap().logins, ["u-work", "u-home"]);
+        // A second account added while signed in as "home" takes that login over.
+        a.list.push(rec("home"));
+        assert!(a.learn_login("home", "u-home"));
+        assert_eq!(a.get("work").unwrap().logins, ["u-work"]);
+        assert_eq!(a.get("home").unwrap().logins, ["u-home"]);
+        // Now both read whoever is signed in; neither picks up the other's login.
+        assert!(!a.learn_login("work", "u-home"));
+        assert!(!a.learn_login("home", "u-work"));
+        // Another provider's account isn't a peer.
+        a.list.push(AccountRecord { id: "gpt".into(), provider: "openai".into(), method: "cli".into(), ..Default::default() });
+        assert!(a.peers("gpt").is_empty());
+        assert!(a.learn_login("gpt", "acc-1") && a.learn_login("gpt", "acc-2"));
+        // Saved without the field when empty, so older versions read the file as before.
+        assert!(!serde_json::to_string(&rec("x")).unwrap().contains("logins"));
     }
 }

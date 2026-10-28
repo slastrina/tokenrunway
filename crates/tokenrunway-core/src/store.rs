@@ -4,6 +4,8 @@
 //! - `turns`: each turn's category signals (counts only), category and confidence
 //! - `cursors`: how far each source file has been read
 //! - `meta`: the price table version the stored costs were worked out with
+//! - `logins`: which CLI login each log source was signed in as, and when (account ids only),
+//!   so `events.account` can say which login a call ran under
 //!
 //! Nothing here can hold prompt text: events have counts, ids, paths and names; turns have
 //! keyword counts.
@@ -54,7 +56,18 @@ CREATE TABLE IF NOT EXISTS cursors (
     PRIMARY KEY (source, path)
 ) WITHOUT ROWID;
 CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT NOT NULL) WITHOUT ROWID;
+CREATE TABLE IF NOT EXISTS logins (
+    scope TEXT NOT NULL,
+    login TEXT NOT NULL,
+    from_ts INTEGER NOT NULL,
+    seen_ts INTEGER NOT NULL,
+    PRIMARY KEY (scope, from_ts)
+) WITHOUT ROWID;
 ";
+
+/// An event written just after the login was last checked still counts as that login's, unless
+/// a different login has been seen since.
+const LOGIN_GRACE_MS: i64 = 60_000;
 
 pub struct Store {
     conn: Connection,
@@ -77,6 +90,8 @@ pub struct Agg {
     pub cost_actual: f64,
     /// How many of the events had a reported cost
     pub actual_n: u64,
+    /// The login the calls ran under, where it's known
+    pub account: Option<String>,
 }
 
 pub const BUCKET_MS: i64 = 15 * 60 * 1000;
@@ -133,6 +148,8 @@ pub struct SessionPart {
     /// any longer than `IDLE_MS` (a session resumed days later isn't days long). The same on
     /// every part of a session.
     pub active_ms: i64,
+    /// The login the session ran under, where it's known
+    pub account: Option<String>,
 }
 
 /// A gap between two events longer than this is a break, not work.
@@ -161,6 +178,11 @@ impl Store {
         conn.pragma_update(None, "journal_mode", "WAL").ok();
         conn.pragma_update(None, "synchronous", "NORMAL").ok();
         conn.execute_batch(SCHEMA).map_err(|e| format!("schema: {e}"))?;
+        // Added in 0.2.4: the login a call ran under (NULL where it can't be told).
+        let has_account = conn.prepare("SELECT account FROM events LIMIT 0").is_ok();
+        if !has_account {
+            conn.execute_batch("ALTER TABLE events ADD COLUMN account TEXT").map_err(|e| format!("schema: {e}"))?;
+        }
         let s = Self { conn };
         s.reprice_if_needed()?;
         Ok(s)
@@ -229,13 +251,78 @@ impl Store {
         out
     }
 
+    /// Notes that log source `scope` (a login file's path) is signed in as `login` now: extends
+    /// the current stretch, or starts a new one when the login changed. Signed out (None) leaves
+    /// it, so calls made meanwhile aren't put down to anyone.
+    pub fn observe_login(&self, scope: &str, login: Option<&str>, now: i64) -> Result<(), String> {
+        let Some(login) = login else { return Ok(()) };
+        let e = |e: rusqlite::Error| e.to_string();
+        let last: Option<(String, i64)> = self
+            .conn
+            .query_row("SELECT login, from_ts FROM logins WHERE scope = ?1 ORDER BY from_ts DESC LIMIT 1", [scope], |r| {
+                Ok((r.get(0)?, r.get(1)?))
+            })
+            .optional()
+            .map_err(e)?;
+        match last {
+            Some((l, from)) if l == login => self
+                .conn
+                .execute("UPDATE logins SET seen_ts = MAX(seen_ts, ?3) WHERE scope = ?1 AND from_ts = ?2", params![scope, from, now])
+                .map_err(e)?,
+            _ => self
+                .conn
+                .execute(
+                    "INSERT OR REPLACE INTO logins (scope, login, from_ts, seen_ts) VALUES (?1, ?2, ?3, ?3)",
+                    params![scope, login, now],
+                )
+                .map_err(e)?,
+        };
+        Ok(())
+    }
+
+    /// Puts the calls of earlier Codex sessions down to the account their `session_meta` names
+    /// (`codex::session_meta`), where nothing says yet.
+    pub fn set_session_account(&self, harness: &str, session_id: &str, account: &str) -> Result<usize, String> {
+        self.conn
+            .execute(
+                "UPDATE events SET account = ?3 WHERE harness = ?1 AND session_id = ?2 AND account IS NULL",
+                params![harness, session_id, account],
+            )
+            .map_err(|e| e.to_string())
+    }
+
+    pub fn meta(&self, k: &str) -> Option<String> {
+        self.conn.query_row("SELECT v FROM meta WHERE k = ?1", [k], |r| r.get(0)).optional().ok().flatten()
+    }
+
+    pub fn set_meta(&self, k: &str, v: &str) -> Result<(), String> {
+        self.conn.execute("INSERT OR REPLACE INTO meta (k, v) VALUES (?1, ?2)", [k, v]).map(|_| ()).map_err(|e| e.to_string())
+    }
+
+    /// The earliest call put down to any of `logins` on `harnesses`.
+    pub fn first_for_logins(&self, harnesses: &[String], logins: &[String]) -> Option<i64> {
+        if harnesses.is_empty() || logins.is_empty() {
+            return None;
+        }
+        let list = |n: usize, at: usize| (0..n).map(|i| format!("?{}", at + i)).collect::<Vec<_>>().join(", ");
+        let sql = format!(
+            "SELECT MIN(ts) FROM events WHERE harness IN ({}) AND account IN ({})",
+            list(harnesses.len(), 1),
+            list(logins.len(), harnesses.len() + 1)
+        );
+        let args: Vec<&dyn rusqlite::ToSql> = harnesses.iter().chain(logins).map(|s| s as &dyn rusqlite::ToSql).collect();
+        self.conn.query_row(&sql, args.as_slice(), |r| r.get::<_, Option<i64>>(0)).ok().flatten()
+    }
+
     /// Writes one source's batch and its new cursor in one transaction, so a crash can't leave
     /// events counted without the cursor moving (or the other way round). `project` names each
-    /// event's working directory. Returns how many events were new.
+    /// event's working directory; `scope` is the source's login file (`observe_login`), for the
+    /// calls whose log doesn't name the login. Returns how many events were new.
     pub fn apply(
         &mut self,
         source: &str,
         path: &str,
+        scope: Option<&str>,
         b: &Batch,
         cursor: &Cursor,
         project: &mut dyn FnMut(&str) -> String,
@@ -244,11 +331,17 @@ impl Store {
         let tx = self.conn.transaction().map_err(e)?;
         let mut added = 0;
         {
+            // The login whose stretch the call falls in; just past the last check only if no
+            // other login has been seen since.
             let mut ins = tx
                 .prepare_cached(
                     "INSERT OR IGNORE INTO events (key, ts, harness, model, session_id, turn_id, project, branch, sidechain, fast,
-                     input, output, cache_read, cache_write_5m, cache_write_1h, reasoning, cost_usd, cost_actual)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)",
+                     input, output, cache_read, cache_write_5m, cache_write_1h, reasoning, cost_usd, cost_actual, account)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18,
+                     COALESCE(?19, (SELECT l.login FROM logins l WHERE l.scope = ?20 AND l.from_ts <= ?2
+                        AND (?2 <= l.seen_ts OR (?2 <= l.seen_ts + ?21
+                             AND NOT EXISTS (SELECT 1 FROM logins n WHERE n.scope = l.scope AND n.from_ts > l.from_ts)))
+                        ORDER BY l.from_ts DESC LIMIT 1)))",
                 )
                 .map_err(e)?;
             // A later line for the same message (Claude Code streams) or an updated opencode
@@ -284,6 +377,9 @@ impl Store {
                         t.reasoning as i64,
                         pricing::cost(&ev.model, t, ev.fast),
                         ev.cost_actual,
+                        ev.account,
+                        scope,
+                        LOGIN_GRACE_MS,
                     ])
                     .map_err(e)?;
                 if n > 0 {
@@ -344,10 +440,10 @@ impl Store {
     pub fn agg(&self, from: i64, to: i64) -> Vec<Agg> {
         let sql = "SELECT e.ts / ?3, e.harness, e.model, e.project, IFNULL(t.category, 'chat'),
                    SUM(e.input), SUM(e.output), SUM(e.cache_read), SUM(e.cache_write_5m + e.cache_write_1h),
-                   SUM(IFNULL(e.cost_usd, 0)), SUM(IFNULL(e.cost_actual, 0)), COUNT(e.cost_actual)
+                   SUM(IFNULL(e.cost_usd, 0)), SUM(IFNULL(e.cost_actual, 0)), COUNT(e.cost_actual), e.account
                    FROM events e LEFT JOIN turns t ON t.id = e.turn_id
                    WHERE e.ts >= ?1 AND e.ts < ?2
-                   GROUP BY 1, 2, 3, 4, 5";
+                   GROUP BY 1, 2, 3, 4, 5, 13";
         let Ok(mut q) = self.conn.prepare_cached(sql) else { return Vec::new() };
         let rows = q.query_map(params![from, to, BUCKET_MS], |r| {
             Ok(Agg {
@@ -363,6 +459,7 @@ impl Store {
                 cost: r.get(9)?,
                 cost_actual: r.get(10)?,
                 actual_n: r.get::<_, i64>(11)? as u64,
+                account: r.get(12)?,
             })
         });
         rows.map(|r| r.flatten().collect()).unwrap_or_default()
@@ -376,11 +473,12 @@ impl Store {
                    active AS (
                        SELECT harness, session_id, SUM(CASE WHEN gap <= ?3 THEN gap ELSE 0 END) AS ms FROM gaps GROUP BY 1, 2)
                    SELECT e.harness, e.session_id, MIN(e.ts), MAX(e.ts), e.model, e.project, IFNULL(t.category, 'chat'),
-                   SUM(e.input + e.output + e.cache_read + e.cache_write_5m + e.cache_write_1h), SUM(IFNULL(e.cost_usd, 0)), IFNULL(MAX(a.ms), 0)
+                   SUM(e.input + e.output + e.cache_read + e.cache_write_5m + e.cache_write_1h), SUM(IFNULL(e.cost_usd, 0)), IFNULL(MAX(a.ms), 0),
+                   e.account
                    FROM events e LEFT JOIN turns t ON t.id = e.turn_id
                    LEFT JOIN active a ON a.harness = e.harness AND a.session_id = e.session_id
                    WHERE e.ts >= ?1 AND e.ts < ?2
-                   GROUP BY 1, 2, 5, 6, 7";
+                   GROUP BY 1, 2, 5, 6, 7, 11";
         let Ok(mut q) = self.conn.prepare_cached(sql) else { return Vec::new() };
         let rows = q.query_map(params![from, to, IDLE_MS], |r| {
             Ok(SessionPart {
@@ -394,6 +492,7 @@ impl Store {
                 tokens: r.get::<_, i64>(7)? as u64,
                 cost: r.get(8)?,
                 active_ms: r.get(9)?,
+                account: r.get(10)?,
             })
         });
         rows.map(|r| r.flatten().collect()).unwrap_or_default()
@@ -477,6 +576,7 @@ mod tests {
             fast: false,
             tokens: Tokens { input: 1_000_000, output, ..Default::default() },
             cost_actual: None,
+            account: None,
         }
     }
 
@@ -488,10 +588,10 @@ mod tests {
         b.events.push(ev("k1", 10));
         b.events.push(ev("k1", 1_000_000)); // the same message, later and longer
         b.turn("t1").prompt("fix the bug");
-        let added = s.apply("cc", "/a.jsonl", &b, &Cursor::default(), &mut name).unwrap();
+        let added = s.apply("cc", "/a.jsonl", None, &b, &Cursor::default(), &mut name).unwrap();
         assert_eq!(added, 1);
         // again: nothing new
-        let added = s.apply("cc", "/a.jsonl", &b, &Cursor::default(), &mut name).unwrap();
+        let added = s.apply("cc", "/a.jsonl", None, &b, &Cursor::default(), &mut name).unwrap();
         assert_eq!(added, 0);
         let a = s.agg(0, 10_000);
         assert_eq!(a.len(), 1);
@@ -508,10 +608,10 @@ mod tests {
         let mut b = Batch::default();
         b.events.push(ev("k1", 10));
         b.turn("t1").tool("Bash", None, Some("docker build ."));
-        s.apply("cc", "/a", &b, &Cursor::default(), &mut name).unwrap();
+        s.apply("cc", "/a", None, &b, &Cursor::default(), &mut name).unwrap();
         let mut b = Batch::default();
         b.turn("t1").tool("Bash", None, Some("kubectl apply -f x.yaml"));
-        s.apply("cc", "/a", &b, &Cursor::default(), &mut name).unwrap();
+        s.apply("cc", "/a", None, &b, &Cursor::default(), &mut name).unwrap();
         let sig: String = s.conn.query_row("SELECT signals FROM turns WHERE id = 't1'", [], |r| r.get(0)).unwrap();
         let sig: Signals = serde_json::from_str(&sig).unwrap();
         assert_eq!(sig.cmd_ops, 2);
@@ -519,10 +619,77 @@ mod tests {
     }
 
     #[test]
+    fn calls_go_to_the_login_signed_in_at_the_time() {
+        let mut s = Store::open_in_memory().unwrap();
+        let mut name = |_: &str| "p".to_string();
+        let at = |key: &str, ts: i64| Event { ts, ..ev(key, 10) };
+        let scope = Some("/home/.claude.json");
+        // Before Tokenrunway first saw the login: can't be told.
+        let mut b = Batch::default();
+        b.events.push(at("before", 500));
+        s.observe_login("/home/.claude.json", Some("work"), 1_000).unwrap();
+        s.observe_login("/home/.claude.json", Some("work"), 5_000).unwrap();
+        b.events.push(at("work-1", 2_000));
+        b.events.push(at("work-2", 5_000 + 30_000)); // just after the last check
+        s.apply("cc", "/a", scope, &b, &Cursor::default(), &mut name).unwrap();
+        // Signed in as "home" at 200 s; the gap since the last "work" check can't be told.
+        s.observe_login("/home/.claude.json", Some("home"), 200_000).unwrap();
+        s.observe_login("/home/.claude.json", None, 250_000).unwrap(); // signed out: no change
+        let mut b = Batch::default();
+        b.events.push(at("gap", 120_000));
+        b.events.push(at("home-1", 210_000));
+        // A log that names its login wins (Codex `session_meta`).
+        b.events.push(Event { account: Some("named".into()), ..at("named", 210_000) });
+        // Another source's login says nothing about this one.
+        s.apply("cc", "/a", scope, &b, &Cursor::default(), &mut name).unwrap();
+        s.apply(
+            "cc",
+            "/b",
+            Some("/other/.claude.json"),
+            &Batch { events: vec![at("elsewhere", 2_000)], ..Default::default() },
+            &Cursor::default(),
+            &mut name,
+        )
+        .unwrap();
+        let account =
+            |k: &str| -> Option<String> { s.conn.query_row("SELECT account FROM events WHERE key = ?1", [k], |r| r.get(0)).unwrap() };
+        assert_eq!(account("before"), None);
+        assert_eq!(account("work-1").as_deref(), Some("work"));
+        assert_eq!(account("work-2").as_deref(), Some("work"));
+        assert_eq!(account("gap"), None);
+        assert_eq!(account("home-1").as_deref(), Some("home"));
+        assert_eq!(account("named").as_deref(), Some("named"));
+        assert_eq!(account("elsewhere"), None);
+        assert_eq!(s.first_for_logins(&["claude-code".into()], &["home".into()]), Some(210_000));
+        // Older Codex sessions get their account from session_meta, without touching known ones.
+        assert_eq!(s.set_session_account("claude-code", "s1", "late").unwrap(), 3);
+        assert_eq!(account("before").as_deref(), Some("late"));
+        assert_eq!(account("work-1").as_deref(), Some("work"));
+        assert!(s.agg(0, i64::MAX).iter().any(|a| a.account.as_deref() == Some("home")));
+    }
+
+    #[test]
+    fn adds_the_account_column_to_an_older_database() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE events (key TEXT PRIMARY KEY, ts INTEGER NOT NULL, harness TEXT NOT NULL, model TEXT NOT NULL,
+             session_id TEXT NOT NULL, turn_id TEXT, project TEXT NOT NULL, branch TEXT, sidechain INTEGER NOT NULL DEFAULT 0,
+             fast INTEGER NOT NULL DEFAULT 0, input INTEGER NOT NULL DEFAULT 0, output INTEGER NOT NULL DEFAULT 0,
+             cache_read INTEGER NOT NULL DEFAULT 0, cache_write_5m INTEGER NOT NULL DEFAULT 0, cache_write_1h INTEGER NOT NULL DEFAULT 0,
+             reasoning INTEGER NOT NULL DEFAULT 0, cost_usd REAL, cost_actual REAL) WITHOUT ROWID;
+             INSERT INTO events (key, ts, harness, model, session_id, project) VALUES ('old', 1, 'codex', 'gpt-5', 's', 'p');",
+        )
+        .unwrap();
+        let s = Store::init(conn).unwrap();
+        assert_eq!(s.agg(0, 10)[0].account, None);
+        assert!(Store::open_in_memory().is_ok(), "and a new one is created with it");
+    }
+
+    #[test]
     fn cursors_round_trip() {
         let mut s = Store::open_in_memory().unwrap();
         let c = Cursor { size: 10, mtime: 20, offset: 5, state: "{}".into() };
-        s.apply("cc", "/a", &Batch::default(), &c, &mut |_| String::new()).unwrap();
+        s.apply("cc", "/a", None, &Batch::default(), &c, &mut |_| String::new()).unwrap();
         assert_eq!(s.cursors().get(&("cc".into(), "/a".into())), Some(&c));
     }
 }

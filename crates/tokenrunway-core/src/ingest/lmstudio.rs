@@ -216,6 +216,7 @@ fn event(p: &Pending, cache_read: u64) -> Event {
         fast: false,
         tokens: Tokens { input: p.input, output: p.output, cache_read, ..Default::default() },
         cost_actual: None,
+        account: None,
     }
 }
 

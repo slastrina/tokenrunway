@@ -356,7 +356,9 @@
     get_stats: ({ period }) => stats(period),
     get_harness: ({ period }) => harness(period),
     get_dashboard: ({ period, group, account, project, model }) => {
-      const d = dashboard(period, group, account);
+      // Whose work an account's view shows (as if a second Claude login were also signed in).
+      const scopes = { 'acct-1': 'Claude Code · since 29 Oct', 'acct-2': 'Codex' };
+      const d = { ...dashboard(period, group, account), scope: account ? scopes[account] || 'No agent logs for this account' : null };
       if (!project && !model) return d;
       // Filtered: that project's / model's share of the sample.
       const keep = (s) => (!project || s.project === project) && (!model || s.model === model);

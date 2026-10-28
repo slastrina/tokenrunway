@@ -4,6 +4,15 @@ Each release's section becomes its GitHub release notes and the in-app "What's n
 `.github/workflows/release.yml`). Write for people using the app: what they can do now, in a
 sentence or two each.
 
+## [Unreleased]
+
+### Added
+- **Stats per login**: with two Claude (or two ChatGPT) accounts, the dashboard's account filter
+  now shows each login's own sessions instead of sharing them. Codex says which account a session
+  ran under, so that goes back through your history; for Claude Code, Tokenrunway notes which
+  login is signed in as it reads the logs, so it counts from when you update (the spend tile says
+  "since" that day). With one account per agent nothing changes.
+
 ## [0.2.3] - 2026-10-29
 
 ### Fixed
