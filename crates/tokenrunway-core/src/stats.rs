@@ -866,6 +866,7 @@ mod tests {
             fast: false,
             tokens: t,
             cost_actual: None,
+            account: None,
         };
         let tk = |input, output, cache_read, cache_write_5m| Tokens { input, output, cache_read, cache_write_5m, ..Default::default() };
         const MIN: i64 = 60_000;
@@ -882,7 +883,10 @@ mod tests {
         b.turn("t1").tool("Bash", None, Some("cargo build"));
         b.turn("t1").tool("Read", Some("src/a.rs"), None);
         b.turn("t2").tool("Edit", Some("src/a.rs"), None);
-        stats.store().apply("cc", "/a.jsonl", &b, &Cursor::default(), &mut |c| c.rsplit('/').next().unwrap_or("").to_string()).unwrap();
+        stats
+            .store()
+            .apply("cc", "/a.jsonl", None, &b, &Cursor::default(), &mut |c| c.rsplit('/').next().unwrap_or("").to_string())
+            .unwrap();
 
         let d = stats.session("claude-code", "s1").unwrap();
         assert_eq!((d.harness.as_str(), d.project.as_str(), d.branch.as_str()), ("Claude Code", "proj", "main"));
