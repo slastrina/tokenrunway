@@ -4,7 +4,7 @@ Each release's section becomes its GitHub release notes and the in-app "What's n
 `.github/workflows/release.yml`). Write for people using the app: what they can do now, in a
 sentence or two each.
 
-## [Unreleased]
+## [0.3.0] - 2026-10-29
 
 ### Added
 - **This cycle's spend on the Now tab**: each allowance window shows what the work since its
