@@ -2,7 +2,8 @@
 // window.__TAURI__ is missing). Returns the sample data from docs/design/*.dc.html for every
 // command and simulates the events. Query params: ?state=empty|loading|problems|compact|update,
 // ?os=windows, ?rb=local|local-key|network|vestaboard|error|none (Rattleboard: connected that way,
-// with a failed send, or not installed), plus ?view= and ?theme= (handled by the UI).
+// with a failed send, or not installed), ?toast=unused (a use-it-or-lose-it reminder shortly after
+// loading), plus ?view= and ?theme= (handled by the UI).
 (() => {
   const q = new URLSearchParams(location.search);
   const scenario = q.get('state') || '';
@@ -11,6 +12,9 @@
   const listeners = {};
   // Cloned, as Tauri serialises events: the UI never shares objects with the mock.
   const emit = (event, payload) => (listeners[event] || []).forEach((cb) => cb({ event, payload: structuredClone(payload) }));
+  if (q.get('toast') === 'unused') {
+    setTimeout(() => emit('tr://toast', [{ title: 'ChatGPT — personal · Codex weekly resets in 6h 0m', body: "45% is unused, and it starts over at 18:00. Use it before then or it's gone.", tone: 'info', accountId: 'acct-2' }]), 800);
+  }
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
   // Next local Monday 09:00, the 1st of next month etc., so local times read like the design.
@@ -19,9 +23,9 @@
     id, label, abs, pct, pace, proj, resetsAt: resetIn == null ? null : at(resetIn), status, forecast, outAt: outIn == null ? null : at(outIn),
   });
 
-  const rbDefault = { mode: 'off', url: '', name: '', rows: 6, cols: 22, kind: '', target: '', alerts: 'alerts', card: false };
+  const rbDefault = { mode: 'off', url: '', name: '', rows: 6, cols: 22, kind: '', target: '', alerts: 'alerts', card: false, unused: true };
   const settings = {
-    menubarLabel: 'runway', menubarWindow: '', budgetDaily: 75, budgetMonthly: 1500, notifyBudget: true, notifyBurn: true, density: scenario === 'compact' ? 'compact' : 'comfortable', warnAt: 75, critAt: 90, leadMinutes: 60,
+    menubarLabel: 'runway', menubarWindow: '', budgetDaily: 75, budgetMonthly: 1500, notifyBudget: true, notifyBurn: true, notifyUnused: q.get('toast') === 'unused', density: scenario === 'compact' ? 'compact' : 'comfortable', warnAt: 75, critAt: 90, leadMinutes: 60,
     notifyThresholds: true, notifyProjection: true, notifyReset: false, pausedUntil: 0, requestAt: 85,
     admins: { 'acct-1': { name: 'Jordan Lee', email: 'jordan@iokig.com', slack: '@Jordan Lee', teams: '' } },
     myName: 'Sam', updateCheck: true, startAtLogin: false,
@@ -310,11 +314,11 @@
     set_settings: ({ patch }) => {
       const p = { ...patch };
       if (p.rattleboard) {
-        const { alerts, card, target } = { ...app.settings.rattleboard, ...p.rattleboard };
+        const { alerts, card, target, unused } = { ...app.settings.rattleboard, ...p.rattleboard };
         if (card && !app.settings.rattleboard.card && (!app.rattleboardKey || app.settings.rattleboard.kind === 'vestaboard')) {
           throw new Error('The card needs the board’s key: paste its pair link from Rattleboard → Settings → API server.');
         }
-        p.rattleboard = { ...app.settings.rattleboard, alerts, card, target };
+        p.rattleboard = { ...app.settings.rattleboard, alerts, card, target, unused };
         if (card !== app.settings.rattleboard.card) app.rattleboardStatus = card ? `Added the AI runway card to the rotation at ${hhmm()}` : `Took the card off the board at ${hhmm()}`;
       }
       app = { ...app, settings: { ...app.settings, ...p } };

@@ -115,7 +115,11 @@ pub fn on_alerts(app: &AppHandle, fired: &[Alert], accounts: &[AccountView]) {
         return;
     }
     let now = now_ms();
-    let notes: Vec<Note> = fired.iter().filter_map(|a| rb::note_for(a, accounts, &s.alerts, link_for(app, &a.account_id), now)).collect();
+    let notes: Vec<Note> = fired
+        .iter()
+        .filter(|a| rb::sends(&s, a.kind))
+        .filter_map(|a| rb::note_for(a, accounts, &s.alerts, link_for(app, &a.account_id), now))
+        .collect();
     if notes.is_empty() {
         return;
     }

@@ -60,6 +60,8 @@
 - **Switch to save**: when a window is tight, it says where there's room (another model, or
   another seat).
 - **Spend goals**: daily and monthly goals with rings on the Now tab and alerts at 80% and 100%.
+- **Use it or lose it**: an optional reminder when a weekly or monthly allowance resets in the
+  next 12 hours with 30% or more left, on your desktop and your Rattleboard.
 - **Insights**: cost per project and git branch, cache-efficiency tips, a Monday recap of last
   week, and what your plan is worth at API prices ("your $200 plan did $874 of work, 4.4×").
 - **A full dashboard** with daily spend by model, harness or category, a burn-down for any window,

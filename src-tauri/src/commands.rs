@@ -522,7 +522,7 @@ pub fn merge(s: &Settings, patch: &serde_json::Value) -> Result<Settings, String
                 return Err("rattleboard must be an object.".into());
             };
             for (ik, iv) in inner {
-                if matches!(ik.as_str(), "alerts" | "card" | "target") {
+                if matches!(ik.as_str(), "alerts" | "card" | "target" | "unused") {
                     cur.insert(ik.clone(), iv.clone());
                 }
             }
@@ -677,6 +677,8 @@ mod tests {
         assert_eq!(out.rattleboard.url, "");
         assert_eq!(out.rattleboard.rows, 6, "the rest is kept");
         assert!(merge(&s, &serde_json::json!({"rattleboard": {"alerts": "loud"}})).is_err());
+        assert!(!merge(&s, &serde_json::json!({"rattleboard": {"unused": false}})).unwrap().rattleboard.unused);
+        assert!(merge(&s, &serde_json::json!({"notifyUnused": true})).unwrap().notify_unused);
         assert!(merge(&s, &serde_json::json!({"rattleboard": 1})).is_err());
     }
 

@@ -228,6 +228,8 @@ pub struct Settings {
     pub notify_budget: bool,
     /// Warn about a session spending much faster than usual
     pub notify_burn: bool,
+    /// Remind before a weekly or monthly seat window resets with a lot left (use it or lose it)
+    pub notify_unused: bool,
     /// "comfortable" | "compact"
     pub density: String,
     /// Warn at this % used (default 75), critical at (default 90)
@@ -273,6 +275,8 @@ pub struct RattleboardSettings {
     pub alerts: String,
     /// The AI runway card in the board's rotation (needs the key)
     pub card: bool,
+    /// Use-it-or-lose-it reminders go to the board too (when they're on and alerts aren't "off")
+    pub unused: bool,
 }
 
 impl Default for RattleboardSettings {
@@ -287,6 +291,7 @@ impl Default for RattleboardSettings {
             target: String::new(),
             alerts: "alerts".into(),
             card: false,
+            unused: true,
         }
     }
 }
@@ -300,6 +305,7 @@ impl Default for Settings {
             budget_monthly: 0.0,
             notify_budget: true,
             notify_burn: true,
+            notify_unused: false,
             density: "comfortable".into(),
             warn_at: 75.0,
             crit_at: 90.0,

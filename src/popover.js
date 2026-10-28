@@ -756,6 +756,7 @@
       + `<div class="srow"><span class="t"><b>Lead time</b><span>Warn if running out this long before reset</span></span>${numField('leadMinutes', st.leadMinutes, 'Lead time in minutes', 5, 1440, 'min')}</div>`
       + `<div class="srow"><span class="t"><b>Window resets</b></span>${sw('notifyReset', st.notifyReset, 'Notify when a window resets')}</div>`
       + `<div class="srow"><span class="t"><b>Fast sessions</b><span>When a session spends 3× your usual pace</span></span>${sw('notifyBurn', st.notifyBurn, 'Notify about fast sessions')}</div>`
+      + `<div class="srow"><span class="t"><b>Use it or lose it</b><span>12 hours before a weekly or monthly window resets with 30% or more left</span></span>${sw('notifyUnused', st.notifyUnused, 'Remind me to use what is left before a reset')}</div>`
       + `<div class="srow"><span class="t"><b>Try it</b><span>Shows a test notification</span></span><button class="btn s24" data-act="test-notification" data-k="test-notification">Send a test</button></div>`
       + `<div class="srow"><span class="t"><b>Weekly recap</b><span>Mondays: last week's spend, top project and biggest session</span></span><button class="switch" role="switch" aria-checked="${st.insights?.weeklyRecap !== false}" aria-label="Weekly recap on Mondays" data-act="toggle-recap" data-k="sw-recap"></button></div>`
       + `<div class="srow"><span class="t"><b>Offer Request more at</b></span>${numField('requestAt', st.requestAt, 'Offer request more at percent used', 1, 100, '%')}</div></div></div>`
@@ -778,6 +779,7 @@
   }
 
   // ---------- Settings → Rattleboard ----------
+  const st0 = () => S.settings || S.app?.settings || {};
   const rbSettings = () => S.app?.settings?.rattleboard || S.settings?.rattleboard || { mode: 'off', alerts: 'alerts', card: false, rows: 6, cols: 22 };
   const hostOf = (u) => String(u || '').replace(/^[a-z]+:\/\//, '').replace(/\/$/, '');
   const failed = (t) => /^Couldn't/.test(t || '');
@@ -818,6 +820,8 @@
           const on = r.alerts === v;
           return `<button role="radio" aria-checked="${on}" tabindex="${on ? 0 : -1}" data-act="rb-alerts" data-v="${v}" data-k="rb-alerts-${v}">${l}</button>`;
         }).join('')}</div></div>`
+        + (r.alerts !== 'off' && st0().notifyUnused ? `<div class="srow"><span class="t"><b>Use-it-or-lose-it reminders</b><span>Before a weekly or monthly window resets with a lot left</span></span>`
+          + `<button class="switch" role="switch" aria-checked="${r.unused !== false}" aria-label="Send use-it-or-lose-it reminders to the board" data-act="rb-unused" data-k="rb-unused"></button></div>` : '')
         + `<div class="srow"><span class="t"><b>Show an AI runway card in the rotation</b><span>${vesta ? 'Needs a Rattleboard: a Vestaboard has no rotation' : canCard ? 'Your shortest runway and each window, updated every few minutes' : 'Needs the board’s key: paste its pair link below'}</span></span>`
         + `<button class="switch" role="switch" aria-checked="${!!r.card}" aria-label="Show an AI runway card in the rotation" data-act="rb-card" data-k="rb-card" ${canCard || r.card ? '' : 'disabled'}></button></div>`
         + (r.mode === 'local' && !S.app?.rattleboardKey ? '<div class="srow stack"><span class="t"><b>Add the key for the card</b><span>Paste this computer’s pair link: Rattleboard → Settings → API server → Copy link</span></span>'
@@ -1043,6 +1047,7 @@
       case 'rb-manual': S.rb.manual = !S.rb.manual; render(); break;
       case 'rb-test': rbRun('test', async () => { const c = await invoke('rattleboard_test'); S.rb.note = c.message || 'Sent'; announce(S.rb.note); }); break;
       case 'rb-alerts': rbSet({ alerts: v }); break;
+      case 'rb-unused': rbSet({ unused: rbSettings().unused === false }); break;
       case 'rb-card': rbSet({ card: t.getAttribute('aria-checked') !== 'true' }); break;
       case 'rb-disconnect': rbRun('disconnect', async () => { await invoke('rattleboard_disconnect'); announce('Disconnected'); }).then(rbDetect); break;
       case 'recheck': checkUpdates(); break;

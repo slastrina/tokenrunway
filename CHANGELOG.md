@@ -4,6 +4,14 @@ Each release's section becomes its GitHub release notes and the in-app "What's n
 `.github/workflows/release.yml`). Write for people using the app: what they can do now, in a
 sentence or two each.
 
+## [Unreleased]
+
+### Added
+- **Use it or lose it**: turn on Settings → Notifications → *Use it or lose it* and Tokenrunway
+  reminds you when a weekly or monthly allowance (Claude, ChatGPT, Copilot and other seats)
+  resets in the next 12 hours with 30% or more still unused, even at your recent pace. It goes to
+  your Rattleboard too, with its own switch under Settings → Rattleboard.
+
 ## [0.2.3] - 2026-10-29
 
 ### Fixed

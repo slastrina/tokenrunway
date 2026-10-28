@@ -36,7 +36,7 @@ fn tone(k: Kind) -> &'static str {
     match k {
         Kind::Crit | Kind::Projection | Kind::Burn => "crit",
         Kind::Warn | Kind::Budget | Kind::Login => "warn",
-        Kind::Reset => "info",
+        Kind::Reset | Kind::Unused => "info",
     }
 }
 
