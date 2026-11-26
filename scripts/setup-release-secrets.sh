@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # Sets the GitHub Actions secrets the release workflow signs and notarizes with: the same names as
-# the other slastrina apps (Rattleboard), so the macOS build is a signed, notarized Developer ID app
-# and the Homebrew cask is bumped on every tag.
+# the other slastrina apps (Rattleboard), so the macOS build is a signed, notarized Developer ID app.
 #
 #   scripts/setup-release-secrets.sh            (run it yourself: it asks for passwords)
 #   scripts/setup-release-secrets.sh --cert     (only re-export the certificate)
@@ -11,8 +10,6 @@
 # - The Apple ID and app-specific password for notarization come from the keychain item
 #   "apple-notarization" when it exists; otherwise it asks (account.apple.com → Sign-In and
 #   Security → App-Specific Passwords). Typed input is hidden and goes straight to `gh`.
-# - Optionally a HOMEBREW_TAP_PAT: a fine-grained token with Contents read/write on
-#   slastrina/homebrew-tap.
 # Nothing is kept on disk: the exported files live in a private temp folder deleted at the end.
 set -euo pipefail
 REPO="${REPO:-slastrina/tokenrunway}"
@@ -72,9 +69,6 @@ else
 fi
 [ -n "$apple_id" ] && set_secret APPLE_ID "$apple_id"
 [ -n "$app_pw" ] && set_secret APPLE_APP_PASSWORD "$app_pw"
-
-read -r -s -p "HOMEBREW_TAP_PAT (Enter to skip): " tap; echo
-[ -n "$tap" ] && set_secret HOMEBREW_TAP_PAT "$tap"
 
 echo "Done. Secrets now on $REPO:"
 gh secret list -R "$REPO" | cut -f1

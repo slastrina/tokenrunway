@@ -593,16 +593,13 @@ earlier sessions can't be told apart.
   `cargo clippy -D warnings`; `cargo fmt --check`.
 - `release.yml` (on a `v*` tag or by hand): Tauri builds for macOS universal (signed with Developer
   ID and notarized when the secrets are set), Windows x64 (NSIS + MSI) and Linux x64/arm64 (deb +
-  AppImage); then the updater-manifest job writes `latest.json`, and the Homebrew job bumps
-  `slastrina/homebrew-tap` `Casks/tokenrunway.rb`.
+  AppImage). The updater-manifest job then writes `latest.json`.
 - Secrets (same names as the other slastrina apps): `DEVELOPER_ID_CERT_P12`,
   `DEVELOPER_ID_CERT_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_APP_PASSWORD`,
-  `APPLE_ORG_NAME`, `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`,
-  `HOMEBREW_TAP_PAT`.
-- **Homebrew**: `brew install --cask slastrina/tap/tokenrunway`. The release job fills
-  `packaging/homebrew/tokenrunway.rb.template` with the version and DMG checksum and pushes it to the
-  tap, and Homebrew installs see `brew upgrade` in place of the in-app installer. Like the updater,
-  this needs public release assets, so it starts working once the repo is public.
+  `APPLE_ORG_NAME`, `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
+- **Homebrew.** The workflow in `slastrina/homebrew-tap` checks public releases every six hours
+  and updates `Casks/tokenrunway.rb` when the new macOS DMG is uploaded. It uses the tap's built-in
+  token. Homebrew installs update through `brew upgrade`.
 - Versioning: semver, one version for the workspace, `package.json` and `tauri.conf.json`
   (`scripts/bump.sh X.Y.Z`).
 

@@ -192,7 +192,8 @@ checks) with no Tauri dependency; `src-tauri` is the desktop app; `src` is its U
    the GitHub release notes and the in-app What's new.
 3. Commit the changes, create the annotated `vVERSION` tag on that commit, and push the branch and
    tag. The [Release workflow](.github/workflows/release.yml) builds installers, publishes
-   `latest.json` for in-app updates, and updates the Homebrew cask when configured.
+   `latest.json` for in-app updates. The [Homebrew tap workflow](https://github.com/slastrina/homebrew-tap/actions/workflows/sync-casks.yml)
+   checks for the published macOS installer every six hours and updates the cask.
 
 ## Data and privacy
 
