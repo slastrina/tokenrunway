@@ -13,76 +13,80 @@
 <p align="center">
   <b>How much AI runway do you have left?</b><br>
   A free, open-source menubar and system-tray app that puts all your AI subscriptions and API
-  accounts in one place: how much of each allowance is left, when it resets, whether you'll run
-  out first, and what your agents spend their tokens on.
+  accounts in one place. See what’s left, when it resets, and whether you’re on pace to run out.
+  Use the dashboard to see where your agents spend their tokens.
 </p>
 
 <p align="center">
   <a href="#install"><b>Install</b></a> ·
+  <a href="#set-up-providers"><b>Provider setup</b></a> ·
+  <a href="#command-line"><b>Command line</b></a> ·
   <a href="#screenshots"><b>Screenshots</b></a> ·
   <a href="#rattleboard"><b>Rattleboard</b></a> ·
   <a href="#build-from-source"><b>Build</b></a> ·
   <a href="SPEC.md"><b>Spec</b></a>
 </p>
 
-<br>
+## Install
 
-<table>
-  <tr>
-    <td width="50%" valign="top">
-      <img src="docs/screenshots/popover-now-dark.png" alt="The Now view: shortest runway, each account's windows with reset times and forecasts">
-    </td>
-    <td width="50%" valign="top">
-      <h3>Allowances at a glance</h3>
-      Claude (Pro, Max, Team, Enterprise), ChatGPT/Codex (Plus, Pro, Business, Enterprise),
-      GitHub Copilot, Cursor, Google Antigravity, Gemini (CLI), Grok/xAI, AWS Bedrock budgets and the
-      Anthropic/OpenAI API orgs and OpenRouter keys. Several accounts per provider.
-      <h3>Resets and forecasts</h3>
-      Every 5-hour, weekly and monthly window with its reset time, a pace marker, and a
-      projection of when you'll run out at your current rate. The menubar shows your shortest
-      runway.
-      <h3>Alerts before you run out</h3>
-      Notifications at your thresholds and when a forecast says you'll hit the wall before the
-      reset, plus a one-click request to your administrator for more.
-    </td>
-  </tr>
-</table>
+| Platform | How |
+|---|---|
+| macOS 11+ (Apple Silicon and Intel) | `brew install --cask slastrina/tap/tokenrunway`, or the `.dmg` from [Releases](https://github.com/slastrina/tokenrunway/releases/latest) |
+| Windows 10/11 | The `-setup.exe` or `.msi` from [Releases](https://github.com/slastrina/tokenrunway/releases/latest) |
+| Linux x86_64 / arm64 | The `.deb` or `.AppImage` from [Releases](https://github.com/slastrina/tokenrunway/releases/latest). Install libayatana-appindicator and enable the AppIndicator extension if you use GNOME. |
 
-### Features
+Tokenrunway checks GitHub for new versions once a day, shows what's new, and updates in place when
+you say so. Homebrew installs update with `brew upgrade --cask tokenrunway`.
 
-- **Local stats from your agents' logs**: Claude Code, Codex, opencode and others. Spend per day,
-  week, month and lifetime; your most-used models and projects; and what the work was (building,
-  discovery, bug fixing…). Compare harnesses side by side.
-- **Local models too**: LM Studio's requests, models and tokens, read from its server logs and
-  shown as free.
-- **Catch runaway sessions**: a warning when a session spends 3× your usual pace, so an agent
-  loop doesn't eat your window.
-- **Switch to save**: when a window is tight, it says where there's room (another model, or
-  another seat).
-- **Spend goals**: daily and monthly goals with rings on the Now tab and alerts at 80% and 100%.
-- **Use it or lose it**: an optional reminder when a weekly or monthly allowance resets in the
-  next 12 hours with 30% or more left, on your desktop and your Rattleboard.
-- **Insights**: cost per project and git branch, cache-efficiency tips, a Monday recap of last
-  week, and what your plan is worth at API prices ("your $200 plan did $874 of work, 4.4×").
-- **A full dashboard** with daily spend by model, harness or category, a burn-down for any window,
-  every session, upcoming resets and a contribution-style heatmap. Click a session to see its
-  steps: what each cost, the tools it ran, the expensive steps and the cache misses. Click a model
-  or project in Stats to open it there.
-- **Menubar your way**: runway, % left, or today's spend, for the most urgent window or one you
-  pin. A copy button puts a usage summary on the clipboard.
-- **`tokenrunway` on the command line**: `status`, `today`, and a one-line `statusline` for your
-  shell prompt or Claude Code.
-- **Antigravity quotas**: sign in to Google in Antigravity CLI (`agy` 1.1.11 or later),
-  then choose **Add account → Google Antigravity**. The account follows the active CLI login and
-  shows the model-group limits and reset times in its quota report.
-- **Sign in where there's no CLI**: Cursor and Grok can be signed in to inside Tokenrunway. Only
-  the session cookie is kept, in your keychain.
-- **Rattleboard**: alerts and an "AI runway" card on a split-flap board.
-- **Current prices**: the price list updates daily from GitHub, so new models are priced without
-  an app update (the built-in prices stay as the fallback).
-- **Updates itself** with release notes, and installs with Homebrew.
-- **Private**: no account, no server, no telemetry. Your logins stay in your OS keychain, and your
-  stats stay on your computer.
+## Set up providers
+
+1. Open Tokenrunway from the menu bar or system tray.
+2. If the **Now** tab lists a login under **Found on this Mac**, **Found on this PC**, or **Found on this computer**, click **Add** beside it.
+3. To add an account manually, open **Settings → Accounts → Add account**, select the provider, then follow the steps below.
+
+Auto-detection suggests an account from a local sign-in or AWS profile. Click **Add** or **Connect** to start tracking it.
+
+| Provider | What to set up first | How it appears in Tokenrunway | What you’ll see |
+|---|---|---|---|
+| **Claude** | Install [Claude Code](https://code.claude.com/docs/en/setup) and run `claude auth login` with your Claude subscription. | Auto-detects a saved Claude Code login. Manual path is **Claude → Use my CLI login**. | Five-hour and weekly usage, model-specific limits, and extra usage where reported. |
+| **ChatGPT / Codex** | Install Codex CLI and [sign in with ChatGPT](https://learn.chatgpt.com/docs/auth#codex-cli) using `codex login`. Tokenrunway looks for a file-based login in `~/.codex/auth.json` or under `CODEX_HOME`. | Auto-detects the saved Codex login. Manual path is **ChatGPT / Codex → Use my CLI login**. | Reported Codex limits, reset times, and workspace or credit limits when available. |
+| **Google Antigravity** | Install [Antigravity CLI](https://antigravity.google/docs/getting-started?tab=cli) (`agy` 1.1.11 or later). Run `agy` and sign in with Google. | Auto-detects an installed CLI with a local Antigravity profile. Manual path is **Google Antigravity → Use Antigravity CLI login**. | Reported five-hour and weekly quotas per model group. |
+| **Gemini CLI** | Run `gemini` and sign in with an eligible [Gemini Code Assist](https://docs.cloud.google.com/gemini/docs/codeassist/gemini-cli) account. | Auto-detects saved Gemini CLI credentials. Manual path is **Gemini → Use Gemini CLI login**. | Reported daily model quotas and reset times. |
+| **GitHub Copilot** | Run [`gh auth login`](https://docs.github.com/en/github-cli/github-cli/authenticating-with-github-cli) with the account that has Copilot, or sign in to Copilot in your editor. | Auto-detects supported GitHub CLI or editor logins. Manual paths are **GitHub Copilot → Use GitHub CLI login** or **Paste token**. | Included requests and other quota windows GitHub reports for the plan. |
+| **Cursor** | For auto-detection, sign in to the Cursor desktop app on this computer. | Choose **Use Cursor app login** when detected. Under **Cursor**, you can also choose **Log in** to sign in inside Tokenrunway or **Paste session cookie** to supply the `WorkosCursorSessionToken` value. | Monthly plan usage and on-demand spend where available. |
+| **Grok** | Have a SuperGrok or eligible X Premium account. | Manual. Choose **Grok / xAI → Log in**, then sign in at Grok in the window that opens. | Query limits returned by Grok. |
+| **xAI API** | Create an API key in the [xAI Console](https://console.x.ai/). | Manual. Choose **Grok / xAI → Paste xAI API key**. | Key status. The card has a shortcut to the provider’s API limits page. |
+| **AWS Bedrock** | Install AWS CLI and configure a profile with Cost Explorer and AWS Budgets read access. For SSO, use [`aws configure sso` and `aws sso login --profile PROFILE`](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-sso.html). | Auto-detects configured profiles. Choose **AWS Bedrock → Use AWS profile**, then pick the profile you want. | Month-to-date Bedrock spend and the matching AWS Budget if one exists. |
+| **Anthropic API** | Create a Claude Console organization [Admin API key](https://platform.claude.com/docs/en/manage-claude/admin-api-keys) (`sk-ant-admin01-…`). | Manual. Choose **Anthropic API → Paste API key**. | Monthly API spend and a budget window if configured. |
+| **OpenAI API** | Create an [organization Admin API key](https://platform.openai.com/settings/organization/admin-keys) (`sk-admin-…`). | Manual. Choose **OpenAI API → Paste API key**. | Monthly API spend and a budget window if configured. |
+| **OpenRouter** | Create a key in [OpenRouter](https://openrouter.ai/settings/keys). Use a management key if you also want the account credit balance. | Manual. Choose **OpenRouter → Paste API key**. | Key limits or budgets, spend, and account credits when permitted. |
+
+**When a login expires**, use **Log in again** where available. Complete the provider’s sign-in,
+then click **Check again**. For AWS SSO, run `aws sso login --profile PROFILE` in your terminal.
+Pasted keys and session cookies go in your system keychain.
+
+**If a signed-in tool is missing**, check that you ran it under the same OS account as Tokenrunway.
+For Codex, check [where the CLI saves credentials](https://learn.chatgpt.com/docs/auth#credential-storage).
+Tokenrunway can discover Codex when the CLI saves an `auth.json` file. If your workspace allows
+file-based storage, set `cli_auth_credentials_store = "file"` in Codex’s `config.toml` and sign in
+again. Treat `auth.json` like a password.
+
+**When a limit is tight**, **Request more** opens the provider’s own request page for eligible
+Claude, ChatGPT, and GitHub Copilot workspace accounts. Other limit warnings can open a draft
+message for your admin. Where available, account cards also link to quota, spending, or credit settings.
+
+### Local usage and spend
+
+**Stats**, **Harness**, and the dashboard automatically read local sessions from Claude Code,
+Codex, and opencode. For LM Studio, start its local server and send it a request so it has a
+server log to read. Use the app on the same computer and user account that ran the tool.
+Local stats appear independently of the allowance accounts under **Add account**.
+
+### What you can track
+
+- **Allowance runway.** See usage, reset countdowns, and projected exhaustion. Pin a window to the menu bar and set alerts for tight limits or unused allowance about to reset.
+- **Spending and activity.** Track daily and monthly spend goals, API-equivalent cost, models, projects, and what you worked on. Open a session to see its token breakdown and tool names. Compare harnesses and spot unusually expensive sessions.
+- **Sharing and automation.** Copy an allowance summary, send alerts to [Rattleboard](#rattleboard), or use the [command line](#command-line) to check allowance before running a script.
 
 ## Screenshots
 
@@ -94,9 +98,9 @@
 <table>
   <tr>
     <td align="center" width="25%"><img src="docs/screenshots/popover-stats-dark.png" alt="Stats view"><br><sub><b>Stats</b>: spend, tokens, top models and projects, kind of work</sub></td>
-    <td align="center" width="25%"><img src="docs/screenshots/popover-harness-dark.png" alt="Harness view"><br><sub><b>Harness</b>: Claude Code vs Codex vs opencode vs Gemini CLI</sub></td>
+    <td align="center" width="25%"><img src="docs/screenshots/popover-harness-dark.png" alt="Harness view"><br><sub><b>Harness</b>: compare local agent activity</sub></td>
     <td align="center" width="25%"><img src="docs/screenshots/popover-now-light.png" alt="Now view in light mode"><br><sub><b>Light mode</b>: follows your system theme</sub></td>
-    <td align="center" width="25%"><img src="docs/screenshots/popover-request-light.png" alt="Request more view"><br><sub><b>Request more</b>: a prefilled ask to your admin</sub></td>
+    <td align="center" width="25%"><img src="docs/screenshots/popover-request-light.png" alt="Request more view"><br><sub><b>Request more</b>: an example admin draft</sub></td>
   </tr>
 </table>
 
@@ -106,17 +110,6 @@
 </p>
 
 <sub>Screenshots use sample data.</sub>
-
-## Install
-
-| Platform | How |
-|---|---|
-| macOS 11+ (Apple Silicon and Intel) | `brew install --cask slastrina/tap/tokenrunway`, or the `.dmg` from [Releases](https://github.com/slastrina/tokenrunway/releases/latest) |
-| Windows 10/11 | the `-setup.exe` or `.msi` from Releases |
-| Linux x86_64 / arm64 | the `.deb` or `.AppImage` from Releases (needs libayatana-appindicator; on GNOME the AppIndicator extension) |
-
-Tokenrunway checks GitHub for new versions once a day, shows what's new, and updates in place when
-you say so. Homebrew installs update with `brew upgrade --cask tokenrunway`.
 
 ## Command line
 
@@ -194,19 +187,23 @@ checks) with no Tauri dependency; `src-tauri` is the desktop app; `src` is its U
 
 ## Releasing
 
-1. `scripts/bump.sh 0.2.0`
-2. Add `## [0.2.0] - YYYY-MM-DD` to [CHANGELOG.md](CHANGELOG.md). That section becomes the release
-   notes and the in-app "What's new".
-3. Commit, then `git tag v0.2.0 && git push --tags`. GitHub Actions builds and signs every
-   platform, publishes the release and `latest.json` for the updater, and bumps the Homebrew cask.
+1. Run `scripts/bump.sh VERSION` with the new version.
+2. Add the matching version and date heading to [CHANGELOG.md](CHANGELOG.md). The section becomes
+   the GitHub release notes and the in-app What's new.
+3. Commit the changes, create the annotated `vVERSION` tag on that commit, and push the branch and
+   tag. The [Release workflow](.github/workflows/release.yml) builds installers, publishes
+   `latest.json` for in-app updates, and updates the Homebrew cask when configured.
 
-## Unofficial endpoints
+## Data and privacy
 
-Some providers have no public usage API for subscriptions. For those, Tokenrunway reads what their
-own CLIs already keep on your computer, or calls the endpoints their own apps call, for your own
-account only. Those can change without notice. When one does, Tokenrunway keeps the last good
-reading and says the source needs an update. The Gemini, Grok and xAI readers were built from
-the providers' observed calls without a test account, so treat them as early.
+Tokenrunway runs on your computer and has no Tokenrunway account or telemetry. Provider connections
+read allowance data using your existing logins, AWS profiles, or credentials saved in the system
+keychain. Session stats come from local logs. Tokenrunway stores usage and tool names without
+retaining prompts or tool arguments.
+
+Some subscription providers expose usage through their app or CLI endpoints. When a response
+changes, Tokenrunway keeps the last good reading and marks the source for attention. See the
+[allowance sources](SPEC.md#51-allowance-plane) for endpoint and verification details.
 
 ## Licence
 
