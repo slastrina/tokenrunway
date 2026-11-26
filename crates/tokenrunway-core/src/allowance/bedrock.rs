@@ -254,6 +254,10 @@ impl Provider for Bedrock {
         "https://console.aws.amazon.com/costmanagement/home#/cost-explorer".into()
     }
 
+    fn limit_settings(&self) -> Option<(&'static str, &'static str)> {
+        Some(("Open AWS Service Quotas", "https://console.aws.amazon.com/servicequotas/home"))
+    }
+
     fn min_interval_ms(&self) -> i64 {
         5 * 60_000
     }

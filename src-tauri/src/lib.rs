@@ -242,6 +242,8 @@ pub fn run() {
             commands::rename_account,
             commands::refresh,
             commands::open_provider,
+            commands::open_usage_request,
+            commands::open_limit_settings,
             commands::request_draft,
             commands::send_request,
             commands::copy_text,

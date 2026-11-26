@@ -146,7 +146,7 @@ pub async fn poll_one(app: &AppHandle, id: &str) {
                     // A CLI login is re-read locally (no network) until it's fixed; check often
                     // so signing in again shows up quickly. A refused key or session cookie
                     // backs off instead of knocking on the provider's door.
-                    ProviderError::AuthExpired(_) if matches!(rec.method.as_str(), "cli" | "aws") => 2 * 60_000,
+                    ProviderError::AuthExpired(_) if matches!(rec.method.as_str(), "cli" | "aws") => (2 * 60_000).max(min),
                     _ => backoff,
                 }
             }

@@ -287,9 +287,8 @@ impl Provider for Cursor {
         "https://cursor.com/dashboard?tab=usage".into()
     }
 
-    fn request_url(&self, acct: &AccountRecord) -> Option<String> {
-        let p = acct.plan.to_ascii_lowercase();
-        (p.contains("team") || p.contains("business") || p.contains("enterprise")).then(|| "https://cursor.com/dashboard?tab=usage".into())
+    fn limit_settings(&self) -> Option<(&'static str, &'static str)> {
+        Some(("Open Cursor spending", "https://cursor.com/dashboard/spending"))
     }
 }
 

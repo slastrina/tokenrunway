@@ -174,6 +174,10 @@ pub struct AccountView {
     pub note: Option<String>,
     /// "How": "cli" | "login" | "key" | "aws"
     pub method: String,
+    /// Request more opens the provider's usage settings directly for this account.
+    pub request_in_provider: bool,
+    /// Label for the account’s provider quota, spending or credit settings link.
+    pub limit_settings_label: Option<String>,
     pub windows: Vec<WindowView>,
 }
 

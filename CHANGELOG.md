@@ -4,6 +4,16 @@ Each release's section becomes its GitHub release notes and the in-app "What's n
 `.github/workflows/release.yml`). Write for people using the app: what they can do now, in a
 sentence or two each.
 
+## [0.4.0] - 2026-11-27
+
+### Added
+- Request more Copilot budget from GitHub for Business and Enterprise seats. Account cards also link directly to provider quota, spending, or credit settings where available.
+- Add Google Antigravity to see five-hour and weekly model quotas and reset times from the signed-in Antigravity CLI.
+
+### Fixed
+- **Request more** opens the provider’s usage settings directly for eligible Claude and ChatGPT workspace plans.
+- **Log in again** opens the appropriate terminal sign-in or app for CLI-backed accounts. **Check again** refreshes usage after sign-in.
+
 ## [0.3.0] - 2026-10-29
 
 ### Added

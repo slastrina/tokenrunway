@@ -110,6 +110,10 @@ impl Provider for GrokWeb {
     fn usage_url(&self, _acct: &AccountRecord) -> String {
         "https://grok.com/".into()
     }
+
+    fn limit_settings(&self) -> Option<(&'static str, &'static str)> {
+        Some(("Manage Grok plan", "https://grok.com/?_s=billing"))
+    }
 }
 
 /// The key's status → the card (no windows: there's no spend to read yet).
@@ -152,6 +156,10 @@ impl Provider for XaiApi {
 
     fn usage_url(&self, _acct: &AccountRecord) -> String {
         "https://console.x.ai/".into()
+    }
+
+    fn limit_settings(&self) -> Option<(&'static str, &'static str)> {
+        Some(("Request higher API limits", "https://console.x.ai/team/default/models"))
     }
 
     fn min_interval_ms(&self) -> i64 {

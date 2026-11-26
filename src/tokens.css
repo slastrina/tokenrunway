@@ -47,7 +47,7 @@
   --ok: #7cc4fa; --ok-text: #8ccdfb; --ok-bg: rgba(124, 196, 250, .13);
   --warn: #f5a524; --warn-text: #f7b84a; --warn-bg: rgba(245, 165, 36, .15);
   --crit: #ff6b75; --crit-text: #ff8f97; --crit-bg: rgba(255, 107, 117, .15);
-  --p-claude: #e5865f; --p-openai: #45c9a0; --p-bedrock: #b59cff; --p-gemini: #6aa8ff; --p-grok: #c3c9d4;
+  --p-claude: #e5865f; --p-openai: #45c9a0; --p-bedrock: #b59cff; --p-gemini: #6aa8ff; --p-antigravity: #9dacff; --p-grok: #c3c9d4;
   --p-copilot: #f08bcf; --p-cursor: #e6cf62; --p-openrouter: #5fd4e0; --p-api: #aab3c4; --h-opencode: #c9b48a; --h-lmstudio: #a3d977;
   --shadow-pop: 0 0 0 .5px rgba(0, 0, 0, .6), inset 0 0 0 .5px rgba(255, 255, 255, .14), 0 18px 48px rgba(0, 0, 0, .5);
   /* Dashboard */
@@ -73,7 +73,7 @@
   --ok: #3b82d6; --ok-text: #1f62b0; --ok-bg: rgba(59, 130, 214, .11);
   --warn: #f0a020; --warn-text: #94570a; --warn-bg: rgba(245, 165, 36, .17);
   --crit: #e0384a; --crit-text: #bd2536; --crit-bg: rgba(224, 56, 74, .10);
-  --p-claude: #b8572f; --p-openai: #0b7d5c; --p-bedrock: #6d4fd6; --p-gemini: #2f6fd8; --p-grok: #4b5262;
+  --p-claude: #b8572f; --p-openai: #0b7d5c; --p-bedrock: #6d4fd6; --p-gemini: #2f6fd8; --p-antigravity: #515fc2; --p-grok: #4b5262;
   --p-copilot: #b0388c; --p-cursor: #7d6800; --p-openrouter: #0e7c86; --p-api: #5d6779; --h-opencode: #7a6740; --h-lmstudio: #4f7d1f;
   --shadow-pop: 0 0 0 .5px rgba(0, 0, 0, .18), 0 18px 48px rgba(13, 19, 33, .22);
   /* Dashboard */

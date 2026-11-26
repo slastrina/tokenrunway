@@ -35,7 +35,7 @@
     <td width="50%" valign="top">
       <h3>Allowances at a glance</h3>
       Claude (Pro, Max, Team, Enterprise), ChatGPT/Codex (Plus, Pro, Business, Enterprise),
-      GitHub Copilot, Cursor, Gemini (CLI), Grok/xAI, AWS Bedrock budgets and the
+      GitHub Copilot, Cursor, Google Antigravity, Gemini (CLI), Grok/xAI, AWS Bedrock budgets and the
       Anthropic/OpenAI API orgs and OpenRouter keys. Several accounts per provider.
       <h3>Resets and forecasts</h3>
       Every 5-hour, weekly and monthly window with its reset time, a pace marker, and a
@@ -72,6 +72,9 @@
   pin. A copy button puts a usage summary on the clipboard.
 - **`tokenrunway` on the command line**: `status`, `today`, and a one-line `statusline` for your
   shell prompt or Claude Code.
+- **Antigravity quotas**: sign in to Google in Antigravity CLI (`agy` 1.1.11 or later),
+  then choose **Add account → Google Antigravity**. The account follows the active CLI login and
+  shows the model-group limits and reset times in its quota report.
 - **Sign in where there's no CLI**: Cursor and Grok can be signed in to inside Tokenrunway. Only
   the session cookie is kept, in your keychain.
 - **Rattleboard**: alerts and an "AI runway" card on a split-flap board.

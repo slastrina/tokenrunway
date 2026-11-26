@@ -306,10 +306,10 @@ impl Provider for CodexCli {
         "https://chatgpt.com/codex/settings/usage".into()
     }
 
-    fn request_url(&self, acct: &AccountRecord) -> Option<String> {
-        let p = acct.plan.to_ascii_lowercase();
+    fn request_url(&self, plan: &str) -> Option<String> {
+        let p = plan.to_ascii_lowercase();
         (p.contains("business") || p.contains("enterprise") || p.contains("team") || p.contains("edu"))
-            .then(|| "https://chatgpt.com/codex/settings/usage".into())
+            .then(|| "https://chatgpt.com/settings/usage?tab=overview".into())
     }
 }
 

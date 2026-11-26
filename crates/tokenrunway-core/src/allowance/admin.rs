@@ -120,6 +120,10 @@ impl Provider for AnthropicAdmin {
         "https://console.anthropic.com/settings/cost".into()
     }
 
+    fn limit_settings(&self) -> Option<(&'static str, &'static str)> {
+        Some(("Request tier increase", "https://platform.claude.com/usage/limits"))
+    }
+
     fn min_interval_ms(&self) -> i64 {
         15 * 60_000
     }
@@ -164,6 +168,10 @@ impl Provider for OpenaiAdmin {
 
     fn usage_url(&self, _acct: &AccountRecord) -> String {
         "https://platform.openai.com/usage".into()
+    }
+
+    fn limit_settings(&self) -> Option<(&'static str, &'static str)> {
+        Some(("Manage API limits", "https://platform.openai.com/settings/organization/limits"))
     }
 
     fn min_interval_ms(&self) -> i64 {

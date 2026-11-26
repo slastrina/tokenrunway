@@ -71,7 +71,7 @@ pub enum Kind {
 /// not its 5-hour window, extra usage, or a spend limit.
 pub fn use_it_or_lose_it(a: &AccountView, w: &WindowView) -> bool {
     let seat = match a.provider.as_str() {
-        "anthropic" | "openai" | "cursor" | "gemini" => a.method != "key",
+        "anthropic" | "openai" | "cursor" | "gemini" | "antigravity" => a.method != "key",
         "copilot" => true,
         "xai" => a.method == "login",
         _ => false,

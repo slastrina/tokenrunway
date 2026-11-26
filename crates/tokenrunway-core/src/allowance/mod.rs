@@ -8,6 +8,7 @@
 pub mod accounts;
 pub mod admin;
 pub mod alerts;
+pub mod antigravity;
 pub mod bedrock;
 pub mod claude;
 pub mod codex;
@@ -196,7 +197,11 @@ pub trait Provider: Send + Sync {
     /// The provider's own usage page, opened by `open_provider`.
     fn usage_url(&self, acct: &AccountRecord) -> String;
     /// The page that holds the provider's own "request more" flow, if it has one for this plan.
-    fn request_url(&self, _acct: &AccountRecord) -> Option<String> {
+    fn request_url(&self, _plan: &str) -> Option<String> {
+        None
+    }
+    /// An account-level link for adjusting quotas, caps or credits outside the member request flow.
+    fn limit_settings(&self) -> Option<(&'static str, &'static str)> {
         None
     }
     /// How often to poll at most, regardless of activity (Bedrock is cached and slow-moving).
@@ -215,6 +220,7 @@ pub fn provider_for(acct: &AccountRecord) -> Option<Box<dyn Provider>> {
         ("openai-api", "key") => Some(Box::new(admin::OpenaiAdmin)),
         ("copilot", "cli" | "key") => Some(Box::new(copilot::Copilot)),
         ("gemini", "cli") => Some(Box::new(gemini::GeminiCli)),
+        ("antigravity", "cli") => Some(Box::new(antigravity::AntigravityCli)),
         ("cursor", "login" | "cli" | "key") => Some(Box::new(cursor::Cursor)),
         ("xai", "login") => Some(Box::new(grok::GrokWeb)),
         ("xai", "key") => Some(Box::new(grok::XaiApi)),
@@ -243,6 +249,7 @@ pub fn provider_name(provider: &str) -> &'static str {
         "openai-api" => "OpenAI API",
         "xai" => "Grok",
         "gemini" => "Gemini",
+        "antigravity" => "Antigravity",
         "copilot" => "Copilot",
         "cursor" => "Cursor",
         "openrouter" => "OpenRouter",
@@ -258,6 +265,7 @@ pub fn mono(provider: &str) -> &'static str {
         "anthropic-api" | "openai-api" => "A",
         "xai" => "X",
         "gemini" => "G",
+        "antigravity" => "Ag",
         "copilot" => "P",
         "cursor" => "Cu",
         "openrouter" => "R",
@@ -286,6 +294,11 @@ pub fn detect(home: &std::path::Path, existing: &[AccountRecord]) -> Vec<Detecte
     }
     if !has("gemini", "cli") {
         if let Some(d) = gemini::detect(home) {
+            out.push(d);
+        }
+    }
+    if !has("antigravity", "cli") {
+        if let Some(d) = antigravity::detect(home) {
             out.push(d);
         }
     }
@@ -374,8 +387,13 @@ pub fn account_view(
         })
         .unwrap_or_default();
     let plan = live.last.as_ref().and_then(|f| f.plan.clone()).filter(|p| !p.is_empty()).unwrap_or_else(|| acct.plan.clone());
+    let provider = provider_for(acct);
+    let request_in_provider = provider.as_ref().is_some_and(|p| p.request_url(&plan).is_some());
+    let limit_settings_label = provider.as_ref().and_then(|p| p.limit_settings()).map(|(label, _)| label.into());
     AccountView {
         id: acct.id.clone(),
+        request_in_provider,
+        limit_settings_label,
         provider: acct.provider.clone(),
         name: acct.label.clone(),
         plan,
@@ -587,6 +605,7 @@ mod tests {
             ("copilot", "cli", "copilot"),
             ("copilot", "key", "copilot"),
             ("gemini", "cli", "gemini-cli"),
+            ("antigravity", "cli", "antigravity-cli"),
             ("cursor", "login", "cursor"),
             ("cursor", "cli", "cursor"),
             ("cursor", "key", "cursor"),
@@ -600,6 +619,48 @@ mod tests {
         assert!(provider_for(&rec("openrouter", "cli")).is_none());
         assert_eq!((provider_name("openrouter"), mono("openrouter")), ("OpenRouter", "R"));
         assert_eq!((mono("copilot"), mono("gemini"), mono("cursor"), mono("xai")), ("P", "G", "Cu", "X"));
+    }
+
+    #[test]
+    fn workspaces_open_usage_requests_in_the_provider() {
+        for (provider, plan, expected) in [
+            ("openai", "Business", Some("https://chatgpt.com/settings/usage?tab=overview")),
+            ("openai", "Plus", None),
+            ("anthropic", "Enterprise", Some("https://claude.ai/settings/usage")),
+            ("anthropic", "Team", Some("https://claude.ai/settings/usage")),
+            ("anthropic", "Max", None),
+            ("copilot", "Business", Some("https://github.com/settings/copilot")),
+            ("copilot", "Enterprise", Some("https://github.com/settings/copilot")),
+            ("copilot", "Individual", None),
+            ("cursor", "Team", None),
+        ] {
+            let acct = AccountRecord { provider: provider.into(), method: "cli".into(), ..Default::default() };
+            let live = Live { last: Some(Fetched { plan: Some(plan.into()), ..Default::default() }), ..Default::default() };
+            let view = account_view(&acct, &live, &|_| Vec::new(), &Thresholds::default(), 0);
+            assert_eq!(view.request_in_provider, expected.is_some(), "{provider} {plan}");
+            assert_eq!(provider_for(&acct).unwrap().request_url(&view.plan).as_deref(), expected);
+        }
+    }
+
+    #[test]
+    fn quota_and_spending_links_are_separate_from_member_requests() {
+        for (provider, method, url) in [
+            ("anthropic-api", "key", "https://platform.claude.com/usage/limits"),
+            ("openai-api", "key", "https://platform.openai.com/settings/organization/limits"),
+            ("xai", "key", "https://console.x.ai/team/default/models"),
+            ("xai", "login", "https://grok.com/?_s=billing"),
+            ("bedrock", "aws", "https://console.aws.amazon.com/servicequotas/home"),
+            ("cursor", "login", "https://cursor.com/dashboard/spending"),
+            ("antigravity", "cli", "https://one.google.com/ai/credits"),
+            ("openrouter", "key", "https://openrouter.ai/settings/keys"),
+        ] {
+            let acct = AccountRecord { provider: provider.into(), method: method.into(), ..Default::default() };
+            let view = account_view(&acct, &Live::default(), &|_| Vec::new(), &Thresholds::default(), 0);
+            let (label, target) = provider_for(&acct).unwrap().limit_settings().unwrap();
+            assert_eq!(target, url, "{provider}/{method}");
+            assert_eq!(view.limit_settings_label.as_deref(), Some(label));
+            assert!(!view.request_in_provider);
+        }
     }
 
     #[test]

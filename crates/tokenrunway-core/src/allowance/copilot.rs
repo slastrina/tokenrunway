@@ -271,8 +271,9 @@ impl Provider for Copilot {
         "https://github.com/settings/copilot".into()
     }
 
-    fn request_url(&self, acct: &AccountRecord) -> Option<String> {
-        let p = acct.plan.to_ascii_lowercase();
+    fn request_url(&self, plan: &str) -> Option<String> {
+        // GitHub shows the request banner when an eligible member runs out of AI credits.
+        let p = plan.to_ascii_lowercase();
         (p.contains("business") || p.contains("enterprise")).then(|| "https://github.com/settings/copilot".into())
     }
 }

@@ -103,6 +103,7 @@ softly. **Local** = files on disk.
 | GitHub Copilot | `GET api.github.com/copilot_internal/user` (`Authorization: token …`, `X-GitHub-Api-Version: 2025-04-01`) | `quota_snapshots.premium_interactions` (and chat/completions when limited), `quota_reset_date`; Free: `limited_user_quotas` / `monthly_quotas`; unlimited → a note, no bar; `access_type_sku: subscription_ended` → "subscription has ended" (Broken, cause "setup") | `gh auth token`, else the Copilot editor login (`~/.config/github-copilot/apps.json`/`hosts.json`), else `GH_TOKEN`/`GITHUB_TOKEN` (method cli); or a pasted token (key) | Observed — verified Oct 2026 for an ended subscription only; quota shapes as documented, unverified |
 | Cursor | `GET cursor.com/api/usage-summary` (plan `totalPercentUsed`, `used`/`limit` assumed cents, on-demand), `POST /api/dashboard/get-plan-info` (plan name), `POST /api/dashboard/get-current-period-usage` (fallback) | "Monthly plan" % and $ to the cycle end; "On-demand" spend | `WorkosCursorSessionToken` cookie: in-app login window (login), the Cursor app's `state.vscdb` `cursorAuth/accessToken` as `<user>%3A%3A<token>` (cli), or pasted (key) | Observed — verified Oct 2026 (shapes, zero usage); app login unverified |
 | xAI / Grok | SuperGrok: `POST grok.com/rest/rate-limits` per `requestKind` (DEFAULT, REASONING, DEEPSEARCH). API: `GET api.x.ai/v1/api-key` (key status only; no documented spend endpoint yet) | Queries left per rolling window (reset known only when used up); API: key active/blocked, "spend not available yet" note | grok.com `sso`/`sso-rw` cookies (login window); xAI API key (key) | Observed — unverified (no account to test) |
+| Google Antigravity (CLI) | `agy -p /usage --output-format json` (1.1.11+) | Measured five-hour and weekly limits by model group, with reported reset times | Active Antigravity CLI login | Official command |
 | Google Gemini (CLI) | `POST cloudcode-pa.googleapis.com/v1internal:loadCodeAssist` (tier, project) then `:retrieveUserQuota` (per-model `remainingFraction`, `resetTime`) | "Gemini 2.5 Pro · daily" etc. | Gemini CLI login `~/.gemini/oauth_creds.json`, read-only, never refreshed | Observed — unverified (no CLI login to test) |
 | Google Gemini (API projects) | Cloud Billing / quotas | API spend | gcloud ADC | Official (not built yet) |
 
@@ -431,22 +432,20 @@ Rattleboard).
 
 The aim is to raise the request *before* you run out, with the evidence attached.
 
-Three tiers, tried in order and set per account:
-1. **Native**: when the provider has an in-product request flow (Claude Enterprise's "request more
-   usage", ChatGPT Business/Enterprise credit requests), the adapter calls the same endpoint the web
-   app uses, through the account's logged-in session. Spike S3 captures and documents the flow; it
-   ships only if it works without scraping UI.
-2. **Deep link**: open the provider's page that holds the request button (claude.ai settings →
-   usage), already signed in through the login webview.
-3. **Message**: write a message to the admin contact set for that account (email via `mailto:`,
-   or a Slack/Teams deep link), filled in with:
-   > I'm at 86% of my Claude Enterprise weekly allowance (resets Mon 09:00). At my current pace I'll
-   > run out Thu ~15:00. Could you raise my limit by ~40% for this cycle? Current use: 61% Claude
-   > Code (Build 48%, Bug fix 30%), …
+For ChatGPT Business, Enterprise and Edu, Claude Team and Enterprise, and GitHub Copilot Business
+and Enterprise, **Request more** opens the provider's settings in the default browser. Select
+the relevant workspace and submit the request there when the provider offers it. GitHub shows
+the request banner when an eligible member exhausts their credits. Tokenrunway records no
+submission when it opens a page. The action is available before a usage warning.
 
-The prompt to ask appears at a set threshold (default 85%) or when you're projected to run out
-within the lead time. Every request is logged locally (when, which tier, what outcome) and shown on
-the account card.
+For other plans, a usage warning opens the composer to draft a message to an admin over email,
+Slack or Teams. The draft includes usage, reset time and the latest forecast. Warnings can offer
+the action at the configured threshold (85% by default) or when a window is projected to run out.
+
+The account card also links to provider controls where relevant. These include AWS Service Quotas
+for Bedrock inference quotas, Claude and OpenAI platform limits, xAI API limits, Cursor spending,
+Grok subscription billing, Antigravity credits in Google One, and OpenRouter key limits. Each
+provider controls eligibility and handles any changes in the browser.
 
 ## 10. Analytics
 

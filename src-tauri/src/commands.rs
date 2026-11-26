@@ -221,6 +221,7 @@ fn can_add(provider: &str, method: &str) -> bool {
             | ("openai-api", "key")
             | ("copilot", "cli" | "key")
             | ("gemini", "cli")
+            | ("antigravity", "cli")
             | ("cursor", "login" | "cli" | "key")
             | ("xai", "login" | "key")
             | ("openrouter", "key")
@@ -234,6 +235,7 @@ fn cli_name(provider: &str) -> &'static str {
         "openai" => "Codex CLI",
         "copilot" => "GitHub CLI",
         "gemini" => "Gemini CLI",
+        "antigravity" => "Antigravity CLI",
         "cursor" => "Cursor app",
         _ => "CLI",
     }
@@ -395,35 +397,35 @@ pub fn refresh(app: AppHandle, account_id: Option<String>) {
     crate::poll::force(&app, account_id.as_deref());
 }
 
-/// "Log in again" / "I've run codex login": a CLI or AWS login is re-read straight away (the
-/// CLI did the signing in); an in-app login opens its login window again; a refused key has to
-/// be pasted again.
+/// Opens the account's own sign-in flow. External sign-ins are re-read on the next check.
 #[tauri::command]
-pub async fn login_account(app: AppHandle, account_id: String) -> Result<AccountView, String> {
+pub async fn login_account(app: AppHandle, account_id: String) -> Result<(), String> {
     let rec = record(&app, &account_id)?;
     match rec.method.as_str() {
-        "key" => return Err("Remove this account and add it again with a new key.".into()),
+        "cli" => crate::login::launch_cli_login(&rec.provider).await,
         "login" => {
-            crate::login::run(&app, &rec).await?;
+            let result = crate::login::run(&app, &rec).await;
             show_popover(&app);
+            result?;
+            let st = app.state::<AppState>();
+            {
+                let mut sched = st.sched.lock().unwrap();
+                let s = sched.entry(account_id.clone()).or_default();
+                if s.in_flight {
+                    drop(sched);
+                    crate::poll::force(&app, Some(&account_id));
+                    return Ok(());
+                }
+                s.in_flight = true;
+                s.failures = 0;
+                s.last_forced = now_ms();
+            }
+            crate::poll::poll_one(&app, &account_id).await;
+            Ok(())
         }
-        _ => {}
+        "key" => Err("Remove this account and add it again with a new key.".into()),
+        _ => Err("Sign in with the provider, then check again.".into()),
     }
-    let st = app.state::<AppState>();
-    {
-        let mut sched = st.sched.lock().unwrap();
-        let s = sched.entry(account_id.clone()).or_default();
-        if s.in_flight {
-            drop(sched);
-            crate::poll::force(&app, Some(&account_id));
-            return st.account_views(now_ms()).into_iter().find(|a| a.id == account_id).ok_or_else(|| "No such account.".into());
-        }
-        s.in_flight = true;
-        s.failures = 0;
-        s.last_forced = now_ms();
-    }
-    crate::poll::poll_one(&app, &account_id).await;
-    st.account_views(now_ms()).into_iter().find(|a| a.id == account_id).ok_or_else(|| "No such account.".into())
 }
 
 fn record(app: &AppHandle, id: &str) -> Result<AccountRecord, String> {
@@ -438,6 +440,22 @@ pub fn open_provider(app: AppHandle, account_id: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub fn open_limit_settings(app: AppHandle, account_id: String) -> Result<(), String> {
+    let acct = record(&app, &account_id)?;
+    let (_, url) =
+        allowance::provider_for(&acct).and_then(|p| p.limit_settings()).ok_or("This account has no provider limit settings link.")?;
+    app.opener().open_url(url, None::<&str>).map_err(|e| format!("Couldn't open provider settings: {e}"))
+}
+
+#[tauri::command]
+pub fn open_usage_request(app: AppHandle, account_id: String) -> Result<(), String> {
+    let rec = record(&app, &account_id)?;
+    let acct = app.state::<AppState>().account_views(now_ms()).into_iter().find(|a| a.id == account_id).ok_or("No such account.")?;
+    let url = allowance::provider_for(&rec).and_then(|p| p.request_url(&acct.plan)).ok_or("This account has no usage request page.")?;
+    app.opener().open_url(url, None::<&str>).map_err(|e| format!("Couldn't open usage settings: {e}"))
+}
+
+#[tauri::command]
 pub fn request_draft(app: AppHandle, account_id: String, window_id: String) -> Result<RequestDraft, String> {
     let st = app.state::<AppState>();
     let rec = record(&app, &account_id)?;
@@ -446,7 +464,7 @@ pub fn request_draft(app: AppHandle, account_id: String, window_id: String) -> R
     let w = a.windows.iter().find(|w| w.id == window_id).ok_or("That window has no reading yet.")?;
     let s = st.settings.lock().unwrap().clone();
     let to = s.admins.get(&account_id).cloned().unwrap_or_default();
-    let url = allowance::provider_for(&rec).and_then(|p| p.request_url(&rec));
+    let url = allowance::provider_for(&rec).and_then(|p| p.request_url(&a.plan));
     Ok(request::draft(&a, w, to, &s.my_name, url.as_deref(), now))
 }
 
@@ -470,8 +488,10 @@ fn address(to: &serde_json::Value, channel: &str) -> String {
 #[tauri::command]
 pub fn send_request(app: AppHandle, account_id: String, channel: String, to: serde_json::Value, body: String) -> Result<(), String> {
     use tauri_plugin_clipboard_manager::ClipboardExt;
+    if channel == "provider" {
+        return open_usage_request(app, account_id);
+    }
     let st = app.state::<AppState>();
-    let rec = record(&app, &account_id)?;
     let addr = address(&to, &channel).trim().to_string();
     let a = st.account_views(now_ms()).into_iter().find(|a| a.id == account_id).ok_or("No such account.")?;
     let open = |url: String| app.opener().open_url(url, None::<&str>).map_err(|e| format!("Couldn't open it: {e}"));
@@ -482,14 +502,10 @@ pub fn send_request(app: AppHandle, account_id: String, channel: String, to: ser
             open(request::slack(&addr))?;
         }
         "teams" => open(request::teams(&addr, &body))?,
-        "provider" => {
-            let p = allowance::provider_for(&rec).ok_or("This account has no request page.")?;
-            open(p.request_url(&rec).unwrap_or_else(|| p.usage_url(&rec)))?;
-        }
         other => return Err(format!("Unknown channel {other}")),
     }
     // Remember who to ask next time, per channel.
-    if !addr.is_empty() && channel != "provider" {
+    if !addr.is_empty() {
         let mut s = st.settings.lock().unwrap();
         let c = s.admins.entry(account_id.clone()).or_insert_with(AdminContact::default);
         match channel.as_str() {

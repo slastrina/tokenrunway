@@ -18,7 +18,7 @@ use std::path::Path;
 
 const URL: &str = "https://api.anthropic.com/api/oauth/usage";
 const HOST: &str = "api.anthropic.com";
-pub const LOGIN_HINT: &str = "The Claude Code login expired. Run `claude` to sign in again.";
+pub const LOGIN_HINT: &str = "The Claude Code login expired. Run `claude auth login` to sign in again.";
 
 pub struct ClaudeCode;
 
@@ -233,7 +233,7 @@ impl Provider for ClaudeCode {
     fn fetch<'a>(&'a self, _acct: &'a AccountRecord, ctx: &'a Ctx) -> BoxFuture<'a, Result<Fetched, ProviderError>> {
         Box::pin(async move {
             let Some(creds) = read_creds(&ctx.home).await else {
-                return Err(ProviderError::AuthExpired("No Claude Code login on this machine. Run `claude` to sign in.".into()));
+                return Err(ProviderError::AuthExpired("No Claude Code login on this machine. Run `claude auth login` to sign in.".into()));
             };
             let now = crate::now_ms();
             if creds.expires_at.is_some_and(|e| e < now) {
@@ -268,9 +268,9 @@ impl Provider for ClaudeCode {
         "https://claude.ai/settings/usage".into()
     }
 
-    fn request_url(&self, acct: &AccountRecord) -> Option<String> {
+    fn request_url(&self, plan: &str) -> Option<String> {
         // Team and Enterprise seats ask their admin from the usage page.
-        let p = acct.plan.to_ascii_lowercase();
+        let p = plan.to_ascii_lowercase();
         (p.contains("enterprise") || p.contains("team")).then(|| "https://claude.ai/settings/usage".into())
     }
 

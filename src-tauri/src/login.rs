@@ -146,3 +146,101 @@ pub fn forget(app: &AppHandle, account_id: &str) {
         let _ = std::fs::remove_dir_all(dir);
     }
 }
+
+/// Opens the external tool that owns the CLI account's credentials.
+pub async fn launch_cli_login(provider: &str) -> Result<(), String> {
+    let command = match provider {
+        "anthropic" => "claude auth login",
+        "openai" => "codex login",
+        "copilot" => "gh auth login --hostname github.com --web",
+        "gemini" => "gemini",
+        "antigravity" => "agy",
+        "cursor" => return open_cursor().await,
+        _ => return Err("Sign in with the provider, then check again.".into()),
+    };
+    open_terminal(command).await.map_err(|_| format!("Couldn't open a terminal. Run `{command}` in your terminal, then check again."))
+}
+
+#[cfg(target_os = "macos")]
+async fn open_terminal(command: &str) -> Result<(), ()> {
+    use std::io::Write;
+    use std::os::unix::fs::OpenOptionsExt;
+
+    let dir = tempfile::tempdir().map_err(|_| ())?;
+    let script = dir.path().join("tokenrunway-login.command");
+    std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o700)
+        .open(&script)
+        .and_then(|mut file| {
+            // Terminal opens the file directly, without requiring Apple Events permission.
+            // The one-use script cleans up before running the fixed login command.
+            writeln!(file, "#!/bin/sh\n/bin/rm -f -- \"$0\"\n/bin/rmdir -- \"${{0%/*}}\"\nexport PATH=\"$PATH:/opt/homebrew/bin:/usr/local/bin:$HOME/.local/bin\"\n{command}")
+        })
+        .map_err(|_| ())?;
+    let status = tokio::process::Command::new("/usr/bin/open").args(["-a", "Terminal"]).arg(&script).status().await.map_err(|_| ())?;
+    if !status.success() {
+        return Err(());
+    }
+    // Launch Services can return before Terminal starts the script.
+    let _ = dir.keep();
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+async fn open_terminal(command: &str) -> Result<(), ()> {
+    let mut cmd = tokio::process::Command::new("cmd.exe");
+    cmd.creation_flags(0x10).args(["/K", command]); // CREATE_NEW_CONSOLE
+    launch_external(cmd)
+}
+
+#[cfg(target_os = "linux")]
+async fn open_terminal(command: &str) -> Result<(), ()> {
+    let shell = std::env::var_os("SHELL").filter(|s| std::path::Path::new(s).is_absolute()).unwrap_or_else(|| "/bin/sh".into());
+    for (name, separator) in [
+        ("xdg-terminal-exec", "--"),
+        ("gnome-terminal", "--"),
+        ("konsole", "-e"),
+        ("xfce4-terminal", "-x"),
+        ("x-terminal-emulator", "-e"),
+        ("xterm", "-e"),
+    ] {
+        if let Some(path) = allowance::find_program(name) {
+            let mut cmd = tokio::process::Command::new(path);
+            cmd.arg(separator).arg(&shell).args(["-ic", command]);
+            if launch_external(cmd).is_ok() {
+                return Ok(());
+            }
+        }
+    }
+    Err(())
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+async fn open_terminal(_command: &str) -> Result<(), ()> {
+    Err(())
+}
+
+async fn open_cursor() -> Result<(), String> {
+    let error = || "Couldn't open Cursor. Open the Cursor app and sign in, then check again.".to_string();
+    #[cfg(target_os = "macos")]
+    {
+        let output = tokio::process::Command::new("/usr/bin/open").args(["-a", "Cursor"]).output().await.map_err(|_| error())?;
+        output.status.success().then_some(()).ok_or_else(error)
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let program = allowance::find_program("cursor").ok_or_else(error)?;
+        launch_external(tokio::process::Command::new(program)).map_err(|_| error())
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn launch_external(mut cmd: tokio::process::Command) -> Result<(), ()> {
+    let mut child = cmd.spawn().map_err(|_| ())?;
+    tauri::async_runtime::spawn(async move {
+        let _ = child.wait().await;
+    });
+    Ok(())
+}

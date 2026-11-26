@@ -174,6 +174,10 @@ impl Provider for OpenRouter {
         "https://openrouter.ai/settings/credits".into()
     }
 
+    fn limit_settings(&self) -> Option<(&'static str, &'static str)> {
+        Some(("Manage key limits", "https://openrouter.ai/settings/keys"))
+    }
+
     fn min_interval_ms(&self) -> i64 {
         5 * 60_000
     }

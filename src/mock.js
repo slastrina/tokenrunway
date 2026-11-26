@@ -35,7 +35,7 @@
   const hhmm = () => new Date().toTimeString().slice(0, 5);
 
   const claude = () => ({
-    id: 'acct-1', provider: 'anthropic', name: 'Claude — work', plan: 'Enterprise', mono: 'C', updatedAt: at(-12000), state: 'ok', problem: null, method: 'cli',
+    id: 'acct-1', provider: 'anthropic', name: 'Claude — work', plan: 'Enterprise', requestInProvider: true, mono: 'C', updatedAt: at(-12000), state: 'ok', problem: null, method: 'cli',
     windows: [
       { ...win('5h', '5-hour', '412k / 530k tokens', 78, 2 * H + 41 * M, 46, 130, 'crit', 'Out at 13:05, 1h 15m before reset', 1 * H + 26 * M), cycleSpend: 38.42 },
       { ...win('weekly', 'Weekly', null, 64, 2 * D + 21 * H, 59, 79, 'ok', 'On track'), cycleSpend: 412.6 },
@@ -50,7 +50,7 @@
     ],
   });
   const bedrock = () => ({
-    id: 'acct-3', provider: 'bedrock', name: 'AWS Bedrock — iokig-prod', plan: 'On-demand', mono: 'B', updatedAt: at(-4 * M), state: 'ok', problem: null, method: 'aws',
+    id: 'acct-3', provider: 'bedrock', name: 'AWS Bedrock — iokig-prod', plan: 'On-demand', limitSettingsLabel: 'Open AWS Service Quotas', mono: 'B', updatedAt: at(-4 * M), state: 'ok', problem: null, method: 'aws',
     windows: [win('monthly', 'Monthly budget', '$184 / $500', 37, 8 * D + 12 * H, 72, 51, 'est', 'Rough estimate · ~$255')],
   });
   const copilot = () => ({
@@ -59,7 +59,7 @@
     windows: [win('premium', 'Premium requests', '212 / 300', 71, 9 * D + 4 * H, 70, 101, 'warn', 'Tight · ~101% at reset')],
   });
   const cursor = () => ({
-    id: 'acct-5', provider: 'cursor', name: 'Cursor', plan: 'Pro', mono: 'Cu', updatedAt: at(-30000), state: 'ok', problem: null, method: 'login',
+    id: 'acct-5', provider: 'cursor', name: 'Cursor', plan: 'Pro', limitSettingsLabel: 'Open Cursor spending', mono: 'Cu', updatedAt: at(-30000), state: 'ok', problem: null, method: 'login',
     windows: [
       win('monthly', 'Monthly plan', '$5 / $20', 25, 13 * D + 2 * H, 58, 43, 'ok', 'On track'),
       win('on-demand', 'On-demand', '$12.40 spent', 0, 13 * D + 2 * H, 58, null, 'est', 'Rough estimate · ~$21'),
@@ -72,8 +72,16 @@
       win('gemini-2.5-flash-daily', 'Gemini 2.5 Flash · daily', null, 8, 9 * H, 62, 13, 'ok', 'On track'),
     ],
   });
+  const antigravity = () => ({
+    id: 'acct-10', provider: 'antigravity', name: 'Antigravity', plan: '', limitSettingsLabel: 'Open Google One AI credits', mono: 'Ag', updatedAt: at(-15000), state: 'ok', problem: null, method: 'cli',
+    windows: [
+      win('weekly-gemini-weekly', 'Gemini Models · Weekly', null, 25, 5 * D, 28, 60, 'ok', 'On track'),
+      win('5h-gemini-5h', 'Gemini Models · 5-hour', null, 40, 3 * H, 40, 75, 'ok', 'On track'),
+      win('weekly-3p-weekly', 'Claude and GPT models · Weekly', null, 12, 6 * D, 14, 50, 'ok', 'On track'),
+    ],
+  });
   const openrouter = () => ({
-    id: 'acct-9', provider: 'openrouter', name: 'OpenRouter', plan: 'Credits', mono: 'R', updatedAt: at(-25000), state: 'ok', problem: null, method: 'key',
+    id: 'acct-9', provider: 'openrouter', name: 'OpenRouter', plan: 'Credits', limitSettingsLabel: 'Manage key limits', mono: 'R', updatedAt: at(-25000), state: 'ok', problem: null, method: 'key',
     note: 'This key: $1.25 today · $8.60 this week · $12.50 this month',
     windows: [
       win('monthly', 'Monthly limit', '$12.50 / $50', 25, 8 * D + 12 * H, 72, 35, 'ok', 'On track'),
@@ -81,9 +89,9 @@
     ],
   });
   const grok = (method) => (method === 'key'
-    ? { id: 'acct-8', provider: 'xai', name: 'xAI API', plan: 'API', mono: 'X', updatedAt: at(-10000), state: 'ok', problem: null, method,
+    ? { id: 'acct-8', provider: 'xai', name: 'xAI API', plan: 'API', limitSettingsLabel: 'Request higher API limits', mono: 'X', updatedAt: at(-10000), state: 'ok', problem: null, method,
       note: 'Key “laptop” is active. xAI has no spend endpoint Tokenrunway can read yet, so there’s no usage bar.', windows: [] }
-    : { id: 'acct-8', provider: 'xai', name: 'Grok', plan: '', mono: 'X', updatedAt: at(-10000), state: 'ok', problem: null, method,
+    : { id: 'acct-8', provider: 'xai', name: 'Grok', plan: '', limitSettingsLabel: 'Manage Grok plan', mono: 'X', updatedAt: at(-10000), state: 'ok', problem: null, method,
       windows: [win('queries', 'Grok queries', '18 / 30 queries', 60, null, null, null, 'ok', 'On track')] });
   const detected = [
     { kind: 'claude-code', label: 'Claude Code login', detail: 'sam@iokig.com', provider: 'anthropic', mono: 'C' },
@@ -91,6 +99,7 @@
     { kind: 'aws', label: 'AWS profiles', detail: '2 in ~/.aws', provider: 'bedrock', mono: 'B' },
     { kind: 'gh', label: 'GitHub CLI login', detail: 'sam', provider: 'copilot', mono: 'P' },
     { kind: 'gemini-cli', label: 'Gemini CLI login', detail: 'sam@iokig.com', provider: 'gemini', mono: 'G' },
+    { kind: 'antigravity-cli', label: 'Antigravity CLI', detail: '', provider: 'antigravity', mono: 'Ag' },
     { kind: 'cursor-app', label: 'Cursor app login', detail: 'sam@iokig.com', provider: 'cursor', mono: 'Cu' },
   ];
 
@@ -161,7 +170,7 @@
         win('weekly-opus', 'Weekly Opus', null, 47, 2 * D + 21 * H, 59, 66, 'ok', 'On track')] },
       { ...chatgpt(), updatedAt: at(-41000) },
       { ...bedrock(), updatedAt: at(-3 * M), windows: [win('monthly', 'Monthly $', '$184 / $500', 37, 8 * D + 12 * H, 72, 51, 'ok', 'On track')] },
-      { id: 'acct-5', provider: 'cursor', name: 'Cursor — work', plan: 'Pro', mono: 'Cu', updatedAt: at(-1 * M), state: 'ok', method: 'login',
+      { id: 'acct-5', provider: 'cursor', name: 'Cursor — work', plan: 'Pro', limitSettingsLabel: 'Open Cursor spending', mono: 'Cu', updatedAt: at(-1 * M), state: 'ok', method: 'login',
         windows: [win('monthly', 'Monthly reqs', '220 / 500', 44, 16 * D + 12 * H, 72, 60, 'ok', 'On track')] },
     ];
   }
@@ -430,7 +439,7 @@
       if (method === 'login') { await wait(2500); if (q.get('login') === 'cancel') throw new Error('The login window was closed before signing in finished.'); }
       await wait(500);
       if (method === 'key' && provider === 'cursor' && (key || '').length < 20) throw new Error('Paste the value of the WorkosCursorSessionToken cookie from cursor.com.');
-      const extra = { copilot, cursor, gemini, openrouter, xai: () => grok(method) }[provider];
+      const extra = { copilot, cursor, gemini, antigravity, openrouter, xai: () => grok(method) }[provider];
       const base = extra ? extra() : provider === 'openai' ? chatgpt() : provider === 'bedrock' ? bedrock() : claude();
       const acct = { ...base, id: 'acct-' + Math.round(Math.random() * 1e6), name: label || base.name, method, updatedAt: Date.now() };
       acct.windows = acct.windows.map((w) => ({ ...w, status: w.status === 'est' ? 'est' : w.status, proj: null, pace: w.pace }));
@@ -448,6 +457,24 @@
     },
     login_account: () => null,
     open_provider: () => null,
+    open_usage_request: ({ accountId }) => {
+      const provider = app.accounts.find((a) => a.id === accountId)?.provider;
+      const url = { openai: 'https://chatgpt.com/settings/usage?tab=overview', anthropic: 'https://claude.ai/settings/usage', copilot: 'https://github.com/settings/copilot' }[provider];
+      if (!url) throw new Error('This account has no usage request page.');
+      window.open(url, '_blank', 'noopener');
+    },
+    open_limit_settings: ({ accountId }) => {
+      const account = app.accounts.find((a) => a.id === accountId);
+      const url = {
+        antigravity: 'https://one.google.com/ai/credits',
+        bedrock: 'https://console.aws.amazon.com/servicequotas/home',
+        cursor: 'https://cursor.com/dashboard/spending',
+        openrouter: 'https://openrouter.ai/settings/keys',
+        xai: account?.method === 'key' ? 'https://console.x.ai/team/default/models' : 'https://grok.com/?_s=billing',
+      }[account?.provider];
+      if (!url) throw new Error('This account has no provider limit settings link.');
+      window.open(url, '_blank', 'noopener');
+    },
     open_dashboard: ({ target } = {}) => {
       const p = new URLSearchParams(location.search);
       for (const k of ['view', 'project', 'model']) p.delete(k);
@@ -460,7 +487,7 @@
       const w = a.windows.find((x) => x.id === windowId) || a.windows[0];
       return {
         accountId: a.id, title: `${a.name} · ${w.label} at ${Math.round(w.pct)}%`, forecast: w.forecast,
-        channels: ['provider', 'email', 'slack', 'teams'], to: app.settings.admins[a.id] || { name: '', email: '', slack: '', teams: '' },
+        channels: ['email', 'slack', 'teams'], to: app.settings.admins[a.id] || { name: '', email: '', slack: '', teams: '' },
         body: "Hi Jordan, I'm close to my Claude limit on the Enterprise seat.\n\n• 5-hour: 78% used (412k / 530k tokens), resets 14:20\n• At this pace I run out at 13:05, 1h 15m before reset\n• Weekly 64% · Weekly Opus 83%, both reset Mon 09:00\n\nCould you raise my limit or add usage for today? I'm in the middle of [what you're working on].\n\nThanks, Sam",
       };
     },

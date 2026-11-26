@@ -10,7 +10,7 @@
   const TABS = [['now', 'Now'], ['stats', 'Stats'], ['harness', 'Harness']];
   const PERIODS = [['today', 'Today'], ['7d', '7 d'], ['30d', '30 d'], ['lifetime', 'Lifetime']];
   const PROBLEM = new Set(['stale', 'login', 'broken']);
-  const SHORT = { anthropic: 'Claude', openai: 'ChatGPT', bedrock: 'AWS Bedrock', 'anthropic-api': 'Anthropic API', 'openai-api': 'OpenAI API', gemini: 'Gemini', xai: 'Grok', copilot: 'Copilot', cursor: 'Cursor', openrouter: 'OpenRouter' };
+  const SHORT = { anthropic: 'Claude', openai: 'ChatGPT', bedrock: 'AWS Bedrock', 'anthropic-api': 'Anthropic API', 'openai-api': 'OpenAI API', gemini: 'Gemini', antigravity: 'Antigravity', xai: 'Grok', copilot: 'Copilot', cursor: 'Cursor', openrouter: 'OpenRouter' };
 
   // Remembered across restarts too; storage can be missing (private mode, previews).
   function savedTab() {
@@ -24,6 +24,7 @@
     period: { stats: '7d', harness: '7d' },
     stats: null, harness: null, statsErr: '', harnessErr: '', loadingData: false,
     busy: new Set(),
+    loginFeedback: new Map(),
     add: null,
     req: null,
     settings: null, openAdmin: new Set(), confirmRemove: null, renames: {},
@@ -231,12 +232,20 @@
     if (acc.state === 'broken') return brokenCard(acc);
     if (S.app.settings?.density === 'compact') return compactCard(acc);
     const wins = acc.windows.length ? acc.windows.map((w) => windowRow(acc, w)).join('') : `<p class="note">${esc(acc.note || 'No usage windows reported for this account yet.')}</p>`;
-    return `<article class="card" aria-label="${esc(acc.name)}"><div class="acct-h">${tile(acc.provider, acc.mono)}${idBlock(acc, updated(acc))}${cardActions(acc)}</div>${wins}</article>`;
+    return `<article class="card" aria-label="${esc(acc.name)}"><div class="acct-h">${tile(acc.provider, acc.mono)}${idBlock(acc, updated(acc))}${cardActions(acc)}</div>${wins}${usageRequestAction(acc, acc.windows.some(wantsRequest))}</article>`;
   }
 
   function wantsRequest(w) {
     return w.status === 'crit' || (w.pct >= (S.app.settings?.requestAt ?? 85) && w.status !== 'est');
   }
+  function usageRequestAction(acc, hasBanner = false) {
+    const request = acc.requestInProvider && !hasBanner
+      ? `<button class="btn" data-act="request" data-id="${esc(acc.id)}" data-k="req-${esc(acc.id)}">Request more usage</button>` : '';
+    const settings = acc.limitSettingsLabel
+      ? `<button class="btn" data-act="limit-settings" data-id="${esc(acc.id)}" data-k="limits-${esc(acc.id)}">${esc(acc.limitSettingsLabel)}</button>` : '';
+    return request || settings ? `<div class="row-btns">${request}${settings}</div>` : '';
+  }
+
   function requestBanner(acc, w) {
     const crit = w.status === 'crit';
     return `<div class="banner ${crit ? '' : 'warn'}">${crit ? ICON.crit() : ICON.warn(14, 1.7)}<span class="msg">${esc(w.forecast || `${Math.round(w.pct)}% used`)}</span>`
@@ -276,7 +285,7 @@
       + `<span class="cp ${w.status === 'ok' ? '' : 'hot'}">${Math.round(w.pct)}%</span><span class="cr">${w.resetsAt ? esc(C.when(w.resetsAt)) : '—'}</span></div>`
       + (w.status === 'crit' ? requestBanner(acc, w) : '')).join('');
     return `<article class="card compact" aria-label="${esc(acc.name)}"><div class="acct-h">${tile(acc.provider, acc.mono, 's20')}<span class="name">${esc(acc.name)}</span>`
-      + `${acc.updatedAt ? `<span class="sub" data-ago="${acc.updatedAt}">${C.ago(acc.updatedAt)}</span>` : ''}</div>${rows || (acc.note ? `<p class="note">${esc(acc.note)}</p>` : '')}</article>`;
+      + `${acc.updatedAt ? `<span class="sub" data-ago="${acc.updatedAt}">${C.ago(acc.updatedAt)}</span>` : ''}</div>${rows || (acc.note ? `<p class="note">${esc(acc.note)}</p>` : '')}${usageRequestAction(acc, acc.windows.some((w) => w.status === 'crit'))}</article>`;
   }
 
   function staleCard(acc) {
@@ -290,12 +299,17 @@
 
   function loginCard(acc) {
     const flag = `<span class="flag" style="color:var(--crit-text)">${ICON.lock()}Needs login again</span>`;
-    const cmd = (acc.problem || '').match(/`([^`]+)`/)?.[1];
-    const second = acc.method === 'cli'
-      ? `<button class="btn" data-act="refresh" data-id="${esc(acc.id)}" data-k="ran-${esc(acc.id)}">${cmd ? `I've run ${esc(cmd)}` : "I've logged in again"}</button>` : '';
+    const canLaunch = acc.method === 'cli' || acc.method === 'login';
+    const launching = S.busy.has('login-' + acc.id);
+    const checking = S.busy.has(acc.id);
+    const feedback = S.loginFeedback.get(acc.id);
     return `<article class="card problem" aria-label="${esc(acc.name)}, needs login"><div class="acct-h">${tile(acc.provider, acc.mono)}${idBlock(acc, flag)}</div>`
       + `<p class="note">${inlineMd(acc.problem || 'The login expired or was revoked.')}</p>`
-      + `<div class="row-btns"><button class="btn accent" data-act="login" data-id="${esc(acc.id)}" data-k="login-${esc(acc.id)}">Log in again</button>${second}</div></article>`;
+      + `<div class="row-btns">`
+      + (canLaunch ? `<button class="btn accent" data-act="login" data-id="${esc(acc.id)}" data-k="login-${esc(acc.id)}"${launching ? ' disabled' : ''}>${launching ? 'Opening…' : 'Log in again'}</button>` : '')
+      + `<button class="btn" data-act="refresh" data-id="${esc(acc.id)}" data-k="ran-${esc(acc.id)}"${checking ? ' disabled' : ''}>${checking ? 'Checking…' : 'Check again'}</button></div>`
+      + (feedback ? `<p class="note" role="${feedback.error ? 'alert' : 'status'}">${inlineMd(feedback.text)}</p>` : '')
+      + '</article>';
   }
 
   function brokenCard(acc) {
@@ -496,6 +510,7 @@
     { id: 'copilot', m: 'P', n: 'GitHub Copilot', d: 'Premium requests, Free-tier quotas', kind: 'gh' },
     { id: 'cursor', m: 'Cu', n: 'Cursor', d: 'Monthly plan usage, on-demand spend', site: 'cursor.com', kind: 'cursor-app' },
     { id: 'gemini', m: 'G', n: 'Gemini', d: 'Gemini CLI daily quotas', kind: 'gemini-cli' },
+    { id: 'antigravity', m: 'Ag', n: 'Google Antigravity', d: 'Five-hour and weekly model quotas', kind: 'antigravity-cli' },
     { id: 'xai', m: 'X', n: 'Grok / xAI', d: 'SuperGrok query limits, xAI API keys', site: 'grok.com' },
     { id: 'openrouter', m: 'R', n: 'OpenRouter', d: 'Key limits, budgets and credits' },
   ];
@@ -526,6 +541,9 @@
       ];
       case 'gemini': return [
         { id: 'cli', n: 'Use Gemini CLI login', rec: !!det, d: det ? found('a Gemini CLI login') : 'Uses the Google login of the Gemini CLI. Run gemini and sign in with Google first.' },
+      ];
+      case 'antigravity': return [
+        { id: 'cli', n: 'Use Antigravity CLI login', rec: !!det, d: 'Requires agy 1.1.11 or later. Run agy and sign in with Google first.' },
       ];
       case 'xai': return [
         signIn('For SuperGrok and X Premium: opens grok.com in a Tokenrunway window and reads your query limits.'),
@@ -615,16 +633,17 @@
     const how = A.method === 'cli' ? (A.detected.find((d) => d.provider === acc.provider)?.label || 'CLI login')
       : A.method === 'aws' ? `AWS profile ${A.profile || 'default'}` : A.method === 'key' ? ({ copilot: 'GitHub token', cursor: 'session cookie', xai: 'xAI API key', openrouter: 'OpenRouter API key' }[A.provider] || 'API key') : 'Tokenrunway login';
     const wins = acc.windows || [];
+    const heading = acc.problem ? `${acc.name || 'Account'} was added` : `${acc.name || 'Account'} is connected`;
     const sub = [acc.plan, wins.length ? `${plural(wins.length, 'usage window')} found` : 'No usage windows yet', `via ${how}`].filter(Boolean).join(' · ');
     const rows = wins.map((w) => `<div class="win st-${esc(w.status)}"><div class="win-h"><span class="wl">${esc(w.label)}</span><span class="wp">${Math.round(w.pct)}%</span></div>`
       + ubar(w, { noProj: true, noPace: true })
       + (w.resetsAt ? `<span style="font-size:11.5px;color:var(--fg2)" data-reset="${w.resetsAt}">${C.resetText(w.resetsAt)}</span>` : '') + '</div>').join('');
     return `<div class="scroll"><div style="padding:34px 14px 12px;display:flex;flex-direction:column;align-items:center;gap:12px;min-height:100%">`
       + `<span class="done-ic">${ICON.check()}</span>`
-      + `<div style="display:flex;flex-direction:column;align-items:center;gap:3px;text-align:center"><h2 style="margin:0;font-size:17px;font-weight:600" tabindex="-1" data-k="done-h">${esc(acc.name || 'Account')} is connected</h2><span style="font-size:12.5px;color:var(--fg2)">${esc(sub)}</span></div>`
+      + `<div style="display:flex;flex-direction:column;align-items:center;gap:3px;text-align:center"><h2 style="margin:0;font-size:17px;font-weight:600" tabindex="-1" data-k="done-h">${esc(heading)}</h2><span style="font-size:12.5px;color:var(--fg2)">${esc(sub)}</span></div>`
       + `<article class="card" style="align-self:stretch;margin-top:8px"><div style="display:flex;align-items:baseline;justify-content:space-between"><span class="caps">First reading</span>`
       + `<span style="font-size:11px;color:var(--fg3)" data-ago="${acc.updatedAt || Date.now()}">${C.ago(acc.updatedAt || Date.now())}</span></div>${rows}`
-      + '<p class="fine">Forecasts appear after a few more readings (about 10 minutes).</p></article>'
+      + (acc.problem || acc.note ? `<p class="fine">${inlineMd(acc.problem || acc.note)}</p>` : '<p class="fine">Forecasts appear after a few more readings (about 10 minutes).</p>') + '</article>'
       + '<span class="flex"></span><div style="align-self:stretch;display:flex;gap:8px">'
       + '<button class="btn s30" style="flex:1" data-act="add" data-k="again">Add another</button><button class="btn s30 accent" style="flex:1" data-act="done" data-k="done">Done</button></div></div></div>';
   }
@@ -642,7 +661,7 @@
       A.step = 'done';
       render();
       document.querySelector('[data-k="done-h"]')?.focus();
-      announce(`${A.result.name} is connected`);
+      announce(`${A.result.name} ${A.result.problem ? 'was added' : 'is connected'}`);
     } catch (e) {
       A.error = String(e?.message || e);
       render();
@@ -670,7 +689,18 @@
   const CHANNEL = { provider: (p) => SHORT[p] || 'Provider', email: () => 'Email', slack: () => 'Slack', teams: () => 'Teams' };
   const toFor = (to, ch) => (ch === 'email' ? to.email : ch === 'slack' ? to.slack || (to.name ? '@' + to.name : '') : ch === 'teams' ? to.teams || to.email : '');
 
+  async function openRequestPage(command, accountId) {
+    try {
+      await invoke(command, { accountId });
+    } catch (e) {
+      S.req = { openFailed: true, error: String(e?.message || e) };
+      go('request');
+    }
+  }
+
   async function openRequest(accountId, windowId) {
+    const acct = S.app.accounts.find((a) => a.id === accountId);
+    if (acct?.requestInProvider) return openRequestPage('open_usage_request', accountId);
     S.req = { accountId, windowId, loading: true, error: '', status: '' };
     go('request');
     try {
@@ -684,6 +714,7 @@
   function viewRequest() {
     const R = S.req;
     const head = subbar('Now', 'Request more');
+    if (R.openFailed) return head + `<div class="msgbox" role="alert"><h2>Couldn't open the provider page</h2>${esc(R.error)}</div>`;
     if (R.loading) return head + '<div class="msgbox" aria-busy="true">Writing the request…</div>';
     if (!R.draft) return head + `<div class="msgbox"><h2>Couldn't write the request</h2>${esc(R.error)}</div>`;
     const d = R.draft;
@@ -693,7 +724,7 @@
     const label = (ch) => CHANNEL[ch]?.(acc.provider) || ch;
     const ch = R.channel;
     const provider = ch === 'provider';
-    const sendLabel = provider ? `Request in ${label(ch)}` : `Send via ${label(ch)}`;
+    const sendLabel = provider ? `Open ${label(ch)}` : `Send via ${label(ch)}`;
     const ph = { email: 'name@company.com', slack: '@name or #channel', teams: 'name@company.com or chat link' }[ch] || '';
     return head + '<div style="flex:1;min-height:0;padding:12px 14px;display:flex;flex-direction:column;gap:12px">'
       + `<div class="req-h ${warn ? 'warn' : ''}">${tile(acc.provider, acc.mono, 's22')}<div class="t"><b>${esc(d.title)}</b><span>${esc(d.forecast)}</span></div></div>`
@@ -702,14 +733,14 @@
         return `<button role="radio" aria-checked="${on}" tabindex="${on ? 0 : -1}" data-act="channel" data-v="${esc(c)}" data-k="ch-${esc(c)}">${esc(label(c))}</button>`;
       }).join('')}</div></div>`
       + (provider
-        ? `<p class="fine" style="font-size:11.5px;color:var(--fg2)">Uses ${esc(label(ch))}'s own request flow, signed in as you. Your admin gets it there.</p>`
+        ? `<p class="fine" style="font-size:11.5px;color:var(--fg2)">Opens ${esc(label(ch))}'s usage settings in your browser. Submit the request there.</p>`
         : `<div class="formrow" style="grid-template-columns:44px 1fr"><label for="rto">To</label><input id="rto" class="field" value="${esc(R.to[ch] || '')}" placeholder="${esc(ph)}" data-k="rto" data-bind="req.to.${esc(ch)}" spellcheck="false"></div>`)
       + `<div class="lab6" style="flex:1;min-height:0"><label for="rmsg">Message</label><textarea id="rmsg" class="field" style="flex:1;min-height:0" data-k="rmsg" data-bind="req.body">${esc(R.body)}</textarea></div>`
       + '<label class="check" title="Coming soon"><input type="checkbox" disabled>Attach usage snapshot (image) · coming soon</label>'
       + (R.error ? `<p class="err" role="alert">${esc(R.error)}</p>` : '')
       + `<div style="display:flex;gap:8px;align-items:center"><button class="btn s30" data-act="copy" data-k="copy">${R.status === 'copied' ? 'Copied' : 'Copy'}</button>`
-      + `<span class="flex"></span>${R.status === 'sent' ? '<span class="ok-note" role="status">Sent</span>' : ''}`
-      + `<button class="btn s30 accent icon" style="padding:0 16px" data-act="send" data-k="send" ${R.status === 'sending' || (!provider && !(R.to[ch] || '').trim()) ? 'disabled' : ''}>${R.status === 'sending' ? 'Sending…' : esc(sendLabel)}${ICON.send()}</button></div></div>`;
+      + `<span class="flex"></span>${R.status === 'sent' ? `<span class="ok-note" role="status">${provider ? 'Opened' : 'Sent'}</span>` : ''}`
+      + `<button class="btn s30 accent icon" style="padding:0 16px" data-act="send" data-k="send" ${R.status === 'sending' || (!provider && !(R.to[ch] || '').trim()) ? 'disabled' : ''}>${R.status === 'sending' ? (provider ? 'Opening…' : 'Sending…') : esc(sendLabel)}${ICON.send()}</button></div></div>`;
   }
 
   // ---------- Settings ----------
@@ -976,6 +1007,26 @@
     S.loadingData = false;
     if (S.view === which) softRender();
   }
+  async function logInAgain(accountId) {
+    const key = 'login-' + accountId;
+    const acc = S.app.accounts.find((a) => a.id === accountId);
+    S.busy.add(key);
+    S.loginFeedback.delete(accountId);
+    render();
+    try {
+      await invoke('login_account', { accountId });
+      if (acc?.method === 'cli') {
+        const place = acc.provider === 'cursor' ? 'Cursor' : 'the terminal';
+        S.loginFeedback.set(accountId, { text: `Finish signing in from ${place}, then select Check again.` });
+      }
+    } catch (e) {
+      S.loginFeedback.set(accountId, { text: String(e?.message || e), error: true });
+    } finally {
+      S.busy.delete(key);
+      softRender();
+    }
+  }
+
   async function refresh(accountId) {
     const key = accountId || 'all';
     if (S.busy.has(key)) return;
@@ -1011,16 +1062,17 @@
       case 'add-detected': addDetected(t.dataset.kind); break;
       case 'refresh': refresh(id); break;
       case 'open-provider': invoke('open_provider', { accountId: id }); break;
-      case 'login': invoke('login_account', { accountId: id }).catch((err) => announce(String(err))); break;
+      case 'login': logInAgain(id); break;
       case 'details': invoke('open_update', { url: null }); break;
       case 'request': openRequest(id, t.dataset.w); break;
+      case 'limit-settings': openRequestPage('open_limit_settings', id); break;
       case 'more': {
         const acc = S.app.accounts.find((a) => a.id === id);
         const hot = acc?.windows.find(wantsRequest);
         C.menu(t, [
           { label: 'Open provider page', onSelect: () => invoke('open_provider', { accountId: id }) },
           { label: 'Refresh', onSelect: () => refresh(id) },
-          ...(hot ? [{ label: 'Request more…', onSelect: () => openRequest(id, hot.id) }] : []),
+          ...(hot || acc?.requestInProvider ? [{ label: 'Request more…', onSelect: () => openRequest(id, hot?.id) }] : []),
         ]);
         break;
       }
@@ -1045,7 +1097,7 @@
         const R = S.req;
         R.status = 'sending'; R.error = ''; render();
         invoke('send_request', { accountId: R.draft.accountId, channel: R.channel, to: R.channel === 'provider' ? '' : (R.to[R.channel] || '').trim(), body: R.body })
-          .then(() => { R.status = 'sent'; render(); announce('Request sent'); setTimeout(() => { if (S.view === 'request' && R.status === 'sent') go('now'); }, 1200); })
+          .then(() => { R.status = 'sent'; render(); announce(R.channel === 'provider' ? 'Usage settings opened' : 'Request sent'); setTimeout(() => { if (S.view === 'request' && R.status === 'sent') go('now'); }, 1200); })
           .catch((err) => { R.status = ''; R.error = String(err?.message || err); render(); });
         break;
       }
