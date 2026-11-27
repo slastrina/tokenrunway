@@ -59,7 +59,7 @@ fn env(name: &str) -> Env {
         ));
     }
     std::fs::write(logs.join("s.jsonl"), lines.join("\n") + "\n").unwrap();
-    let roots = Roots { claude: vec![dir.join("claude").join("projects")], codex: vec![], opencode: vec![], lmstudio: vec![] };
+    let roots = Roots { claude: vec![dir.join("claude").join("projects")], ..Default::default() };
     let stats = Stats::open_with(&dir.join("activity.db"), roots).unwrap();
     let r = stats.ingest();
     assert!(r.errors.is_empty(), "{:?}", r.errors);

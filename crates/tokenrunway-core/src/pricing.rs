@@ -278,7 +278,8 @@ pub fn is_cloud(model: &str) -> bool {
         return false;
     }
     let k = normalise(model);
-    (["claude-", "gpt-", "codex-", "gemini-", "grok-"].iter().any(|p| k.starts_with(p)) && !k.starts_with("gpt-oss"))
+    model == crate::ingest::antigravity::UNKNOWN_MODEL
+        || (["claude-", "gpt-", "codex-", "gemini-", "grok-"].iter().any(|p| k.starts_with(p)) && !k.starts_with("gpt-oss"))
         || (k.starts_with('o') && k[1..].starts_with(|c: char| c.is_ascii_digit()))
 }
 

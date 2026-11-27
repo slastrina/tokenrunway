@@ -13,6 +13,7 @@
 //! - TODO Cline / Roo Code / Kilo: VS Code globalStorage/<extension>/tasks/*/ui_messages.json,
 //!   whose `api_req_started` entries carry tokens and cost.
 
+pub mod antigravity;
 pub mod claude_code;
 pub mod codex;
 pub mod lmstudio;
@@ -100,6 +101,8 @@ pub struct Roots {
     pub opencode: Vec<PathBuf>,
     /// LM Studio `server-logs` directories
     pub lmstudio: Vec<PathBuf>,
+    /// Antigravity directories containing per-conversation SQLite databases.
+    pub antigravity: Vec<PathBuf>,
 }
 
 impl Roots {
@@ -127,7 +130,11 @@ impl Roots {
         }
         lmstudio.push(home.join(".lmstudio").join("server-logs"));
         lmstudio.push(home.join(".cache").join("lm-studio").join("server-logs"));
-        let mut r = Self { claude, codex, opencode, lmstudio };
+        let gemini = std::env::var_os("GEMINI_CLI_HOME").map(PathBuf::from).unwrap_or_else(|| home.join(".gemini"));
+        let antigravity = ["antigravity-cli/conversations", "antigravity", "antigravity/conversations", "antigravity-ide/conversations"]
+            .map(|dir| gemini.join(dir))
+            .to_vec();
+        let mut r = Self { claude, codex, opencode, lmstudio, antigravity };
         for v in [&mut r.claude, &mut r.codex, &mut r.opencode, &mut r.lmstudio] {
             let mut seen = std::collections::HashSet::new();
             v.retain(|p| seen.insert(p.clone()));
@@ -137,7 +144,15 @@ impl Roots {
 
     /// The roots that exist, for the file watcher.
     pub fn existing(&self) -> Vec<PathBuf> {
-        self.claude.iter().chain(&self.codex).chain(&self.opencode).chain(&self.lmstudio).filter(|p| p.is_dir()).cloned().collect()
+        self.claude
+            .iter()
+            .chain(&self.codex)
+            .chain(&self.opencode)
+            .chain(&self.lmstudio)
+            .chain(&self.antigravity)
+            .filter(|p| p.is_dir())
+            .cloned()
+            .collect()
     }
 }
 

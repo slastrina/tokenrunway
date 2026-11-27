@@ -97,7 +97,7 @@
     xai: '--p-grok', grok: '--p-grok', gemini: '--p-gemini', antigravity: '--p-antigravity', copilot: '--p-copilot', cursor: '--p-cursor', openrouter: '--p-openrouter',
   };
   const providerVar = (p) => PROVIDER[p] || '--p-api';
-  const HARNESS = { 'claude-code': '--p-claude', codex: '--p-openai', opencode: '--h-opencode', 'gemini-cli': '--p-gemini', cline: '--p-bedrock', lmstudio: '--h-lmstudio', 'lm-studio': '--h-lmstudio' };
+  const HARNESS = { 'claude-code': '--p-claude', codex: '--p-openai', opencode: '--h-opencode', antigravity: '--p-antigravity', 'gemini-cli': '--p-gemini', cline: '--p-bedrock', lmstudio: '--h-lmstudio', 'lm-studio': '--h-lmstudio' };
   // Local models (LM Studio): their $0 reads as "Free", not as a cost.
   const isLocal = (idOrName) => ['lmstudio', 'lm-studio'].includes(String(idOrName || '').toLowerCase().replace(/\s+/g, '-'));
   const harnessVar = (idOrName) => {

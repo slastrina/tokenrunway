@@ -4,6 +4,11 @@ Each release's section becomes its GitHub release notes and the in-app "What's n
 `.github/workflows/release.yml`). Write for people using the app: what they can do now, in a
 sentence or two each.
 
+## [0.5.0] - 2026-11-27
+
+### Added
+- Stats, Harness, and the dashboard now import recorded Antigravity session usage from local conversation databases.
+
 ## [0.4.1] - 2026-11-27
 
 ### Fixed

@@ -42,7 +42,7 @@ impl Env {
             codex: vec![dir.join("codex").join("sessions")],
             opencode: vec![oc, dir.join("opencode-old")],
             // Read on its own in `lm_studio_is_free_and_counted`, so the totals here stay put.
-            lmstudio: vec![],
+            ..Default::default()
         };
         let stats = Stats::open_with(&dir.join("activity.db"), roots).unwrap();
         Self { dir, stats }

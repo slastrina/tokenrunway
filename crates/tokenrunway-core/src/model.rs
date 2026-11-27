@@ -25,6 +25,7 @@ pub enum Harness {
     Codex,
     Opencode,
     GeminiCli,
+    Antigravity,
     Cline,
     Cursor,
     /// LM Studio's local server (its server logs)

@@ -6,7 +6,7 @@
 //! into local days with chrono, so day edges follow the time zone (and its DST) exactly.
 
 use crate::categorise::{self, ALL};
-use crate::ingest::{self, claude_code, codex, lmstudio, opencode, Batch, Cursor, ProjectNames, Roots};
+use crate::ingest::{self, antigravity, claude_code, codex, lmstudio, opencode, Batch, Cursor, ProjectNames, Roots};
 use crate::pricing;
 use crate::store::{Agg, SessionCall, SessionPart, SessionTotals, Store, BUCKET_MS};
 use crate::view::{
@@ -120,12 +120,17 @@ impl Stats {
                 jobs.push(("lmstudio", p, lmstudio::read, None));
             }
         }
+        for root in &self.roots.antigravity {
+            for path in antigravity::databases(root) {
+                jobs.push((antigravity::ID, path, antigravity::read, None));
+            }
+        }
         self.backfill_codex_accounts(&jobs);
         // Only the files that changed since their cursor.
         let jobs: Vec<_> = jobs
             .into_iter()
             .filter_map(|(src, p, f, scope)| {
-                let (size, mtime) = ingest::stat(&p)?;
+                let (size, mtime) = if src == antigravity::ID { antigravity::stamp(&p) } else { ingest::stat(&p) }?;
                 let key = (src.to_string(), p.to_string_lossy().into_owned());
                 let cur = cursors.get(&key).cloned().unwrap_or_default();
                 (cur.size != size || cur.mtime != mtime).then_some((src, p, f, scope, size, mtime, cur))
@@ -582,6 +587,7 @@ pub fn harness_name(id: &str) -> &str {
         "codex" => "Codex",
         "opencode" => "opencode",
         "gemini-cli" => "Gemini CLI",
+        "antigravity" => "Antigravity",
         "cline" => "Cline",
         "cursor" => "Cursor",
         "lmstudio" => "LM Studio",

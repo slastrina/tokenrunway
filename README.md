@@ -78,9 +78,20 @@ message for your admin. Where available, account cards also link to quota, spend
 ### Local usage and spend
 
 **Stats**, **Harness**, and the dashboard automatically read local sessions from Claude Code,
-Codex, and opencode. For LM Studio, start its local server and send it a request so it has a
+Codex, Antigravity, and opencode. For LM Studio, start its local server and send it a request so it has a
 server log to read. Use the app on the same computer and user account that ran the tool.
 Local stats appear independently of the allowance accounts under **Add account**.
+
+Antigravity stats are imported automatically from supported conversation databases under
+`~/.gemini/antigravity-cli/conversations`, `~/.gemini/antigravity`,
+`~/.gemini/antigravity/conversations`, and `~/.gemini/antigravity-ide/conversations`.
+Tokenrunway honours `GEMINI_CLI_HOME` as an override for `~/.gemini`. This import reads the
+main generation records that have token counts and a reliable timestamp. It shows API-equivalent
+estimates for known models. Totals can be partial when a database has unrecognised records or
+stores usage only in retries or step records. These are machine-local sessions across logins.
+[Public Antigravity format references](https://github.com/steipete/CodexBar/blob/main/docs/antigravity.md#local-token-history)
+· [ccusage field mappings](https://github.com/ccusage/ccusage/blob/main/rust/adapters/antigravity/src/parser/proto.rs)
+
 
 ### What you can track
 
