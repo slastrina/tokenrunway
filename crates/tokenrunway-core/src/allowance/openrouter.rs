@@ -57,6 +57,7 @@ fn limit_window(spent: f64, limit: f64, interval: Option<&str>, resets_at: Optio
     };
     let next = interval.and_then(|i| next_reset(i, now));
     Reading {
+        group: None,
         id: id.into(),
         label: label.into(),
         used: spent / limit,
@@ -103,6 +104,7 @@ pub fn parse_key(v: &Value, now: i64) -> Result<Fetched, ProviderError> {
         if let (Some(used), Some(limit)) = (num(f, "used"), num(f, "limit").filter(|l| *l > 0.0)) {
             let next = next_reset("daily", now);
             windows.push(Reading {
+                group: None,
                 id: "free-daily".into(),
                 label: "Free requests".into(),
                 used: used / limit,
@@ -129,6 +131,7 @@ pub fn parse_credits(v: &Value, now: i64) -> Option<Reading> {
     let total = num(d, "total_credits").filter(|t| *t > 0.0)?;
     let used = num(d, "total_usage").unwrap_or(0.0);
     Some(Reading {
+        group: None,
         id: "credits".into(),
         label: "Credits".into(),
         used: used / total,

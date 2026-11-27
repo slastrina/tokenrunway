@@ -4,6 +4,11 @@ Each release's section becomes its GitHub release notes and the in-app "What's n
 `.github/workflows/release.yml`). Write for people using the app: what they can do now, in a
 sentence or two each.
 
+## [0.4.1] - 2026-11-27
+
+### Fixed
+- Usage cards keep each model group together and show shorter refresh periods first. Antigravity now shows the five-hour limit above the weekly limit for each group.
+
 ## [0.4.0] - 2026-11-27
 
 ### Added

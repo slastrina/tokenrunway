@@ -160,6 +160,7 @@ pub fn parse_usage(v: &Value, at: i64) -> Result<Vec<Reading>, ProviderError> {
         recognised = true;
         let Some(u) = w.get("utilization").and_then(Value::as_f64) else { continue };
         out.push(Reading {
+            group: id.strip_prefix("weekly-").map(str::to_owned),
             id: id.into(),
             label: label.into(),
             used: u / 100.0,
@@ -191,7 +192,8 @@ pub fn parse_usage(v: &Value, at: i64) -> Result<Vec<Reading>, ProviderError> {
             if out.iter().any(|r| r.id == id) {
                 continue;
             }
-            out.push(Reading { id, label, used: pct / 100.0, abs: None, resets_at, length_ms: Some(len), money: None, at });
+            let group = id.strip_prefix("weekly-").map(str::to_owned);
+            out.push(Reading { id, group, label, used: pct / 100.0, abs: None, resets_at, length_ms: Some(len), money: None, at });
         }
     }
     // Extra usage (spend beyond the plan), when it's on.
@@ -206,6 +208,7 @@ pub fn parse_usage(v: &Value, at: i64) -> Result<Vec<Reading>, ProviderError> {
         let limit = amount(s.get("limit")).or_else(|| amount(s.get("cap")));
         let pct = s.get("percent").and_then(Value::as_f64).or_else(|| limit.filter(|l| *l > 0.0).map(|l| used / l * 100.0)).unwrap_or(0.0);
         out.push(Reading {
+            group: None,
             id: "extra".into(),
             label: "Extra usage".into(),
             used: pct / 100.0,

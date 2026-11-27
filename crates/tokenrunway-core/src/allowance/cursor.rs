@@ -174,6 +174,7 @@ pub fn parse_summary(v: &Value, now: i64) -> Result<(Vec<Reading>, Option<String
             .or_else(|| Some(used? / limit? * 100.0))
             .ok_or_else(|| ProviderError::SchemaChanged("plan without usage".into()))?;
         out.push(Reading {
+            group: None,
             id: "monthly".into(),
             label: "Monthly plan".into(),
             used: pct / 100.0,
@@ -191,6 +192,7 @@ pub fn parse_summary(v: &Value, now: i64) -> Result<(Vec<Reading>, Option<String
         let used = dollars(d.get("used")).unwrap_or(0.0);
         let limit = dollars(d.get("limit")).filter(|l| *l > 0.0);
         out.push(Reading {
+            group: None,
             id: "on-demand".into(),
             label: "On-demand".into(),
             used: limit.map(|l| used / l).unwrap_or(0.0),
@@ -215,6 +217,7 @@ pub fn parse_period(v: &Value, now: i64) -> Result<Vec<Reading>, ProviderError> 
         .ok_or_else(|| ProviderError::SchemaChanged("no planUsage".into()))?;
     let (start, end) = (ts_any(v.get("billingCycleStart")), ts_any(v.get("billingCycleEnd")));
     Ok(vec![Reading {
+        group: None,
         id: "monthly".into(),
         label: "Monthly plan".into(),
         used: pct / 100.0,

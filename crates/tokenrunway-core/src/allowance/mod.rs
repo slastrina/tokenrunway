@@ -27,6 +27,7 @@ use crate::forecast::{self, Thresholds, WindowInput};
 use crate::model::WindowReading;
 use crate::view::{AccountState, AccountView, Detected, WindowView};
 pub use accounts::{AccountRecord, Accounts};
+use std::collections::HashMap;
 use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
@@ -152,6 +153,9 @@ pub struct Money {
 pub struct Reading {
     /// "5h", "weekly", "weekly-opus", "monthly", "budget"
     pub id: String,
+    /// Provider-defined model or pool. Ungrouped windows share the account's default group.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub group: Option<String>,
     /// "5-hour", "Weekly", "Weekly Opus", "Codex 5-hour", "Monthly budget"
     pub label: String,
     /// Used, 0.0–1.0 (may pass 1.0)
@@ -363,9 +367,21 @@ pub fn account_view(
         .last
         .as_ref()
         .map(|f| {
-            f.windows
+            let mut groups = HashMap::new();
+            let mut windows: Vec<_> = f
+                .windows
                 .iter()
-                .map(|r| {
+                .enumerate()
+                .map(|(index, reading)| {
+                    let group_order = *groups.entry(reading.group.as_deref()).or_insert(index);
+                    (group_order, reading)
+                })
+                .collect();
+            windows
+                .sort_by_key(|(group_order, reading)| (*group_order, reading.length_ms.filter(|length| *length > 0).unwrap_or(i64::MAX)));
+            windows
+                .into_iter()
+                .map(|(_, r)| {
                     let input = WindowInput {
                         id: &r.id,
                         label: &r.label,
@@ -572,6 +588,7 @@ mod tests {
         let now = 10 * HOUR_MS;
         let acct = AccountRecord { provider: "anthropic".into(), method: "cli".into(), ..Default::default() };
         let reading = Reading {
+            group: None,
             id: "5h".into(),
             label: "5-hour".into(),
             used: 0.4,
@@ -619,6 +636,36 @@ mod tests {
         assert!(provider_for(&rec("openrouter", "cli")).is_none());
         assert_eq!((provider_name("openrouter"), mono("openrouter")), ("OpenRouter", "R"));
         assert_eq!((mono("copilot"), mono("gemini"), mono("cursor"), mono("xai")), ("P", "G", "Cu", "X"));
+    }
+
+    #[test]
+    fn account_windows_use_period_length_and_keep_groups_together() {
+        let now = crate::now_ms();
+        let reading = |id: &str, group: Option<&str>, length_ms: Option<i64>, time_left: i64| Reading {
+            id: id.into(),
+            group: group.map(str::to_owned),
+            label: id.into(),
+            used: 0.2,
+            abs: None,
+            resets_at: Some(now + time_left),
+            length_ms,
+            money: None,
+            at: now,
+        };
+        let windows = vec![
+            reading("monthly", None, Some(30 * DAY_MS), MIN_MS),
+            reading("gemini-weekly", Some("gemini"), Some(7 * DAY_MS), MIN_MS),
+            reading("credits", None, None, MIN_MS),
+            reading("daily", None, Some(DAY_MS), HOUR_MS),
+            reading("gemini-hourly", Some("gemini"), Some(HOUR_MS), HOUR_MS),
+            reading("second-daily", None, Some(DAY_MS), MIN_MS),
+        ];
+        let live = Live { last: Some(Fetched { windows, ..Default::default() }), tried: true, ..Default::default() };
+        let view = account_view(&AccountRecord::default(), &live, &|_| Vec::new(), &Thresholds::default(), now);
+        assert_eq!(
+            view.windows.iter().map(|w| w.id.as_str()).collect::<Vec<_>>(),
+            ["daily", "second-daily", "monthly", "credits", "gemini-hourly", "gemini-weekly"],
+        );
     }
 
     #[test]

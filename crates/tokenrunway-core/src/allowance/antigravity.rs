@@ -174,8 +174,9 @@ fn parse_report(bytes: &[u8], at: i64) -> Result<Fetched, ProviderError> {
     let groups = report["command"]["data"]["groups"].as_array().ok_or_else(invalid)?;
     let mut windows = Vec::new();
     let mut seen = BTreeSet::new();
-    for group in groups {
+    for (group_index, group) in groups.iter().enumerate() {
         let Some(buckets) = group["buckets"].as_array() else { continue };
+        let group_key = group_index.to_string();
         let name = group["name"].as_str().filter(|s| !s.is_empty()).unwrap_or("Model");
         for bucket in buckets {
             let (Some(id), Some(remaining)) = (bucket["id"].as_str(), bucket["remaining_fraction"].as_f64()) else { continue };
@@ -192,6 +193,7 @@ fn parse_report(bytes: &[u8], at: i64) -> Result<Fetched, ProviderError> {
                 continue;
             }
             windows.push(Reading {
+                group: Some(group_key.clone()),
                 id,
                 label: format!("{name} · {title}"),
                 used: 1.0 - remaining,
@@ -215,6 +217,8 @@ fn parse_report(bytes: &[u8], at: i64) -> Result<Fetched, ProviderError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::allowance::{account_view, Live};
+    use crate::forecast::Thresholds;
 
     const REPORT: &str = r#"{
         "status": "SUCCESS", "num_turns": 0,
@@ -225,7 +229,8 @@ mod tests {
             ]},
             {"name": "Claude and GPT models", "buckets": [
                 {"id": "3p-weekly", "window": "weekly", "remaining_fraction": 1.0},
-                {"id": "3p-5h", "window": "5h", "remaining_fraction": 0.0, "enabled": false},
+                {"id": "3p-5h", "window": "5h", "remaining_fraction": 1.0},
+                {"id": "disabled", "window": "5h", "remaining_fraction": 0.0, "enabled": false},
                 {"id": "unknown", "window": "weekly"},
                 {"id": "invalid", "window": "weekly", "remaining_fraction": 1.1}
             ]}
@@ -235,7 +240,7 @@ mod tests {
     #[test]
     fn reads_each_measured_bucket_and_its_reset() {
         let fetched = parse_report(REPORT.as_bytes(), 42).unwrap();
-        assert_eq!(fetched.windows.len(), 3);
+        assert_eq!(fetched.windows.len(), 4);
         let weekly = &fetched.windows[0];
         assert_eq!(weekly.label, "Gemini Models · Weekly");
         assert_eq!(weekly.id, "weekly-gemini-weekly");
@@ -246,6 +251,19 @@ mod tests {
         assert_eq!(fetched.windows[1].length_ms, Some(5 * HOUR_MS));
         assert_eq!(fetched.windows[1].used, 1.0);
         assert_eq!(fetched.windows[2].used, 0.0);
+    }
+
+    #[test]
+    fn account_card_shows_the_shorter_period_first_in_each_model_group() {
+        let at = 42;
+        let fetched = parse_report(REPORT.as_bytes(), at).unwrap();
+        let acct = AccountRecord { provider: "antigravity".into(), method: "cli".into(), ..Default::default() };
+        let live = Live { last: Some(fetched), tried: true, ..Default::default() };
+        let view = account_view(&acct, &live, &|_| Vec::new(), &Thresholds::default(), at);
+        assert_eq!(
+            view.windows.iter().map(|w| w.id.as_str()).collect::<Vec<_>>(),
+            ["5h-gemini-5h", "weekly-gemini-weekly", "5h-3p-5h", "weekly-3p-weekly"],
+        );
     }
 
     #[test]
@@ -277,7 +295,7 @@ mod tests {
         };
 
         script("1.5.12", &format!("cat <<'REPORT'\n{REPORT}\nREPORT\n"));
-        assert_eq!(fetch(home.path()).await.unwrap().windows.len(), 3);
+        assert_eq!(fetch(home.path()).await.unwrap().windows.len(), 4);
         script("1.5.12", "echo 'Authentication required' >&2; exit 1");
         assert_eq!(fetch(home.path()).await.unwrap_err(), ProviderError::AuthExpired(SIGN_IN.into()));
         script("1.1.10", "echo 'Authentication required' >&2; exit 1");

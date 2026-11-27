@@ -51,6 +51,7 @@ fn month_window(spend: f64, limit: Option<f64>, now: i64) -> Reading {
     let (start, next) = super::month_bounds(now);
     let limit = limit.filter(|l| *l > 0.0);
     Reading {
+        group: None,
         id: "monthly".into(),
         label: "Monthly spend".into(),
         used: limit.map(|l| spend / l).unwrap_or(0.0),

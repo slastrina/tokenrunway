@@ -110,6 +110,7 @@ pub fn parse_quota(v: &Value, now: i64) -> Result<Vec<Reading>, ProviderError> {
             .and_then(|t| chrono::DateTime::parse_from_rfc3339(t).ok())
             .map(|d| d.timestamp_millis());
         out.push(Reading {
+            group: Some(model.to_ascii_lowercase()),
             id,
             label,
             used: (1.0 - left).clamp(0.0, 1.0),

@@ -164,6 +164,7 @@ fn count(n: f64) -> String {
 
 fn window(id: &str, label: &str, used: f64, total: f64, reset: Option<i64>, now: i64) -> Reading {
     Reading {
+        group: None,
         id: id.into(),
         label: label.into(),
         used: if total > 0.0 { used / total } else { 0.0 },

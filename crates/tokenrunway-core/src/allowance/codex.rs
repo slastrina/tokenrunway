@@ -104,7 +104,17 @@ fn window_name(minutes: Option<i64>, fallback: &str) -> (String, String) {
 /// One window from either source: percent, length in minutes, reset in ms.
 fn reading(used_percent: f64, minutes: Option<i64>, resets_at: Option<i64>, fallback: &str, at: i64) -> Reading {
     let (id, label) = window_name(minutes, fallback);
-    Reading { id, label, used: used_percent / 100.0, abs: None, resets_at, length_ms: minutes.map(|m| m * MIN_MS), money: None, at }
+    Reading {
+        id,
+        group: None,
+        label,
+        used: used_percent / 100.0,
+        abs: None,
+        resets_at,
+        length_ms: minutes.map(|m| m * MIN_MS),
+        money: None,
+        at,
+    }
 }
 
 /// The remote answer.
@@ -142,6 +152,7 @@ pub fn parse_remote(v: &Value, now: i64) -> Result<(Vec<Reading>, Option<String>
             let resets_at = num("reset_at").map(|s| s as i64 * 1000).or_else(|| num("reset_after_seconds").map(|s| now + s as i64 * 1000));
             let abs = num("used").zip(num("limit")).map(|(u, lim)| format!("{} / {} credits", grouped(u), grouped(lim)));
             out.push(Reading {
+                group: None,
                 id: "credits".into(),
                 label: "Credit limit".into(),
                 used,

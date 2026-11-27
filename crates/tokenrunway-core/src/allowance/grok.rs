@@ -43,6 +43,7 @@ pub fn parse_limit(v: &Value, id: &str, label: &str, now: i64) -> Result<Option<
     let used = (total - left.max(0.0)).max(0.0);
     let wait = num("waitTimeSeconds").filter(|w| *w > 0.0);
     Ok(Some(Reading {
+        group: None,
         id: id.into(),
         label: label.into(),
         used: used / total,

@@ -220,6 +220,7 @@ fn window(c: &Cache, limit_override: Option<f64>, now: i64) -> Reading {
         None => ("Monthly spend", 0.0, format!("{} this month", super::usd(c.spend))),
     };
     Reading {
+        group: None,
         id: if limit.is_some() { "budget".into() } else { "monthly".into() },
         label: label.into(),
         used,

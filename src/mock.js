@@ -75,8 +75,8 @@
   const antigravity = () => ({
     id: 'acct-10', provider: 'antigravity', name: 'Antigravity', plan: '', limitSettingsLabel: 'Open Google One AI credits', mono: 'Ag', updatedAt: at(-15000), state: 'ok', problem: null, method: 'cli',
     windows: [
-      win('weekly-gemini-weekly', 'Gemini Models · Weekly', null, 25, 5 * D, 28, 60, 'ok', 'On track'),
       win('5h-gemini-5h', 'Gemini Models · 5-hour', null, 40, 3 * H, 40, 75, 'ok', 'On track'),
+      win('weekly-gemini-weekly', 'Gemini Models · Weekly', null, 25, 5 * D, 28, 60, 'ok', 'On track'),
       win('weekly-3p-weekly', 'Claude and GPT models · Weekly', null, 12, 6 * D, 14, 50, 'ok', 'On track'),
     ],
   });
